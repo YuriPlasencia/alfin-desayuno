@@ -378,7 +378,7 @@ function TaskCard({
         >
           <div className="options-strip-header">
             <span className="options-strip-title">
-              <Icon name="camera" size={13} /> {options.length} {options.length === 1 ? 'cotización' : 'cotizaciones'}
+              <Icon name="camera" size={13} /> {options.length} {options.length === 1 ? 'opción' : 'opciones'}
             </span>
             {winnerOpt ? (
               <span className="strip-badge-winner">
@@ -425,9 +425,9 @@ function TaskCard({
           type="button"
           className="task-add-option-btn"
           onClick={onOpenAddOption}
-          title="Subir foto de cotización o producto encontrado para comparar"
+          title="Subir foto si encuentras opciones"
         >
-          <Icon name="camera" size={13} /> Subir cotización con foto
+          <Icon name="camera" size={13} /> Subir foto
         </button>
       )}
 
@@ -715,8 +715,8 @@ function TaskEditor({ task, members, onClose }: { task: Task | null; members: Me
         </Field>
 
         <Field
-          label="Imágenes y Cotizaciones (para elegir)"
-          hint="Sube fotos de las opciones encontradas (ej. 2 opciones de panadería o proveedores) para que el equipo pueda votar"
+          label="Fotos de la actividad"
+          hint="Sube 2 o más fotos si tienes opciones para que el equipo elija"
         >
           <div className="editor-images-section">
             <div className="editor-images-bar">
@@ -727,7 +727,7 @@ function TaskEditor({ task, members, onClose }: { task: Task | null; members: Me
                 onClick={() => fileInputRef.current?.click()}
                 disabled={compressing}
               >
-                {compressing ? 'Procesando imagen…' : 'Subir imagen'}
+                {compressing ? 'Procesando foto…' : 'Subir foto'}
               </Button>
               <input
                 ref={fileInputRef}
@@ -739,8 +739,8 @@ function TaskEditor({ task, members, onClose }: { task: Task | null; members: Me
               />
               <span className="small muted">
                 {options.length === 0
-                  ? 'Toma una foto con tu celular o sube una imagen de la cotización'
-                  : `${options.length} ${options.length === 1 ? 'opción con foto' : 'opciones con foto'}`}
+                  ? 'Sin fotos aún'
+                  : `${options.length} ${options.length === 1 ? 'foto subida' : 'fotos subidas'}`}
               </span>
             </div>
 
@@ -759,15 +759,15 @@ function TaskEditor({ task, members, onClose }: { task: Task | null; members: Me
                 </div>
                 <div className="editor-draft-fields">
                   <div className="form-row">
-                    <Field label="Nombre del proveedor u opción">
+                    <Field label="Nombre o descripción">
                       <Input
                         value={draftTitle}
                         onChange={(e) => setDraftTitle(e.target.value)}
-                        placeholder="Ej. Opción 1: Kiko Chicharrones"
+                        placeholder="Ej. Opción 1, Kiko, San Antonio..."
                         autoFocus
                       />
                     </Field>
-                    <Field label="Precio estimado (S/)">
+                    <Field label="Precio S/ (opcional)">
                       <Input
                         type="number"
                         step="0.10"
@@ -778,11 +778,11 @@ function TaskEditor({ task, members, onClose }: { task: Task | null; members: Me
                       />
                     </Field>
                   </div>
-                  <Field label="Detalle o notas">
+                  <Field label="Nota (opcional)">
                     <Input
                       value={draftDetail}
                       onChange={(e) => setDraftDetail(e.target.value)}
-                      placeholder="Qué incluye, tiempos de entrega, porciones..."
+                      placeholder="Detalles adicionales..."
                     />
                   </Field>
                   <div className="editor-draft-actions">
@@ -793,7 +793,7 @@ function TaskEditor({ task, members, onClose }: { task: Task | null; members: Me
                       onClick={() => void savePhotoOption()}
                       disabled={!draftTitle.trim() || uploadingOption}
                     >
-                      {uploadingOption ? 'Guardando…' : 'Guardar imagen'}
+                      {uploadingOption ? 'Guardando…' : 'Guardar foto'}
                     </Button>
                     <Button
                       type="button"

@@ -115,17 +115,17 @@ export function TaskOptionsModal({
         open
         onClose={onClose}
         wide
-        title={`Cotizaciones y Opciones: ${task.title}`}
-        description="El equipo puede subir fotos de cotizaciones encontradas para comparar y votar democráticamente la mejor opción."
+        title={`Fotos y Opciones: ${task.title}`}
+        description="Sube fotos de las opciones que encuentres para que el equipo pueda comparar y elegir."
         footer={
           <>
             {!adding ? (
               <Button icon="camera" onClick={() => setAdding(true)}>
-                Subir nueva cotización con foto
+                Subir foto
               </Button>
             ) : (
               <Button variant="outline" onClick={() => setAdding(false)}>
-                Ver opciones existentes ({options.length})
+                Ver fotos ({options.length})
               </Button>
             )}
             <span className="spacer" />
@@ -140,10 +140,10 @@ export function TaskOptionsModal({
           {adding ? (
             <form onSubmit={handleSaveOption} className="option-new-form">
               <div className="form-legend">
-                <span className="badge-pill">Nueva propuesta</span>
-                <h4>Comparte una cotización, tienda o producto encontrado</h4>
+                <span className="badge-pill">Nueva opción</span>
+                <h4>Sube una foto de la opción encontrada</h4>
                 <p className="small muted">
-                  Toma una foto con tu celular o sube una imagen de la cotización, carta o muestra para que los 16 voten.
+                  Toma una foto con tu celular o elige de tu galería para que el equipo pueda verla y votar.
                 </p>
               </div>
 
@@ -152,7 +152,7 @@ export function TaskOptionsModal({
                 <div className="option-photo-picker">
                   {photoDataUrl ? (
                     <div className="photo-preview-box">
-                      <img src={photoDataUrl} alt="Vista previa de cotización" className="preview-img" />
+                      <img src={photoDataUrl} alt="Vista previa de foto" className="preview-img" />
                       <div className="preview-overlay">
                         <Button
                           type="button"
@@ -179,7 +179,7 @@ export function TaskOptionsModal({
                       onClick={() => !compressing && fileInputRef.current?.click()}
                     >
                       <Icon name="camera" size={32} />
-                      <strong>{compressing ? 'Comprimiendo imagen…' : 'Tomar foto o subir imagen'}</strong>
+                      <strong>{compressing ? 'Procesando foto…' : 'Tomar foto o subir imagen'}</strong>
                       <span className="small muted">
                         {compressing ? 'Espera un segundo…' : 'Toca aquí para abrir tu cámara o galería'}
                       </span>
@@ -198,7 +198,7 @@ export function TaskOptionsModal({
 
                 {/* Campos de texto */}
                 <div className="option-form-fields">
-                  <Field label="Nombre del proveedor o propuesta" hint="Ej: Panadería San Antonio o Chicharronería Kiko">
+                  <Field label="Nombre o descripción de la opción" hint="Ej: Opción 1, Kiko Chicharrones, San Antonio...">
                     <Input
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
@@ -209,24 +209,24 @@ export function TaskOptionsModal({
                   </Field>
 
                   <div className="form-row">
-                    <Field label="Precio estimado / cotización (S/)" hint="Costo unitario o total">
+                    <Field label="Precio en Soles (opcional)" hint="Costo unitario o total">
                       <Input
                         type="number"
                         step="0.10"
                         min="0"
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
-                        placeholder="Ej. 180.00"
+                        placeholder="Ej. 160.00"
                       />
                     </Field>
                   </div>
 
-                  <Field label="Detalles de la cotización" hint="Qué incluye, porciones, tiempo de entrega, contacto...">
+                  <Field label="Nota adicional (opcional)" hint="Qué incluye, porciones o detalles...">
                     <TextArea
                       rows={3}
                       value={detail}
                       onChange={(e) => setDetail(e.target.value)}
-                      placeholder="Ej. Incluye tamal criollo + salsa criolla. Entrega el sábado a las 7:30 am en el banco."
+                      placeholder="Detalles sobre lo que viste o averiguaste..."
                     />
                   </Field>
 
@@ -236,7 +236,7 @@ export function TaskOptionsModal({
                       disabled={!title.trim() || submitting || compressing}
                       variant="primary"
                     >
-                      {submitting ? 'Guardando…' : 'Publicar opción para votación'}
+                      {submitting ? 'Guardando…' : 'Guardar foto'}
                     </Button>
                     <Button type="button" variant="ghost" onClick={() => setAdding(false)}>
                       Cancelar
@@ -253,13 +253,12 @@ export function TaskOptionsModal({
               <div className="empty-polaroid">
                 <Icon name="camera" size={44} />
               </div>
-              <h3>Aún no hay cotizaciones ni fotos subidas</h3>
+              <h3>Aún no hay fotos subidas</h3>
               <p className="muted">
-                Cuando alguien del equipo encuentre una opción de proveedor o producto, puede tomarle foto y subirla aquí.
-                ¡Así todos comparan precios, calidad y eligen democráticamente!
+                Si encuentras opciones, tómales foto y súbelas aquí para que todos puedan comparar y elegir.
               </p>
               <Button icon="camera" onClick={() => setAdding(true)}>
-                Subir primera cotización con foto
+                Subir primera foto
               </Button>
             </div>
           ) : null}
