@@ -145,3 +145,38 @@ export const AREA_COLORS: Record<string, string> = {
   Regalos: '#DB2777',
   Dinámicas: '#1D3FBF',
 }
+
+export interface PresenceMember {
+  id: number
+  name: string
+  color: string
+  role: string
+  is_lead: number
+  is_online: boolean
+  last_seen_at: string | null
+  device: string
+  total_visits: number
+  last_view: string
+  actions_count: number
+}
+
+export interface RecentPageView {
+  id: number
+  member_id: number | null
+  member_name: string
+  view_name: string
+  device: string
+  created_at: string
+}
+
+export interface PresenceStats {
+  summary: {
+    total: number
+    online: number
+    active_today: number
+    never: number
+  }
+  members: PresenceMember[]
+  recent_views: RecentPageView[]
+}
+

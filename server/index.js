@@ -104,12 +104,51 @@ function broadcast() {
   }
 }
 
+function detectDevice(ua = '') {
+  if (/android/i.test(ua)) return 'Android'
+  if (/iphone|ipad|ipod/i.test(ua)) return 'iPhone'
+  if (/windows/i.test(ua)) return 'Windows PC'
+  if (/macintosh|mac os x/i.test(ua)) return 'Mac'
+  if (/linux/i.test(ua)) return 'Linux'
+  return 'Web'
+}
+
+function touchPresence(memberId, memberName, userAgent = '', viewName = '') {
+  if (!memberId) return
+  const device = detectDevice(userAgent)
+  const existing = db.prepare('SELECT total_visits FROM member_presence WHERE member_id = ?').get(memberId)
+  if (existing) {
+    db.prepare(
+      'UPDATE member_presence SET last_seen_at = ?, device = ?, user_agent = ?, total_visits = total_visits + 1, last_view = ? WHERE member_id = ?',
+    ).run(nowIso(), device, userAgent, viewName || 'app', memberId)
+  } else {
+    db.prepare(
+      'INSERT INTO member_presence (member_id, last_seen_at, device, user_agent, total_visits, last_view) VALUES (?, ?, ?, ?, 1, ?)',
+    ).run(memberId, nowIso(), device, userAgent, viewName || 'app')
+  }
+
+  if (viewName) {
+    try {
+      db.prepare(
+        'INSERT INTO page_views (member_id, member_name, view_name, device, created_at) VALUES (?, ?, ?, ?, ?)',
+      ).run(memberId, memberName, viewName, device, nowIso())
+      db.prepare('DELETE FROM page_views WHERE id NOT IN (SELECT id FROM page_views ORDER BY id DESC LIMIT 100)').run()
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 function actor(req) {
   const header = req.get('x-actor-id')
   const id = Number(header)
-  if (!id) return { id: null, name: 'Alguien' }
-  const member = db.prepare('SELECT id, name FROM members WHERE id = ?').get(id)
-  return member ? { id: member.id, name: member.name } : { id: null, name: 'Alguien' }
+  if (!id) return { id: null, name: 'Alguien', is_lead: 0 }
+  const member = db.prepare('SELECT id, name, is_lead FROM members WHERE id = ?').get(id)
+  if (member) {
+    touchPresence(member.id, member.name, req.get('user-agent'), '')
+    return { id: member.id, name: member.name, is_lead: member.is_lead }
+  }
+  return { id: null, name: 'Alguien', is_lead: 0 }
 }
 
 function note(req, entity, entityId, action, detail) {
@@ -702,6 +741,76 @@ app.post('/api/activity', (req, res) => {
   note(req, entity, entityId, action, detail)
   broadcast()
   res.json({ ok: true })
+})
+
+// ---------- presence & traffic tracking (solo coordinación) ----------
+
+app.post('/api/presence', (req, res) => {
+  const who = actor(req)
+  if (who.id) {
+    const viewName = text(req.body?.view, 'Pizarra')
+    touchPresence(who.id, who.name, req.get('user-agent'), viewName)
+  }
+  res.json({ ok: true })
+})
+
+app.get('/api/presence/stats', (req, res) => {
+  const members = listMembers()
+  const presenceList = db.prepare('SELECT * FROM member_presence').all().map(plain)
+  const presenceMap = new Map(presenceList.map((p) => [p.member_id, p]))
+
+  const actionsList = db
+    .prepare('SELECT actor_id, COUNT(*) as c FROM activity_log WHERE actor_id IS NOT NULL GROUP BY actor_id')
+    .all()
+  const actionsMap = new Map(actionsList.map((a) => [a.actor_id, a.c]))
+
+  const now = Date.now()
+  const ONLINE_THRESHOLD_MS = 2.5 * 60 * 1000 // 2.5 minutos
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  const todayMs = todayStart.getTime()
+
+  let onlineCount = 0
+  let activeTodayCount = 0
+  let neverCount = 0
+
+  const memberStats = members.map((m) => {
+    const p = presenceMap.get(m.id)
+    const lastSeenMs = p ? new Date(p.last_seen_at).getTime() : 0
+    const isOnline = lastSeenMs > 0 && now - lastSeenMs <= ONLINE_THRESHOLD_MS
+    const isToday = lastSeenMs >= todayMs
+
+    if (isOnline) onlineCount++
+    if (isToday) activeTodayCount++
+    if (!p) neverCount++
+
+    return {
+      id: m.id,
+      name: m.name,
+      color: m.color,
+      role: m.role,
+      is_lead: m.is_lead,
+      is_online: isOnline,
+      last_seen_at: p?.last_seen_at || null,
+      device: p?.device || 'Desconocido',
+      total_visits: p?.total_visits || 0,
+      last_view: p?.last_view || '',
+      actions_count: actionsMap.get(m.id) || 0,
+    }
+  })
+
+  const recentViews = db.prepare('SELECT * FROM page_views ORDER BY id DESC LIMIT 20').all().map(plain)
+
+  res.json({
+    summary: {
+      total: members.length,
+      online: onlineCount,
+      active_today: activeTodayCount,
+      never: neverCount,
+    },
+    members: memberStats,
+    recent_views: recentViews,
+  })
 })
 
 // ---------- import / export ----------

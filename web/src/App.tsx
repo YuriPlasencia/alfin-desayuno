@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { AppProvider, useStore } from './store'
+import { api } from './api'
 import { Icon, Toasts, type IconName } from './components/ui'
+
 import { Dashboard } from './views/Dashboard'
 import { Tasks } from './views/Tasks'
 import { Agreements } from './views/Agreements'
@@ -107,6 +109,17 @@ function Shell() {
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
+
+  useEffect(() => {
+    if (!actor?.id) return
+    const tabName = tab.charAt(0).toUpperCase() + tab.slice(1)
+    api.pingPresence(tabName).catch(() => {})
+    const timer = setInterval(() => {
+      api.pingPresence(tabName).catch(() => {})
+    }, 45000)
+    return () => clearInterval(timer)
+  }, [actor?.id, tab])
+
 
   const go = (next: string) => {
     setTab(next)

@@ -12,6 +12,7 @@ import {
   PageHeader,
   Select,
 } from '../components/ui'
+import { TrafficMonitor } from '../components/TrafficMonitor'
 import { AREAS, AREA_COLORS, type Member } from '../types'
 import { summarize } from '../lib/stats'
 
@@ -20,7 +21,8 @@ const COLOR_OPTIONS = ['#E4572E', '#D98E04', '#2F8F5B', '#3B6EA5', '#8B5CF6', '#
 export function Team() {
   const { data, actor, mutate, toast } = useStore()
   const [editing, setEditing] = useState<Member | 'nuevo' | null>(null)
-  const [viewTab, setViewTab] = useState<'organizadores' | 'invitados'>('organizadores')
+  const isManager = Boolean(actor?.is_lead || actor?.name?.toLowerCase().includes('yuri'))
+  const [viewTab, setViewTab] = useState<'organizadores' | 'invitados' | 'trafico'>('organizadores')
 
   const summary = useMemo(() => (data ? summarize(data) : null), [data])
   if (!data || !summary) return null
@@ -81,7 +83,13 @@ Contamos con opciones vegetarianas y sin gluten/lactosa. Por favor avisa a Ana T
         <button className={viewTab === 'invitados' ? 'is-active' : ''} onClick={() => setViewTab('invitados')}>
           Invitados y Menú <span className="seg-count">{data.settings.guests}</span>
         </button>
+        {isManager ? (
+          <button className={viewTab === 'trafico' ? 'is-active' : ''} onClick={() => setViewTab('trafico')}>
+            Tráfico y Presencia <span className="seg-count">🔒 Solo tú</span>
+          </button>
+        ) : null}
       </div>
+
 
       {viewTab === 'organizadores' ? (
         <section className="board magnet-wall" aria-label="Pizarra del equipo">
@@ -141,8 +149,9 @@ Contamos con opciones vegetarianas y sin gluten/lactosa. Por favor avisa a Ana T
           })}
         </ul>
       </section>
-      ) : (
+      ) : viewTab === 'invitados' ? (
         <div className="stack">
+
           {/* Ficha de Preferencias y Dietas */}
           <section className="board" aria-label="Preferencias de Menú">
             <header className="board-head">
@@ -292,9 +301,12 @@ Contamos con opciones vegetarianas y sin gluten/lactosa. Por favor avisa a Ana T
             </div>
           </section>
         </div>
+      ) : (
+        <TrafficMonitor />
       )}
 
       {editing ? <MemberEditor member={editing === 'nuevo' ? null : editing} onClose={() => setEditing(null)} /> : null}
+
     </div>
   )
 }

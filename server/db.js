@@ -121,6 +121,24 @@ db.exec(`
     created_at TEXT NOT NULL,
     PRIMARY KEY (option_id, member_id)
   );
+
+  CREATE TABLE IF NOT EXISTS member_presence (
+    member_id INTEGER PRIMARY KEY REFERENCES members(id) ON DELETE CASCADE,
+    last_seen_at TEXT NOT NULL,
+    device TEXT NOT NULL DEFAULT '',
+    user_agent TEXT NOT NULL DEFAULT '',
+    total_visits INTEGER NOT NULL DEFAULT 1,
+    last_view TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS page_views (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
+    member_name TEXT NOT NULL DEFAULT '',
+    view_name TEXT NOT NULL DEFAULT '',
+    device TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  );
 `)
 
 try {

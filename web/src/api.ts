@@ -1,6 +1,7 @@
-import type { Bootstrap, TaskOption } from './types'
+import type { Bootstrap, TaskOption, PresenceStats } from './types'
 
 const ACTOR_KEY = 'alfin.actor.v1'
+
 
 export class ApiError extends Error {
   constructor(
@@ -102,5 +103,8 @@ export const api = {
   importData: (data: unknown) => request<Bootstrap>('/api/import', json(data)),
   logActivity: (body: { entity?: string; action?: string; detail: string; entityId?: number }) =>
     request<{ ok: boolean }>('/api/activity', json(body)),
+  pingPresence: (view?: string) => request<{ ok: boolean }>('/api/presence', json({ view })),
+  getPresenceStats: () => request<PresenceStats>('/api/presence/stats'),
 }
+
 
