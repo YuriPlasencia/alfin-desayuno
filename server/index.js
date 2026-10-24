@@ -147,7 +147,7 @@ const TASK_STATUS = ['pendiente', 'en_curso', 'bloqueada', 'hecha']
 const PRIORITY = ['alta', 'media', 'baja']
 const AGREEMENT_STATUS = ['propuesto', 'acordado', 'cumplido']
 const BUDGET_STATUS = ['pendiente', 'hecho']
-const AREAS = ['Coordinación', 'Finanzas', 'Compras', 'Cocina', 'Logística', 'Ambientación', 'Servicio', 'Comunicación']
+const AREAS = ['Coordinación', 'Finanzas', 'Compras', 'Cocina', 'Logística', 'Ambientación', 'Servicio', 'Comunicación', 'Regalos', 'Dinámicas']
 
 function taskDetail(id) {
   const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id)

@@ -112,6 +112,8 @@ export const AREAS = [
   'Ambientación',
   'Servicio',
   'Comunicación',
+  'Regalos',
+  'Dinámicas',
 ] as const
 
 export const AREA_COLORS: Record<string, string> = {
@@ -123,4 +125,6 @@ export const AREA_COLORS: Record<string, string> = {
   Ambientación: '#8B5CF6',
   Servicio: '#0E7490',
   Comunicación: '#A16207',
+  Regalos: '#DB2777',
+  Dinámicas: '#1D3FBF',
 }

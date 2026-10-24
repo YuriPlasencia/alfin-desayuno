@@ -281,7 +281,7 @@ function TaskCard({
   const dueChip = (
     <span className={`due-chip tone-${task.status === 'hecha' ? 'ok' : due.tone}`}>
       <Icon name="calendar" size={13} /> {formatDate(task.due_date)}
-      {task.status === 'hecha' ? null : ` · ${due.text}`}
+      {task.status === 'hecha' || !task.due_date ? null : ` · ${due.text}`}
     </span>
   )
   return (
