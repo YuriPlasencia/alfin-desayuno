@@ -2,7 +2,7 @@
 de la hoja de Google del desayuno. Los datos se transcriben aquí tal como están en la hoja.
 
 Uso: python scripts/respaldo-desde-hoja.py  →  escribe respaldo-equipo.json en la raíz.
-No incluye "settings": al importar se conservan la fecha, hora y lugar ya guardados.
+Incluye la fecha y hora confirmadas; el lugar queda por definir hasta que se edite en Ajustes.
 """
 
 from __future__ import annotations
@@ -12,6 +12,17 @@ import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "respaldo-equipo.json")
+
+# Confirmado por el coordinador: miércoles 28 de octubre, 9:00 a. m.
+EVENTO = {
+    "event_name": "Al Fin Desayuno",
+    "event_date": "2026-10-28",
+    "event_time": "09:00",
+    "location": "",
+    "guests": 80,  # las cantidades de la hoja están calculadas para 80
+    "team_size": 16,
+    "note": "",
+}
 
 # Pestaña "Sheet1": Nombre, Apellido
 EQUIPO = [
@@ -156,7 +167,7 @@ def main() -> None:
         for i, (concepto, monto, dueno, nota) in enumerate(GASTOS)
     ]
 
-    data = {"members": members, "tasks": tasks, "agreements": [], "budget": budget}
+    data = {"settings": EVENTO, "members": members, "tasks": tasks, "agreements": [], "budget": budget}
     with open(OUT, "w", encoding="utf-8") as handle:
         json.dump(data, handle, ensure_ascii=False, indent=2)
     sin_tareas = [m["name"] for m in members if not m["role"]]
