@@ -21,8 +21,8 @@ const COLOR_OPTIONS = ['#E4572E', '#D98E04', '#2F8F5B', '#3B6EA5', '#8B5CF6', '#
 export function Team() {
   const { data, actor, mutate, toast } = useStore()
   const [editing, setEditing] = useState<Member | 'nuevo' | null>(null)
-  const isManager = Boolean(!actor || actor.is_lead || actor.name.toLowerCase().includes('yuri'))
   const [viewTab, setViewTab] = useState<'organizadores' | 'invitados' | 'trafico'>('organizadores')
+
 
 
   const summary = useMemo(() => (data ? summarize(data) : null), [data])
@@ -84,12 +84,11 @@ Contamos con opciones vegetarianas y sin gluten/lactosa. Por favor avisa a Ana T
         <button className={viewTab === 'invitados' ? 'is-active' : ''} onClick={() => setViewTab('invitados')}>
           Invitados y Menú <span className="seg-count">{data.settings.guests}</span>
         </button>
-        {isManager ? (
-          <button className={viewTab === 'trafico' ? 'is-active' : ''} onClick={() => setViewTab('trafico')}>
-            Tráfico y Presencia <span className="seg-count">🔒 Solo tú</span>
-          </button>
-        ) : null}
+        <button className={viewTab === 'trafico' ? 'is-active' : ''} onClick={() => setViewTab('trafico')}>
+          Tráfico y Presencia <span className="seg-count">🔒 Solo tú</span>
+        </button>
       </div>
+
 
 
       {viewTab === 'organizadores' ? (
