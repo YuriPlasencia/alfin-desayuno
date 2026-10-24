@@ -88,3 +88,18 @@ export const AGREEMENT_STATUS_META: Record<AgreementStatus, { label: string; ton
 export function plural(count: number, singular: string, pluralWord: string): string {
   return `${count} ${count === 1 ? singular : pluralWord}`
 }
+
+export function getTreasurer<T extends { id: number; name: string; role: string; area: string; phone: string }>(
+  settings: { treasurer_id?: number | null } | null | undefined,
+  members: T[],
+): T | null {
+  if (!members || members.length === 0) return null
+  if (settings?.treasurer_id) {
+    const found = members.find((m) => m.id === settings.treasurer_id)
+    if (found) return found
+  }
+  const finanzas = members.find((m) => m.area === 'Finanzas' || m.role.toLowerCase().includes('tesor'))
+  if (finanzas) return finanzas
+  return members[0] || null
+}
+

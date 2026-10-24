@@ -214,10 +214,11 @@ app.patch('/api/settings', (req, res) => {
     guests: Math.max(1, Math.round(num(body.guests, current.guests))),
     team_size: Math.max(1, Math.round(num(body.team_size, current.team_size))),
     note: text(body.note, current.note),
+    treasurer_id: body.treasurer_id === undefined ? current.treasurer_id : memberOrNull(body.treasurer_id),
   }
   db.prepare(
-    `UPDATE settings SET event_name=?, event_date=?, event_time=?, location=?, guests=?, team_size=?, note=?, updated_at=? WHERE id=1`,
-  ).run(next.event_name, next.event_date, next.event_time, next.location, next.guests, next.team_size, next.note, nowIso())
+    `UPDATE settings SET event_name=?, event_date=?, event_time=?, location=?, guests=?, team_size=?, note=?, treasurer_id=?, updated_at=? WHERE id=1`,
+  ).run(next.event_name, next.event_date, next.event_time, next.location, next.guests, next.team_size, next.note, next.treasurer_id, nowIso())
   note(req, 'settings', 1, 'update', 'Actualizó los datos del evento')
   broadcast()
   res.json({ settings: getSettings() })

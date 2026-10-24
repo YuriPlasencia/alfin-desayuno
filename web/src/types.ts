@@ -90,6 +90,7 @@ export interface EventSettings {
   guests: number
   team_size: number
   note: string
+  treasurer_id?: number | null
   updated_at: string
 }
 

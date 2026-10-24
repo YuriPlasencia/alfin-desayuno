@@ -103,6 +103,12 @@ db.exec(`
   );
 `)
 
+try {
+  db.exec('ALTER TABLE settings ADD COLUMN treasurer_id INTEGER REFERENCES members(id);')
+} catch {
+  /* columna ya existe */
+}
+
 export const nowIso = () => new Date().toISOString()
 
 export function plain(row) {
@@ -135,6 +141,7 @@ export function getSettings() {
     guests: 80,
     team_size: 16,
     note: '',
+    treasurer_id: null,
     updated_at: nowIso(),
   }
   db.prepare(

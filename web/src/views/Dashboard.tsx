@@ -5,7 +5,7 @@ import { Button, Icon, Magnet, Progress } from '../components/ui'
 import { StepToggle } from '../components/checklist'
 import { HelpPicker } from '../components/help'
 import { myPlate, sinceVisit, summarize, taskProgress, todayCount } from '../lib/stats'
-import { daysUntil, deadlineLabel, formatDate, formatLongDate, money, parseDate, plural, relativeTime } from '../lib/format'
+import { daysUntil, deadlineLabel, formatDate, formatLongDate, getTreasurer, money, parseDate, plural, relativeTime } from '../lib/format'
 import { AREA_COLORS, type TaskStatus } from '../types'
 
 const COLUMNS: { status: TaskStatus; label: string }[] = [
@@ -72,6 +72,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (tab: string) => void })
   const openWithoutSteps = plate.filter((entry) => entry.pending.length === 0)
   const blocked = data.tasks.filter((task) => task.status === 'bloqueada')
   const freshIds = new Set(news?.entries.map((entry) => entry.id))
+  const treasurer = getTreasurer(settings, members)
 
   const activeMode = dayMode || isToday
 
@@ -264,9 +265,11 @@ export function Dashboard({ onNavigate }: { onNavigate: (tab: string) => void })
               <a href="tel:944556677" className="phone-chip">
                 <Icon name="phone" size={13} /> Diego Huamán (Cocina)
               </a>
-              <a href="tel:998112233" className="phone-chip">
-                <Icon name="phone" size={13} /> Carla Mendoza (Caja)
-              </a>
+              {treasurer?.phone ? (
+                <a href={`tel:${treasurer.phone.replace(/\s/g, '')}`} className="phone-chip">
+                  <Icon name="phone" size={13} /> {treasurer.name.split(' ')[0]} (Caja/Yape)
+                </a>
+              ) : null}
             </div>
 
             <ul className="runway-list">

@@ -16,11 +16,12 @@ import {
   TextArea,
 } from '../components/ui'
 import { summarize } from '../lib/stats'
-import { formatDate, money } from '../lib/format'
+import { formatDate, getTreasurer, money } from '../lib/format'
 import type { BudgetItem, BudgetKind, BudgetStatus, Member } from '../types'
 
 export function Budget() {
   const { data, actor, mutate, toast } = useStore()
+  const [mainTab, setMainTab] = useState<'movimientos' | 'tesorero'>('movimientos')
   const [filter, setFilter] = useState<'todos' | BudgetKind>('todos')
   const [editing, setEditing] = useState<BudgetItem | 'nuevo' | null>(null)
   const [showYape, setShowYape] = useState(false)
@@ -28,6 +29,7 @@ export function Budget() {
 
   if (!data || !summary) return null
 
+  const treasurer = getTreasurer(data.settings, data.members)
   const rows = data.budget.filter((item) => (filter === 'todos' ? true : item.kind === filter))
   const ingresos = data.budget.filter((item) => item.kind === 'ingreso')
   const gastos = data.budget.filter((item) => item.kind === 'gasto')
@@ -44,6 +46,9 @@ export function Budget() {
   }
 
   const copyWhatsAppReport = async () => {
+    const tName = treasurer ? treasurer.name : 'Tesorería'
+    const tPhone = treasurer?.phone ? ` · *${treasurer.phone}*` : ''
+
     const text = `🥐 *AL FIN DESAYUNO · REPORTE DE CAJA*
 📅 *Evento:* ${data.settings.event_name}
 📍 *Lugar:* ${data.settings.location || 'Por definir'}
@@ -52,8 +57,8 @@ export function Budget() {
 📥 *Ingresos cobrados:* ${money(summary.budget.cobrado)} de ${money(summary.budget.ingresos)} (${Math.round(summary.budget.avanceCobro * 100)}%)
 📤 *Gastos pagados:* ${money(summary.budget.pagado)} de ${money(summary.budget.gastos)}
 
-📲 *Cuotas individuales (S/ 100.00):*
-Yape / Plin a: Carla Mendoza · *998 112 233*
+📲 *Para cuotas individuales (S/ 100.00):*
+Yape / Plin a: ${tName}${tPhone}
 (Al yapear, envía tu constancia o regístrala en la app)`
 
     try {
@@ -67,8 +72,8 @@ Yape / Plin a: Carla Mendoza · *998 112 233*
   return (
     <div className="stack">
       <PageHeader
-        title="Presupuesto"
-        subtitle="Aportes del equipo, gastos previstos y saldo disponible"
+        title="Presupuesto y Tesorería"
+        subtitle="Aportes del equipo, cobranza por Yape/Plin y saldo disponible"
         action={
           <div className="btn-group">
             <Button variant="soft" icon="share" onClick={() => void copyWhatsAppReport()}>
@@ -77,60 +82,79 @@ Yape / Plin a: Carla Mendoza · *998 112 233*
             <Button variant="soft" icon="qrCode" onClick={() => setShowYape(true)}>
               Pagar con Yape
             </Button>
-            <Button icon="plus" onClick={() => setEditing('nuevo')}>
-              Nuevo movimiento
-            </Button>
+            {mainTab === 'movimientos' ? (
+              <Button icon="plus" onClick={() => setEditing('nuevo')}>
+                Nuevo movimiento
+              </Button>
+            ) : null}
           </div>
         }
       />
 
-      <section className="board ledger" aria-label="Caja del desayuno">
-        <div className="ledger-figures">
-          <div className="ledger-figure income">
-            <span className="budget-label">
-              <Icon name="download" size={16} /> Ingresos previstos
-            </span>
-            <strong>{money(summary.budget.ingresos)}</strong>
-            <span className="small">{money(summary.budget.cobrado)} ya cobrado</span>
-          </div>
-          <div className="ledger-figure expense">
-            <span className="budget-label">
-              <Icon name="upload" size={16} /> Gastos planificados
-            </span>
-            <strong>{money(summary.budget.gastos)}</strong>
-            <span className="small">{money(summary.budget.pagado)} ya pagado</span>
-          </div>
-          <div className={`ledger-figure balance ${summary.budget.saldo < 0 ? 'is-negative' : ''}`}>
-            <span className="budget-label">
-              <Icon name="wallet" size={16} /> Saldo
-            </span>
-            <strong className={summary.budget.saldo < 0 ? 'danger-text' : ''}>{money(summary.budget.saldo)}</strong>
-            <span className="small">{summary.budget.saldo >= 0 ? 'dentro de lo previsto' : 'revisar gastos'}</span>
-          </div>
-        </div>
-        <div className="ledger-meter">
-          <div className="team-meter-row">
-            <p>
-              <strong>{Math.round(summary.budget.avanceCobro * 100)}%</strong> cobrado · {money(summary.budget.cobrado)} de{' '}
-              {money(summary.budget.ingresos)}
-            </p>
-            {summary.budget.avanceCobro === 1 ? <Badge tone="success">Meta completa</Badge> : null}
-          </div>
-          <Progress value={summary.budget.avanceCobro} tone={summary.budget.avanceCobro === 1 ? 'success' : 'brand'} />
-        </div>
-      </section>
-
       <div className="segmented">
-        <button className={filter === 'todos' ? 'is-active' : ''} onClick={() => setFilter('todos')}>
-          Todos <span className="seg-count">{data.budget.length}</span>
+        <button className={mainTab === 'movimientos' ? 'is-active' : ''} onClick={() => setMainTab('movimientos')}>
+          Movimientos y Caja <span className="seg-count">{data.budget.length}</span>
         </button>
-        <button className={filter === 'ingreso' ? 'is-active' : ''} onClick={() => setFilter('ingreso')}>
-          Ingresos <span className="seg-count">{ingresos.length}</span>
-        </button>
-        <button className={filter === 'gasto' ? 'is-active' : ''} onClick={() => setFilter('gasto')}>
-          Gastos <span className="seg-count">{gastos.length}</span>
+        <button className={mainTab === 'tesorero' ? 'is-active' : ''} onClick={() => setMainTab('tesorero')}>
+          Elección de Tesorero(a) <span className="seg-count">{treasurer ? '✓' : '—'}</span>
         </button>
       </div>
+
+      {mainTab === 'tesorero' ? (
+        <TreasurerManager
+          settings={data.settings}
+          members={data.members}
+          currentTreasurer={treasurer}
+        />
+      ) : (
+        <>
+          <section className="board ledger" aria-label="Caja del desayuno">
+            <div className="ledger-figures">
+              <div className="ledger-figure income">
+                <span className="budget-label">
+                  <Icon name="download" size={16} /> Ingresos previstos
+                </span>
+                <strong>{money(summary.budget.ingresos)}</strong>
+                <span className="small">{money(summary.budget.cobrado)} ya cobrado</span>
+              </div>
+              <div className="ledger-figure expense">
+                <span className="budget-label">
+                  <Icon name="upload" size={16} /> Gastos planificados
+                </span>
+                <strong>{money(summary.budget.gastos)}</strong>
+                <span className="small">{money(summary.budget.pagado)} ya pagado</span>
+              </div>
+              <div className={`ledger-figure balance ${summary.budget.saldo < 0 ? 'is-negative' : ''}`}>
+                <span className="budget-label">
+                  <Icon name="wallet" size={16} /> Saldo
+                </span>
+                <strong className={summary.budget.saldo < 0 ? 'danger-text' : ''}>{money(summary.budget.saldo)}</strong>
+                <span className="small">{summary.budget.saldo >= 0 ? 'dentro de lo previsto' : 'revisar gastos'}</span>
+              </div>
+            </div>
+            <div className="ledger-meter">
+              <div className="team-meter-row">
+                <p>
+                  <strong>{Math.round(summary.budget.avanceCobro * 100)}%</strong> cobrado · {money(summary.budget.cobrado)} de{' '}
+                  {money(summary.budget.ingresos)}
+                </p>
+                {summary.budget.avanceCobro === 1 ? <Badge tone="success">Meta completa</Badge> : null}
+              </div>
+              <Progress value={summary.budget.avanceCobro} tone={summary.budget.avanceCobro === 1 ? 'success' : 'brand'} />
+            </div>
+          </section>
+
+          <div className="segmented">
+            <button className={filter === 'todos' ? 'is-active' : ''} onClick={() => setFilter('todos')}>
+              Todos <span className="seg-count">{data.budget.length}</span>
+            </button>
+            <button className={filter === 'ingreso' ? 'is-active' : ''} onClick={() => setFilter('ingreso')}>
+              Ingresos <span className="seg-count">{ingresos.length}</span>
+            </button>
+            <button className={filter === 'gasto' ? 'is-active' : ''} onClick={() => setFilter('gasto')}>
+              Gastos <span className="seg-count">{gastos.length}</span>
+            </button>
+          </div>
 
       {rows.length === 0 ? (
         <EmptyState icon="wallet" title="Sin movimientos" hint="Agrega los aportes y los gastos previstos del desayuno." />
@@ -190,11 +214,169 @@ Yape / Plin a: Carla Mendoza · *998 112 233*
       <p className="muted tiny">
         Los montos están en soles (S/). El saldo se calcula con todos los ingresos y gastos, estén pagados o no.
       </p>
+        </>
+      )}
 
       {editing ? <BudgetEditor item={editing === 'nuevo' ? null : editing} onClose={() => setEditing(null)} /> : null}
       {showYape && data ? (
-        <YapeModal members={data.members} currentActorId={actor?.id ?? null} onClose={() => setShowYape(false)} />
+        <YapeModal
+          members={data.members}
+          currentActorId={actor?.id ?? null}
+          treasurer={treasurer}
+          onClose={() => setShowYape(false)}
+        />
       ) : null}
+    </div>
+  )
+}
+
+function TreasurerManager({
+  settings,
+  members,
+  currentTreasurer,
+}: {
+  settings: Member | null | unknown
+  members: Member[]
+  currentTreasurer: Member | null
+}) {
+  const { actor, mutate, toast } = useStore()
+  const [selectedId, setSelectedId] = useState<string>(currentTreasurer ? String(currentTreasurer.id) : '')
+  const [phone, setPhone] = useState<string>(currentTreasurer?.phone ?? '')
+  const [saving, setSaving] = useState(false)
+
+  const handleSelect = (idStr: string) => {
+    setSelectedId(idStr)
+    const m = members.find((item) => item.id === Number(idStr))
+    if (m) setPhone(m.phone || '')
+  }
+
+  const selectedMember = members.find((item) => item.id === Number(selectedId)) || currentTreasurer
+
+  const saveTreasurer = async () => {
+    if (!selectedId) return
+    setSaving(true)
+    const nextMember = members.find((item) => item.id === Number(selectedId))
+    const who = nextMember ? nextMember.name : 'Integrante'
+
+    try {
+      await api.updateSettings({ treasurer_id: Number(selectedId) })
+
+      if (nextMember && phone.trim() && phone.trim() !== nextMember.phone) {
+        await api.updateMember(nextMember.id, { phone: phone.trim() })
+      }
+
+      await api.logActivity({
+        entity: 'treasurer',
+        action: 'designar',
+        detail: `${actor?.name || 'Alguien'} designó a ${who} como Tesorero(a) oficial del desayuno`,
+      })
+
+      await mutate(async () => {}, `¡${who} es ahora el Tesorero oficial del desayuno!`)
+      toast(`Designado(a) correctamente: ${who} recibirá los pagos de Yape y Plin`, 'win')
+    } catch {
+      toast('No se pudo guardar la designación del tesorero', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const copyTest = async () => {
+    if (!phone) return
+    try {
+      await navigator.clipboard.writeText(phone.replace(/\s/g, ''))
+      toast(`Copiado: ${phone} (${selectedMember?.name || 'Tesorero'})`, 'ok')
+    } catch {
+      toast(`Número: ${phone}`, 'ok')
+    }
+  }
+
+  return (
+    <div className="stack">
+      <section className="board" aria-label="Elección de Tesorero">
+        <header className="board-head">
+          <div>
+            <span className="runway-tag">
+              <Icon name="wallet" size={13} /> COBRANZA Y RECAUDACIÓN
+            </span>
+            <h2 className="board-title">Designación de Tesorero(a)</h2>
+            <p className="board-sub">
+              Elige al integrante del equipo que recibirá las cuotas de S/ 100 por Yape o Plin de los 16 integrantes. Su nombre y número figurarán en los códigos QR y en los reportes de WhatsApp.
+            </p>
+          </div>
+          {currentTreasurer ? (
+            <div className="countdown" aria-label="Tesorero actual">
+              <span className="small muted">Tesorero activo:</span>
+              <strong style={{ fontSize: '20px' }}>{currentTreasurer.name.split(' ')[0]}</strong>
+            </div>
+          ) : null}
+        </header>
+
+        <div className="treasurer-layout">
+          <div className="card treasurer-form-card">
+            <h3 className="section-title">Elegir quién es el Tesorero(a)</h3>
+            <p className="small muted">Puedes designar a cualquier integrante del equipo o cambiarlo en cualquier momento.</p>
+
+            <div className="form-grid" style={{ marginTop: '14px' }}>
+              <Field label="Selecciona al integrante">
+                <Select value={selectedId} onChange={(e) => handleSelect(e.target.value)}>
+                  <option value="">Seleccionar del equipo</option>
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} — {m.role || m.area}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+
+              <Field label="Número de celular para Yape / Plin">
+                <Input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="Ej. 998 112 233"
+                  maxLength={20}
+                />
+              </Field>
+
+              <Button
+                onClick={() => void saveTreasurer()}
+                disabled={saving || !selectedId}
+                icon="check"
+              >
+                {saving ? 'Guardando…' : 'Guardar y designar como Tesorero'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="card treasurer-preview-card">
+            <div className="preview-badge">VISTA PREVIA DEL COMPAÑERO</div>
+            <div className="yape-badges" style={{ marginTop: '8px' }}>
+              <span className="yape-pill yape">Yape</span>
+              <span className="yape-pill plin">Plin</span>
+              <span className="yape-interop">Interoperable</span>
+            </div>
+
+            <p className="yape-amount">S/ 100.00</p>
+            <p className="yape-titular">
+              <strong>{selectedMember?.name || 'Tesorero por designar'}</strong>
+              <span className="muted small"> · {selectedMember?.role || 'Tesorería del Desayuno'}</span>
+            </p>
+
+            <div className="yape-phone-row" style={{ margin: '14px 0' }}>
+              <div className="yape-phone-info">
+                <span className="small muted">Número de Yape / Plin</span>
+                <strong>{phone || 'Sin celular registrado'}</strong>
+              </div>
+              <Button variant="outline" size="sm" icon="clipboard" onClick={() => void copyTest()} disabled={!phone}>
+                Copiar
+              </Button>
+            </div>
+
+            <p className="tiny muted">
+              Al tocar “Pagar con Yape”, todos los compañeros verán estos datos y podrán reportar su pago a este número.
+            </p>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
@@ -203,22 +385,28 @@ function YapeModal({
   onClose,
   members,
   currentActorId,
+  treasurer,
 }: {
   onClose: () => void
   members: Member[]
   currentActorId: number | null
+  treasurer: Member | null
 }) {
   const { toast } = useStore()
   const [payerId, setPayerId] = useState<string>(currentActorId ? String(currentActorId) : '')
   const [code, setCode] = useState('')
   const [saving, setSaving] = useState(false)
 
+  const treasurerName = treasurer?.name || 'Tesorería Alfin'
+  const treasurerPhone = treasurer?.phone || '998 112 233'
+  const cleanPhone = treasurerPhone.replace(/\s/g, '')
+
   const copyPhone = async () => {
     try {
-      await navigator.clipboard.writeText('998112233')
-      toast('Número copiado: 998 112 233 (Carla Mendoza)', 'ok')
+      await navigator.clipboard.writeText(cleanPhone)
+      toast(`Número copiado: ${treasurerPhone} (${treasurerName})`, 'ok')
     } catch {
-      toast('Copia manual: 998 112 233', 'ok')
+      toast(`Copia manual: ${treasurerPhone}`, 'ok')
     }
   }
 
@@ -231,7 +419,7 @@ function YapeModal({
       await api.logActivity({
         entity: 'budget',
         action: 'yape',
-        detail: `${who} registró constancia de aporte por Yape/Plin S/ 100.00 (Op: ${cleanCode})`,
+        detail: `${who} registró constancia de aporte por Yape/Plin S/ 100.00 a ${treasurerName} (Op: ${cleanCode})`,
       })
       toast(`¡Aporte de S/ 100 registrado para ${who}!`, 'win')
       onClose()
@@ -247,7 +435,7 @@ function YapeModal({
       open
       onClose={onClose}
       title="Pagar cuota por Yape / Plin"
-      description="Cuota individual de S/ 100 acordada para el desayuno del equipo"
+      description={`Cuota individual de S/ 100 dirigida a ${treasurerName}`}
       footer={
         <>
           <span className="spacer" />
@@ -269,7 +457,7 @@ function YapeModal({
           </div>
           <p className="yape-amount">S/ 100.00</p>
           <p className="yape-titular">
-            <strong>Carla Mendoza</strong> · Tesorería Alfin
+            <strong>{treasurerName}</strong> · {treasurer?.role || 'Tesorería Alfin'}
           </p>
         </div>
 
@@ -303,8 +491,8 @@ function YapeModal({
 
         <div className="yape-phone-row">
           <div className="yape-phone-info">
-            <span className="small muted">Número de Yape / Plin</span>
-            <strong>998 112 233</strong>
+            <span className="small muted">Número de Yape / Plin ({treasurerName.split(' ')[0]})</span>
+            <strong>{treasurerPhone}</strong>
           </div>
           <Button variant="outline" size="sm" icon="clipboard" onClick={() => void copyPhone()}>
             Copiar
@@ -335,7 +523,6 @@ function YapeModal({
     </Modal>
   )
 }
-
 
 function BudgetEditor({ item, onClose }: { item: BudgetItem | null; onClose: () => void }) {
   const { data, mutate } = useStore()

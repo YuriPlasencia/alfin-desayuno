@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useStore } from '../store'
 import { api } from '../api'
-import { Button, Field, Icon, Input, PageHeader, TextArea } from '../components/ui'
+import { Button, Field, Icon, Input, PageHeader, Select, TextArea } from '../components/ui'
 import type { Bootstrap } from '../types'
 
 export function Settings() {
@@ -16,6 +16,7 @@ export function Settings() {
     guests: String(data?.settings.guests ?? ''),
     team_size: String(data?.settings.team_size ?? ''),
     note: data?.settings.note ?? '',
+    treasurer_id: data?.settings.treasurer_id ? String(data.settings.treasurer_id) : '',
   }))
 
   if (!data) return null
@@ -30,6 +31,7 @@ export function Settings() {
           ...form,
           guests: Number(form.guests) || data.settings.guests,
           team_size: Number(form.team_size) || data.settings.team_size,
+          treasurer_id: form.treasurer_id ? Number(form.treasurer_id) : null,
         }),
       'Datos del evento guardados',
     )
@@ -85,6 +87,16 @@ export function Settings() {
           </div>
           <Field label="Nota general" hint="Horarios de montaje, indicaciones, etc.">
             <TextArea rows={3} value={form.note} onChange={(event) => set('note')(event.target.value)} />
+          </Field>
+          <Field label="Tesorero(a) oficial del desayuno" hint="Recibe los aportes por Yape/Plin y figura en el código QR y reportes oficiales">
+            <Select value={form.treasurer_id} onChange={(event) => set('treasurer_id')(event.target.value)}>
+              <option value="">Selecciona al integrante</option>
+              {data.members.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name} ({member.phone || 'Sin celular'}) — {member.area}
+                </option>
+              ))}
+            </Select>
           </Field>
           <div className="form-actions">
             <Button onClick={() => void save()} disabled={saving}>
