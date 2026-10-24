@@ -557,7 +557,7 @@ app.delete('/api/budget/:id', (req, res) => {
   res.json({ ok: true })
 })
 
-// ---------- import / export / demo ----------
+// ---------- import / export ----------
 
 app.get('/api/export', (_req, res) => {
   const payload = getBootstrap()
@@ -679,13 +679,6 @@ app.post('/api/import', (req, res) => {
     db.exec('ROLLBACK')
     return res.status(400).json({ error: `No se pudo importar: ${error.message}` })
   }
-  broadcast()
-  res.json(getBootstrap())
-})
-
-app.post('/api/demo/reset', (req, res) => {
-  seedDemo({ force: true })
-  note(req, 'app', null, 'seed', 'Restableció los datos de ejemplo')
   broadcast()
   res.json(getBootstrap())
 })

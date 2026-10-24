@@ -13,7 +13,7 @@ Aplicativo web (y PWA instalable en Android) para organizar en equipo el desayun
 | **Acuerdos** | Decisiones del equipo con tres estados: propuesto → acordado → cumplido. |
 | **Equipo** | Las 16 personas con su rol, área, teléfono y carga de trabajo. |
 | **Presupuesto** | Ingresos (aportes, apoyo de la empresa, rifa), gastos y saldo, con estado cobrado/pagado. |
-| **Ajustes** | Datos del evento, respaldo JSON (exportar/importar) y reinicio de datos de ejemplo. |
+| **Ajustes** | Datos del evento y respaldo JSON (exportar/importar). |
 
 Relanzamiento visual (la **pizarra de turnos**):
 
@@ -116,7 +116,6 @@ AlfinDesayuno/
 | POST / PATCH / DELETE | `/api/budget`, `/api/budget/:id` | Presupuesto |
 | PATCH | `/api/settings` | Datos del evento |
 | GET / POST | `/api/export`, `/api/import` | Respaldo y restauración |
-| POST | `/api/demo/reset` | Reiniciar datos de ejemplo |
 
 Las escrituras envían el encabezado `X-Actor-Id` con el integrante que hace el cambio, para el historial.
 
@@ -126,7 +125,7 @@ Las escrituras envían el encabezado `X-Actor-Id` con el integrante que hace el 
 
 La base arranca con un caso completo y editable: 16 integrantes (Coordinación, Finanzas, Compras, Cocina, Logística, Ambientación, Servicio, Comunicación), 15 actividades con checklist, 9 acuerdos, 12 movimientos de presupuesto y un historial de cambios.
 
-Los nombres, montos y fechas son **de ejemplo**: cámbialos en **Equipo**, **Ajustes** y cada módulo, o reinicia desde **Ajustes → Restablecer datos de ejemplo**.
+Los nombres, montos y fechas son **de ejemplo**: cámbialos en **Equipo**, **Ajustes** y cada módulo, o importa un respaldo. Para volver a cargarlos en tu computadora usa `npm run reset-demo` (la app ya no tiene botón para esto, así nadie borra los datos reales por error).
 
 ---
 

@@ -89,6 +89,5 @@ export const api = {
 
   updateSettings: (body: Record<string, unknown>) =>
     request<{ settings: Bootstrap['settings'] }>('/api/settings', { method: 'PATCH', body: JSON.stringify(body) }),
-  resetDemo: () => request<Bootstrap>('/api/demo/reset', { method: 'POST' }),
   importData: (data: unknown) => request<Bootstrap>('/api/import', json(data)),
 }

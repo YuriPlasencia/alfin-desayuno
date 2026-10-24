@@ -5,7 +5,7 @@ import { Button, Field, Icon, Input, PageHeader, TextArea } from '../components/
 import type { Bootstrap } from '../types'
 
 export function Settings() {
-  const { data, mutate, refresh, toast } = useStore()
+  const { data, mutate, toast } = useStore()
   const fileRef = useRef<HTMLInputElement>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(() => ({
@@ -47,12 +47,6 @@ export function Settings() {
     } finally {
       if (fileRef.current) fileRef.current.value = ''
     }
-  }
-
-  const reset = async () => {
-    if (!window.confirm('Se borra todo y se vuelven a cargar los datos de ejemplo. ¿Continuar?')) return
-    await mutate(() => api.resetDemo(), 'Datos de ejemplo restablecidos')
-    await refresh()
   }
 
   return (
@@ -124,9 +118,6 @@ export function Settings() {
               if (file) void onImport(file)
             }}
           />
-          <Button variant="danger" icon="refresh" onClick={() => void reset()}>
-            Restablecer datos de ejemplo
-          </Button>
         </div>
         <p className="muted small">
           {data.members.length} integrantes · {data.tasks.length} actividades · {data.agreements.length} acuerdos ·{' '}
