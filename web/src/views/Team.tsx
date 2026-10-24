@@ -21,8 +21,9 @@ const COLOR_OPTIONS = ['#E4572E', '#D98E04', '#2F8F5B', '#3B6EA5', '#8B5CF6', '#
 export function Team() {
   const { data, actor, mutate, toast } = useStore()
   const [editing, setEditing] = useState<Member | 'nuevo' | null>(null)
-  const isManager = Boolean(actor?.is_lead || actor?.name?.toLowerCase().includes('yuri'))
+  const isManager = Boolean(!actor || actor.is_lead || actor.name.toLowerCase().includes('yuri'))
   const [viewTab, setViewTab] = useState<'organizadores' | 'invitados' | 'trafico'>('organizadores')
+
 
   const summary = useMemo(() => (data ? summarize(data) : null), [data])
   if (!data || !summary) return null

@@ -2,7 +2,9 @@ import { useRef, useState } from 'react'
 import { useStore } from '../store'
 import { api } from '../api'
 import { Button, Field, Icon, Input, PageHeader, Select, TextArea } from '../components/ui'
+import { TrafficMonitor } from '../components/TrafficMonitor'
 import type { Bootstrap } from '../types'
+
 
 export function Settings() {
   const { data, mutate, toast } = useStore()
@@ -56,6 +58,20 @@ export function Settings() {
       <PageHeader title="Ajustes" subtitle="Datos del desayuno, respaldo y uso en el celular" />
 
       <section className="card">
+        <header className="card-head">
+          <div>
+            <h2>Tráfico y Conexión del Equipo 🔒</h2>
+            <p className="muted small">Supervisa en tiempo real quién ha entrado a la app, desde qué dispositivo y a quién recordarle</p>
+          </div>
+          <span className="live-pill">
+            <span className="live-ping-dot" /> Solo Coordinación
+          </span>
+        </header>
+        <TrafficMonitor />
+      </section>
+
+      <section className="card">
+
         <header className="card-head">
           <div>
             <h2>Datos del evento</h2>
