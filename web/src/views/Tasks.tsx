@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useMemo, useRef, useState, type CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
 import { useStore } from '../store'
 import { api } from '../api'
@@ -19,8 +19,9 @@ import {
 } from '../components/ui'
 import { StepToggle } from '../components/checklist'
 import { TaskOptionsModal } from '../components/TaskOptionsModal'
-import { AREAS, AREA_COLORS, type Member, type Priority, type Task, type TaskStatus } from '../types'
-import { TASK_STATUS_META, deadlineLabel, formatDate } from '../lib/format'
+import { compressImageFile } from '../lib/image'
+import { AREAS, AREA_COLORS, type Member, type Priority, type Task, type TaskOption, type TaskStatus } from '../types'
+import { TASK_STATUS_META, deadlineLabel, formatDate, money } from '../lib/format'
 import { taskProgress } from '../lib/stats'
 
 const STATUS_ORDER: TaskStatus[] = ['pendiente', 'en_curso', 'bloqueada', 'hecha']
@@ -470,6 +471,107 @@ function TaskEditor({ task, members, onClose }: { task: Task | null; members: Me
   const [draftStep, setDraftStep] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Opciones e imágenes de cotizaciones
+  const [options, setOptions] = useState<TaskOption[]>(task?.options || [])
+  const [draftPhoto, setDraftPhoto] = useState<string | null>(null)
+  const [draftTitle, setDraftTitle] = useState('')
+  const [draftPrice, setDraftPrice] = useState('')
+  const [draftDetail, setDraftDetail] = useState('')
+  const [compressing, setCompressing] = useState(false)
+  const [uploadingOption, setUploadingOption] = useState(false)
+  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      setCompressing(true)
+      const compressed = await compressImageFile(file, 900, 0.75)
+      setDraftPhoto(compressed)
+      setDraftTitle(`Opción ${options.length + 1}`)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al procesar la imagen')
+    } finally {
+      setCompressing(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const savePhotoOption = async () => {
+    if (!draftPhoto || !draftTitle.trim()) return
+    const cleanTitle = draftTitle.trim()
+    const parsedPrice = draftPrice ? parseFloat(draftPrice) : 0
+    const cleanDetail = draftDetail.trim()
+
+    if (task) {
+      setUploadingOption(true)
+      let createdOpt: TaskOption | null = null
+      const ok = await mutate(
+        async () => {
+          const res = await api.createTaskOption(task.id, {
+            title: cleanTitle,
+            price: parsedPrice,
+            detail: cleanDetail,
+            image_url: draftPhoto,
+          })
+          createdOpt = res.option
+        },
+        'Imagen y opción agregada',
+      )
+      setUploadingOption(false)
+      if (ok && createdOpt) {
+        setOptions((cur) => [...cur, createdOpt!])
+      }
+    } else {
+      setOptions((cur) => [
+        ...cur,
+        {
+          id: -Date.now(),
+          task_id: 0,
+          title: cleanTitle,
+          price: parsedPrice,
+          detail: cleanDetail,
+          image_url: draftPhoto,
+          created_by: null,
+          created_by_name: 'Tú',
+          is_winner: 0,
+          created_at: new Date().toISOString(),
+          votes: [],
+          vote_count: 0,
+        },
+      ])
+    }
+
+    setDraftPhoto(null)
+    setDraftTitle('')
+    setDraftPrice('')
+    setDraftDetail('')
+  }
+
+  const removeOption = async (optId: number) => {
+    if (!window.confirm('¿Eliminar esta imagen/opción?')) return
+    if (task && optId > 0) {
+      await mutate(() => api.deleteTaskOption(optId), 'Imagen eliminada')
+    }
+    setOptions((cur) => cur.filter((o) => o.id !== optId))
+  }
+
+  const toggleWinner = async (option: TaskOption) => {
+    if (!task || option.id < 0) return
+    const nextWinner = option.is_winner ? false : true
+    await mutate(
+      () => api.setOptionWinner(option.id, nextWinner),
+      nextWinner ? `“${option.title}” elegida como ganadora` : 'Opción desmarcada',
+    )
+    setOptions((cur) =>
+      cur.map((o) => ({
+        ...o,
+        is_winner: nextWinner ? (o.id === option.id ? 1 : 0) : 0,
+      })),
+    )
+  }
+
   const toggleAssignee = (id: number) =>
     setAssignees((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
 
@@ -494,7 +596,17 @@ function TaskEditor({ task, members, onClose }: { task: Task | null; members: Me
         member_ids: assignees,
       }
       if (!task) {
-        await api.createTask({ ...payload, checklist: steps.map((step) => step.title) })
+        const created = await api.createTask({ ...payload, checklist: steps.map((step) => step.title) })
+        for (const opt of options) {
+          if (opt.id < 0) {
+            await api.createTaskOption(created.task.id, {
+              title: opt.title,
+              price: opt.price,
+              detail: opt.detail,
+              image_url: opt.image_url,
+            })
+          }
+        }
         return
       }
       await api.updateTask(task.id, payload)
@@ -525,8 +637,9 @@ function TaskEditor({ task, members, onClose }: { task: Task | null; members: Me
   }
 
   return (
-    <Modal
-      open
+    <>
+      <Modal
+        open
       onClose={onClose}
       wide
       title={task ? 'Editar actividad' : 'Nueva actividad'}
@@ -600,6 +713,168 @@ function TaskEditor({ task, members, onClose }: { task: Task | null; members: Me
         <Field label="Detalle">
           <TextArea rows={3} value={detail} onChange={(event) => setDetail(event.target.value)} placeholder="Qué incluye, dónde, con quién…" />
         </Field>
+
+        <Field
+          label="Imágenes y Cotizaciones (para elegir)"
+          hint="Sube fotos de las opciones encontradas (ej. 2 opciones de panadería o proveedores) para que el equipo pueda votar"
+        >
+          <div className="editor-images-section">
+            <div className="editor-images-bar">
+              <Button
+                type="button"
+                icon="camera"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={compressing}
+              >
+                {compressing ? 'Procesando imagen…' : 'Subir imagen'}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                style={{ display: 'none' }}
+                onChange={handleFileSelected}
+              />
+              <span className="small muted">
+                {options.length === 0
+                  ? 'Toma una foto con tu celular o sube una imagen de la cotización'
+                  : `${options.length} ${options.length === 1 ? 'opción con foto' : 'opciones con foto'}`}
+              </span>
+            </div>
+
+            {/* Formulario rápido para la foto recién seleccionada */}
+            {draftPhoto ? (
+              <div className="editor-draft-box">
+                <div
+                  className="editor-draft-preview"
+                  onClick={() => setPreviewPhoto(draftPhoto)}
+                  title="Haz clic para ver foto completa"
+                >
+                  <img src={draftPhoto} alt="Vista previa de foto" />
+                  <span className="draft-zoom-tag">
+                    <Icon name="search" size={12} /> Ver grande
+                  </span>
+                </div>
+                <div className="editor-draft-fields">
+                  <div className="form-row">
+                    <Field label="Nombre del proveedor u opción">
+                      <Input
+                        value={draftTitle}
+                        onChange={(e) => setDraftTitle(e.target.value)}
+                        placeholder="Ej. Opción 1: Kiko Chicharrones"
+                        autoFocus
+                      />
+                    </Field>
+                    <Field label="Precio estimado (S/)">
+                      <Input
+                        type="number"
+                        step="0.10"
+                        min="0"
+                        value={draftPrice}
+                        onChange={(e) => setDraftPrice(e.target.value)}
+                        placeholder="Ej. 160.00"
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Detalle o notas">
+                    <Input
+                      value={draftDetail}
+                      onChange={(e) => setDraftDetail(e.target.value)}
+                      placeholder="Qué incluye, tiempos de entrega, porciones..."
+                    />
+                  </Field>
+                  <div className="editor-draft-actions">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="primary"
+                      onClick={() => void savePhotoOption()}
+                      disabled={!draftTitle.trim() || uploadingOption}
+                    >
+                      {uploadingOption ? 'Guardando…' : 'Guardar imagen'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setDraftPhoto(null)}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Lista de imágenes / opciones existentes */}
+            {options.length > 0 ? (
+              <div className="editor-options-list">
+                {options.map((opt) => (
+                  <div key={opt.id} className={`editor-opt-card ${opt.is_winner ? 'is-winner' : ''}`}>
+                    <div
+                      className="editor-opt-img-box"
+                      onClick={() => opt.image_url && setPreviewPhoto(opt.image_url)}
+                      title={opt.image_url ? 'Haz clic para ampliar la foto' : undefined}
+                    >
+                      {opt.image_url ? (
+                        <img src={opt.image_url} alt={opt.title} />
+                      ) : (
+                        <div className="editor-opt-no-img">
+                          <Icon name="image" size={16} />
+                        </div>
+                      )}
+                      {opt.is_winner ? (
+                        <span className="editor-opt-winner-tag">
+                          <Icon name="trophy" size={10} /> Elegida
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="editor-opt-content">
+                      <div className="editor-opt-header">
+                        <strong className="editor-opt-name">{opt.title}</strong>
+                        {opt.price > 0 ? (
+                          <span className="editor-opt-price-pill">{money(opt.price)}</span>
+                        ) : null}
+                      </div>
+
+                      {opt.detail ? (
+                        <p className="editor-opt-detail-text small muted">{opt.detail}</p>
+                      ) : null}
+
+                      <div className="editor-opt-footer">
+                        <span className="editor-opt-votes-count small">
+                          <Icon name="thumbsUp" size={12} /> {opt.vote_count || 0} {(opt.vote_count || 0) === 1 ? 'voto' : 'votos'}
+                        </span>
+                        <div className="editor-opt-btns">
+                          {task ? (
+                            <button
+                              type="button"
+                              className={`btn-opt-winner ${opt.is_winner ? 'is-winner' : ''}`}
+                              onClick={() => void toggleWinner(opt)}
+                              title={opt.is_winner ? 'Desmarcar como opción elegida' : 'Marcar como opción elegida del equipo'}
+                            >
+                              <Icon name="trophy" size={12} />
+                              {opt.is_winner ? 'Elegida' : 'Elegir'}
+                            </button>
+                          ) : null}
+                          <IconButton
+                            icon="trash"
+                            label="Eliminar esta foto"
+                            onClick={() => void removeOption(opt.id)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </Field>
+
         <Field label="Checklist" hint="Paso a paso para completar la actividad">
           <div className="step-editor">
             {steps.map((step, index) => (
@@ -646,5 +921,21 @@ function TaskEditor({ task, members, onClose }: { task: Task | null; members: Me
         </Field>
       </div>
     </Modal>
+    {previewPhoto ? (
+      <div className="photo-lightbox" onClick={() => setPreviewPhoto(null)}>
+        <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
+          <img src={previewPhoto} alt="Imagen ampliada" className="lightbox-img" />
+          <button
+            type="button"
+            className="lightbox-close"
+            onClick={() => setPreviewPhoto(null)}
+            aria-label="Cerrar imagen"
+          >
+            <Icon name="x" size={24} />
+          </button>
+        </div>
+      </div>
+    ) : null}
+    </>
   )
 }
