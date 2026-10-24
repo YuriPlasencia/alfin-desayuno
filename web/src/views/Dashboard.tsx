@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useStore } from '../store'
 import { Button, Icon, Magnet, Progress } from '../components/ui'
 import { StepToggle } from '../components/checklist'
+import { HelpPicker } from '../components/help'
 import { myPlate, sinceVisit, summarize, taskProgress, todayCount } from '../lib/stats'
 import { daysUntil, deadlineLabel, formatDate, formatLongDate, money, parseDate, plural, relativeTime } from '../lib/format'
 import { AREA_COLORS, type TaskStatus } from '../types'
@@ -64,7 +65,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (tab: string) => void })
             <p>
               <strong>{pct}%</strong> listo · {summary.checklistDone} de {summary.checklistTotal} pasos
             </p>
-            <p className="muted small">{today > 0 ? `Hoy van ${plural(today, 'movimiento', 'movimientos')}` : 'Aún nadie movió nada hoy'}</p>
+            <p className="muted small">{today === 0 ? 'Aún nadie movió nada hoy' : today === 1 ? 'Hoy va 1 movimiento' : `Hoy van ${today} movimientos`}</p>
           </div>
           <Progress value={summary.overall} />
           <p className="ledger-line">
@@ -94,6 +95,10 @@ export function Dashboard({ onNavigate }: { onNavigate: (tab: string) => void })
                     {greeting()}: tus pasos están listos, falta cerrar{' '}
                     <strong>{plural(openWithoutSteps.length, 'actividad', 'actividades')}</strong>
                   </>
+                ) : data.tasks.some((task) => task.status !== 'hecha') ? (
+                  <>
+                    {greeting()}, estás libre. <strong>Elige en qué actividad quieres ayudar:</strong>
+                  </>
                 ) : (
                   <>{greeting()}: no tienes nada pendiente. ¡Bien!</>
                 )}
@@ -106,12 +111,13 @@ export function Dashboard({ onNavigate }: { onNavigate: (tab: string) => void })
                   return (
                     <li key={item.id}>
                       <StepToggle task={task} item={item} showTask />
-                      <span className={`due-chip tone-${due.tone}`}>{due.text}</span>
+                      {task.due_date ? <span className={`due-chip tone-${due.tone}`}>{due.text}</span> : null}
                     </li>
                   )
                 })}
               </ul>
             ) : null}
+            {plate.length === 0 ? <HelpPicker actor={actor} tasks={data.tasks} members={members} /> : null}
             {steps.length > nextSteps.length || openWithoutSteps.length > 0 ? (
               <Button variant="ghost" size="sm" icon="arrowRight" onClick={() => onNavigate('actividades')}>
                 Ver tus {plural(steps.length, 'paso', 'pasos')} en el tablero
