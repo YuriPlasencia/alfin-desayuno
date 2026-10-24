@@ -221,7 +221,7 @@ function Shell() {
 
         {offline ? (
           <div className="offline-bar">
-            <Icon name="wifiOff" size={16} /> Sin conexión con el servidor: estás viendo los últimos datos guardados.
+            <Icon name="wifiOff" size={16} /> Sin conexión con el servidor. Ves lo último guardado y se reconecta solo.
           </div>
         ) : null}
 

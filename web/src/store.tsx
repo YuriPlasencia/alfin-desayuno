@@ -150,31 +150,86 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [refresh],
   )
 
+  // Conexión en vivo. El navegador abandona un EventSource para siempre si el servidor
+  // responde con error (p. ej. durante un despliegue) y el celular lo corta en segundo
+  // plano: por eso se reconecta a mano y se resincroniza al volver.
   useEffect(() => {
     if (locked) return
-    const source = new EventSource('/api/stream')
-    source.addEventListener('open', () => setLive(true))
-    source.addEventListener('error', () => setLive(false))
-    source.addEventListener('message', (event) => {
-      try {
-        const payload = JSON.parse((event as MessageEvent).data) as { type: string }
-        if (payload.type === 'hello') {
-          setLive(true)
-          return
+    let source: EventSource | null = null
+    let retry: number | undefined
+    let attempt = 0
+    let opened = false
+    let disposed = false
+
+    const connect = () => {
+      if (disposed) return
+      source?.close()
+      const current = new EventSource('/api/stream')
+      source = current
+      current.addEventListener('open', () => {
+        attempt = 0
+        setLive(true)
+        // Tras una reconexión pudo haber cambios que no llegaron: se recargan.
+        if (opened) void refresh()
+        opened = true
+      })
+      current.addEventListener('error', () => {
+        setLive(false)
+        if (current.readyState === EventSource.CLOSED) {
+          const delay = Math.min(30000, 2000 * 2 ** attempt)
+          attempt += 1
+          window.clearTimeout(retry)
+          retry = window.setTimeout(connect, delay)
         }
-      } catch {
-        /* mensaje no JSON */
+      })
+      current.addEventListener('message', (event) => {
+        try {
+          const payload = JSON.parse((event as MessageEvent).data) as { type: string }
+          if (payload.type === 'hello') {
+            setLive(true)
+            return
+          }
+        } catch {
+          /* mensaje no JSON */
+        }
+        if (pending.current) window.clearTimeout(pending.current)
+        pending.current = window.setTimeout(() => {
+          void refresh()
+        }, 220)
+      })
+    }
+
+    const wake = () => {
+      if (document.visibilityState !== 'visible') return
+      void refresh()
+      if (!source || source.readyState === EventSource.CLOSED) {
+        attempt = 0
+        window.clearTimeout(retry)
+        connect()
       }
-      if (pending.current) window.clearTimeout(pending.current)
-      pending.current = window.setTimeout(() => {
-        void refresh()
-      }, 220)
-    })
+    }
+
+    connect()
+    document.addEventListener('visibilitychange', wake)
+    window.addEventListener('online', wake)
     return () => {
+      disposed = true
+      window.clearTimeout(retry)
       if (pending.current) window.clearTimeout(pending.current)
-      source.close()
+      document.removeEventListener('visibilitychange', wake)
+      window.removeEventListener('online', wake)
+      source?.close()
     }
   }, [refresh, locked])
+
+  // Mientras se muestra "sin conexión", se reintenta solo cada pocos segundos.
+  useEffect(() => {
+    if (!offline || locked) return
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refresh()
+    }, 8000)
+    return () => window.clearInterval(timer)
+  }, [offline, locked, refresh])
 
   const mutate = useCallback(
     async (action: () => Promise<unknown>, okMessage?: string) => {
