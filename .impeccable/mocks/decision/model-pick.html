@@ -1,0 +1,27 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0}
+body{width:390px;height:844px;overflow:hidden;background:#E8EDF5;font-family:Figtree,sans-serif;color:#0F172A}
+.board{margin:14px;background:#fff;border-radius:10px;border:6px solid #CBD5E1;padding:16px;height:740px}
+h1{font-size:24px;font-weight:800;color:#1D3FBF;letter-spacing:-.02em}
+.sub{font-size:13px;color:#64748B;margin-top:2px}
+.mag{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:13px;font-weight:700;color:#fff;box-shadow:0 3px 0 rgba(0,0,0,.15)}
+.mine{margin:16px 0;padding:12px;border:2px dashed #1D3FBF55;border-radius:10px}
+.cols{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.col h3{font-size:12px;font-weight:800;color:#E5483A;text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid #1D3FBF;padding-bottom:4px;margin-bottom:8px}
+.card{background:#F8FAFC;border-radius:6px;padding:8px;font-size:12px;font-weight:600;margin-bottom:8px;border:1px solid #E2E8F0}
+.dots{display:flex;gap:3px;margin-top:6px}.dots i{width:12px;height:12px;border-radius:50%}
+.nav{position:absolute;bottom:0;left:0;right:0;height:64px;background:#fff;display:flex;justify-content:space-around;align-items:center;font-size:11px;font-weight:600;color:#64748B}
+</style></head><body>
+<div class="board">
+<h1>Desayuno · 21 nov</h1><p class="sub">Faltan 29 días · 18 de 47 pasos</p>
+<div class="mine"><span class="mag" style="background:#E4572E">Ana</span> <span style="font-size:13px;margin-left:6px">te tocan <b>3 pasos</b></span>
+<div class="card" style="margin-top:10px">Armar el cronograma del día · 1/3</div></div>
+<div class="cols">
+<div class="col"><h3>Pendiente</h3><div class="card">Invitaciones<div class="dots"><i style="background:#A16207"></i></div></div><div class="card">Abarrotes<div class="dots"><i style="background:#D98E04"></i></div></div><div class="card">Reservar local<div class="dots"><i style="background:#3B6EA5"></i></div></div></div>
+<div class="col"><h3>En curso</h3><div class="card">Menú final<div class="dots"><i style="background:#C2412D"></i><i style="background:#8B5CF6"></i></div></div><div class="card">Cronograma<div class="dots"><i style="background:#E4572E"></i></div></div></div>
+<div class="col"><h3>Hecho</h3><div class="card">Logística sillas<div class="dots"><i style="background:#3B6EA5"></i></div></div></div>
+</div></div>
+<div class="nav"><b style="color:#1D3FBF">Inicio</b><span>Actividades</span><span>Acuerdos</span><span>Equipo</span><span>Caja</span></div>
+</body></html>

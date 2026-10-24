@@ -1,0 +1,15 @@
+node_modules/
+dist/
+data/
+.npm-cache/
+.playwright-browsers/
+.tmp-*
+debug.log
+*.log
+.DS_Store
+.env
+.env.local
+.claude/
+.impeccable/questions/
+.impeccable/review/
+.impeccable/decision-payload.json

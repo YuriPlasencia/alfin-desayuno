@@ -1,0 +1,690 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-23T13:26:03+00:00",
+  "title": "Design System: Al Fin Desayuno",
+  "extensions": {
+    "colorMeta": {
+      "aluminum-frame": {
+        "role": "neutral",
+        "displayName": "Aluminum Frame",
+        "canonical": "#e8edf5",
+        "purpose": "Page background; the frame around the board.",
+        "tonalRamp": [
+          "#080b10",
+          "#21242a",
+          "#3c4046",
+          "#5a5e65",
+          "#797e85",
+          "#9a9fa6",
+          "#c1c4c9",
+          "#edeef1"
+        ]
+      },
+      "aluminum-frame-deep": {
+        "role": "neutral",
+        "displayName": "Aluminum Frame Deep",
+        "canonical": "#dce3ee",
+        "purpose": "Kanban trays, progress tracks, segmented trays.",
+        "tonalRamp": [
+          "#070b12",
+          "#1f242c",
+          "#3b4049",
+          "#585e67",
+          "#777e88",
+          "#989fa9",
+          "#c0c4cb",
+          "#eceff2"
+        ]
+      },
+      "aluminum-edge": {
+        "role": "neutral",
+        "displayName": "Aluminum Edge",
+        "canonical": "#c3ccda",
+        "purpose": "Board frame ring, marker tray, dashed empty borders.",
+        "tonalRamp": [
+          "#060b14",
+          "#1e242f",
+          "#39404c",
+          "#565e6a",
+          "#767e8b",
+          "#969fac",
+          "#bfc4ce",
+          "#eceff3"
+        ]
+      },
+      "enamel-board": {
+        "role": "neutral",
+        "displayName": "Enamel Board",
+        "canonical": "#ffffff",
+        "purpose": "Every writing surface: board, cards, inputs, magnets, bars.",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#7d7d7d",
+          "#9e9e9e",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "enamel-well": {
+        "role": "neutral",
+        "displayName": "Enamel Well",
+        "canonical": "#f3f6fa",
+        "purpose": "Recessed areas inside white surfaces.",
+        "tonalRamp": [
+          "#090b0e",
+          "#222427",
+          "#3e4043",
+          "#5b5e61",
+          "#7b7d81",
+          "#9c9fa2",
+          "#c2c4c7",
+          "#eeeef0"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Marker Ink",
+        "canonical": "#0f172a",
+        "purpose": "Primary text; toast background.",
+        "tonalRamp": [
+          "#040a1c",
+          "#1b2337",
+          "#363f55",
+          "#535d75",
+          "#727d96",
+          "#939eb8",
+          "#bcc4d6",
+          "#ebeef7"
+        ]
+      },
+      "ink-soft": {
+        "role": "neutral",
+        "displayName": "Ink Soft",
+        "canonical": "#334155",
+        "purpose": "Secondary text.",
+        "tonalRamp": [
+          "#020b1b",
+          "#182437",
+          "#334155",
+          "#505f74",
+          "#6f7e95",
+          "#8fa0b7",
+          "#bac5d5",
+          "#eaeff7"
+        ]
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Ink Muted",
+        "canonical": "#5b6b82",
+        "purpose": "Metadata, placeholders, done labels.",
+        "tonalRamp": [
+          "#020b1c",
+          "#172438",
+          "#324156",
+          "#4f5f75",
+          "#6e7e96",
+          "#8fa0b9",
+          "#b9c5d6",
+          "#e9eff7"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "canonical": "#e2e8f0",
+        "purpose": "1px dividers and card borders.",
+        "tonalRamp": [
+          "#080b10",
+          "#20242a",
+          "#3b4046",
+          "#595e65",
+          "#787e85",
+          "#999fa6",
+          "#c1c4ca",
+          "#edeff1"
+        ]
+      },
+      "rule-strong": {
+        "role": "neutral",
+        "displayName": "Rule Strong",
+        "canonical": "#cbd5e1",
+        "purpose": "Control borders, unchecked boxes.",
+        "tonalRamp": [
+          "#060c13",
+          "#1d252e",
+          "#38414a",
+          "#565f69",
+          "#757e89",
+          "#969fab",
+          "#bec5cd",
+          "#eceff2"
+        ]
+      },
+      "marker-blue": {
+        "role": "primary",
+        "displayName": "Marker Blue",
+        "canonical": "#1d3fbf",
+        "purpose": "Action and navigation, focus, progress, board title.",
+        "tonalRamp": [
+          "#110060",
+          "#090084",
+          "#0f27a8",
+          "#274dcd",
+          "#4371f4",
+          "#6294ff",
+          "#9bc1ff",
+          "#dbefff"
+        ]
+      },
+      "marker-blue-deep": {
+        "role": "primary",
+        "displayName": "Marker Blue Deep",
+        "canonical": "#16309a",
+        "purpose": "Blue hover; text on blue wash.",
+        "tonalRamp": [
+          "#0b0053",
+          "#060276",
+          "#16309a",
+          "#3052be",
+          "#4d75e3",
+          "#6c97ff",
+          "#a1c2ff",
+          "#deefff"
+        ]
+      },
+      "marker-blue-wash": {
+        "role": "primary",
+        "displayName": "Marker Blue Wash",
+        "canonical": "#e9eefc",
+        "purpose": "Soft buttons, my magnet, info strips.",
+        "tonalRamp": [
+          "#080b13",
+          "#20242e",
+          "#3c3f4a",
+          "#595d69",
+          "#797d89",
+          "#999eab",
+          "#c1c4cd",
+          "#edeef2"
+        ]
+      },
+      "marker-blue-line": {
+        "role": "primary",
+        "displayName": "Marker Blue Line",
+        "canonical": "#b9c7f2",
+        "purpose": "Tu iman dashed border; outline of what is mine.",
+        "tonalRamp": [
+          "#040725",
+          "#192142",
+          "#333e61",
+          "#505c81",
+          "#6f7ca3",
+          "#909dc6",
+          "#bac3e0",
+          "#eaeefc"
+        ]
+      },
+      "marker-red": {
+        "role": "secondary",
+        "displayName": "Marker Red",
+        "canonical": "#d33a2c",
+        "purpose": "Urgency and column heads. Shipped #d33a2c (not the contract #E5483A) so white-on-red and red-on-white reach about 4.76:1; #E5483A lives only in the brand mark and favicon artwork.",
+        "tonalRamp": [
+          "#3d0000",
+          "#640000",
+          "#8a0000",
+          "#b00b04",
+          "#d83f30",
+          "#ff6552",
+          "#ffa393",
+          "#ffe1d8"
+        ]
+      },
+      "marker-red-deep": {
+        "role": "secondary",
+        "displayName": "Marker Red Deep",
+        "canonical": "#b42d21",
+        "purpose": "Red text on red wash; error toast.",
+        "tonalRamp": [
+          "#390000",
+          "#5f0000",
+          "#840000",
+          "#aa2117",
+          "#d0493a",
+          "#f76d5b",
+          "#ffa798",
+          "#ffe2da"
+        ]
+      },
+      "marker-red-wash": {
+        "role": "secondary",
+        "displayName": "Marker Red Wash",
+        "canonical": "#fdeceb",
+        "purpose": "Blocked items, alert strip, danger button.",
+        "tonalRamp": [
+          "#120808",
+          "#2c2120",
+          "#493c3b",
+          "#685a59",
+          "#887978",
+          "#aa9a99",
+          "#ccc1c0",
+          "#f2eded"
+        ]
+      },
+      "marker-green": {
+        "role": "tertiary",
+        "displayName": "Marker Green",
+        "canonical": "#15803d",
+        "purpose": "Done: check stroke, success button, Hecho head, win toast.",
+        "tonalRamp": [
+          "#001600",
+          "#003300",
+          "#00520e",
+          "#00722f",
+          "#31934f",
+          "#57b66f",
+          "#99d5a5",
+          "#dcf7e0"
+        ]
+      },
+      "marker-green-deep": {
+        "role": "tertiary",
+        "displayName": "Marker Green Deep",
+        "canonical": "#116632",
+        "purpose": "Green hover; text on green wash.",
+        "tonalRamp": [
+          "#001500",
+          "#003100",
+          "#004f1c",
+          "#1e6f3a",
+          "#439059",
+          "#66b27a",
+          "#a1d3ab",
+          "#dff5e3"
+        ]
+      },
+      "marker-green-wash": {
+        "role": "tertiary",
+        "displayName": "Marker Green Wash",
+        "canonical": "#e5f4ea",
+        "purpose": "Done badges, checked step box.",
+        "tonalRamp": [
+          "#050e08",
+          "#1c2720",
+          "#37433b",
+          "#556159",
+          "#748178",
+          "#95a299",
+          "#bdc7c0",
+          "#ebf0ed"
+        ]
+      },
+      "amber": {
+        "role": "tertiary",
+        "displayName": "Amber",
+        "canonical": "#b45309",
+        "purpose": "Soon badges, free capacity.",
+        "tonalRamp": [
+          "#310000",
+          "#540000",
+          "#771800",
+          "#9b3c00",
+          "#c05e1c",
+          "#e58044",
+          "#f8b28c",
+          "#ffe7d5"
+        ]
+      },
+      "amber-wash": {
+        "role": "tertiary",
+        "displayName": "Amber Wash",
+        "canonical": "#fdf2e1",
+        "purpose": "Soon badges, offline bar.",
+        "tonalRamp": [
+          "#110a02",
+          "#2b2316",
+          "#473e31",
+          "#655c4e",
+          "#867c6d",
+          "#a79d8d",
+          "#cac3b8",
+          "#f1eee9"
+        ]
+      },
+      "yolk": {
+        "role": "tertiary",
+        "displayName": "Yolk",
+        "canonical": "#f2b21b",
+        "purpose": "Breakfast warmth: rail subtitle, meter, nuevo tag, win icon.",
+        "tonalRamp": [
+          "#280000",
+          "#480d00",
+          "#682e00",
+          "#8a4f00",
+          "#ac6f00",
+          "#d09100",
+          "#e7bd71",
+          "#ffeccb"
+        ]
+      },
+      "rail-navy": {
+        "role": "neutral",
+        "displayName": "Rail Navy",
+        "canonical": "#12205a",
+        "purpose": "Desktop navigation rail.",
+        "tonalRamp": [
+          "#020036",
+          "#0f1c56",
+          "#283b77",
+          "#445a99",
+          "#627abc",
+          "#829ce1",
+          "#b1c3f3",
+          "#e5eeff"
+        ]
+      },
+      "rail-navy-raised": {
+        "role": "neutral",
+        "displayName": "Rail Navy Raised",
+        "canonical": "#1a2b70",
+        "purpose": "Rail hover and countdown card.",
+        "tonalRamp": [
+          "#03003d",
+          "#0d195d",
+          "#25397f",
+          "#4158a1",
+          "#5f79c5",
+          "#7e9bea",
+          "#aec3f9",
+          "#e4eeff"
+        ]
+      },
+      "rail-ink": {
+        "role": "neutral",
+        "displayName": "Rail Ink",
+        "canonical": "#c9d3f5",
+        "purpose": "Resting text on the rail.",
+        "tonalRamp": [
+          "#06081f",
+          "#1c223b",
+          "#373e5a",
+          "#545c79",
+          "#737c9b",
+          "#949dbd",
+          "#bdc3da",
+          "#ebeef9"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Board title in marker blue."
+      },
+      "numeral": {
+        "displayName": "Numeral",
+        "purpose": "Countdown and headline figures, tabular."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Modal and splash titles."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card heads (17px) and item titles (16px)."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Base text, 15px/1.5."
+      },
+      "body-sm": {
+        "displayName": "Small",
+        "purpose": "Metadata and hints."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Buttons, chips, nav, magnets."
+      },
+      "column-head": {
+        "displayName": "Column Head",
+        "purpose": "Uppercase board column labels in marker red over a 2px blue rule."
+      }
+    },
+    "shadows": [
+      {
+        "name": "magnet",
+        "value": "0 2px 3px -1px rgba(15,23,42,0.28), 0 1px 0 rgba(15,23,42,0.08)",
+        "purpose": "Magnets, actor selector, active rail item, active segment, selected chip."
+      },
+      {
+        "name": "magnet-dot",
+        "value": "0 1px 2px rgba(15,23,42,0.35)",
+        "purpose": "Colored dot inside magnets and pins."
+      },
+      {
+        "name": "sm",
+        "value": "0 1px 2px rgba(15,23,42,0.06)",
+        "purpose": "Count pills in column heads."
+      },
+      {
+        "name": "card",
+        "value": "0 1px 2px rgba(15,23,42,0.05), 0 6px 16px -10px rgba(15,23,42,0.22)",
+        "purpose": "Cards, task, agreement and member cards."
+      },
+      {
+        "name": "overlay",
+        "value": "0 24px 48px -24px rgba(15,23,42,0.38)",
+        "purpose": "Modals, toasts, splash brand."
+      },
+      {
+        "name": "board-frame",
+        "value": "0 0 0 7px #d3dae6, 0 0 0 8px #c3ccda, 0 20px 36px -22px rgba(15,23,42,0.45)",
+        "purpose": "Home board only: aluminum frame, edge and cast shadow."
+      },
+      {
+        "name": "focus-halo",
+        "value": "0 0 0 3px rgba(29,63,191,0.14)",
+        "purpose": "Input and search focus."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Check stroke, progress fills, modal/toast rise, view transitions."
+      },
+      {
+        "name": "check-draw",
+        "value": "0.32s",
+        "purpose": "Marker check stroke-dashoffset."
+      },
+      {
+        "name": "progress",
+        "value": "0.5s-0.6s",
+        "purpose": "Progress and meter fills."
+      },
+      {
+        "name": "view-transition",
+        "value": "0.38s",
+        "purpose": "Activity moving between columns."
+      },
+      {
+        "name": "win-pop",
+        "value": "0.42s",
+        "purpose": "Win toast when an activity jumps to Hecho."
+      },
+      {
+        "name": "hover",
+        "value": "0.15s ease",
+        "purpose": "Color and border state changes."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide",
+        "value": "1180px"
+      },
+      {
+        "name": "rail",
+        "value": "960px"
+      },
+      {
+        "name": "phone",
+        "value": "640px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main action; marker blue, presses 1px.",
+      "html": "<button class=\"ds-btn-primary\">Nueva actividad</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:0 16px;border-radius:10px;font-family:var(--font);font-size:14.5px;font-weight:650;border:1px solid transparent;cursor:pointer;background:var(--blue);color:#fff;box-shadow:0 2px 4px -2px rgba(29,63,191,.6);transition:transform .12s ease,background .15s ease}.ds-btn-primary:hover{background:var(--blue-ink)}.ds-btn-primary:active{transform:translateY(1px)}.ds-btn-primary:focus-visible{outline:2.5px solid var(--blue);outline-offset:2px}"
+    },
+    {
+      "name": "Success Button",
+      "kind": "button",
+      "refersTo": "button-success",
+      "description": "Mark-done action; marker green.",
+      "html": "<button class=\"ds-btn-success\">Marcar hecha</button>",
+      "css": ".ds-btn-success{display:inline-flex;align-items:center;min-height:42px;padding:0 16px;border-radius:10px;border:none;font-family:var(--font);font-size:14.5px;font-weight:650;background:var(--green);color:#fff;box-shadow:0 2px 4px -2px rgba(21,128,61,.6);cursor:pointer;transition:background .15s ease,transform .12s ease}.ds-btn-success:hover{background:var(--green-ink)}.ds-btn-success:active{transform:translateY(1px)}.ds-btn-success:focus-visible{outline:2.5px solid var(--blue);outline-offset:2px}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary action on white.",
+      "html": "<button class=\"ds-btn-outline\">Editar</button>",
+      "css": ".ds-btn-outline{display:inline-flex;align-items:center;min-height:42px;padding:0 16px;border-radius:10px;font-family:var(--font);font-size:14.5px;font-weight:650;background:var(--board);border:1px solid var(--line-strong);color:var(--ink-2);cursor:pointer;transition:border-color .15s ease,color .15s ease}.ds-btn-outline:hover{border-color:var(--blue);color:var(--blue)}.ds-btn-outline:focus-visible{outline:2.5px solid var(--blue);outline-offset:2px}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Form input with blue focus halo.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Título</span><input class=\"ds-input\" placeholder=\"Ej. Comprar pan\" /></label>",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:6px;font-family:var(--font)}.ds-field-label{font-size:13px;font-weight:700;color:var(--ink-2)}.ds-input{min-height:42px;padding:9px 12px;border-radius:10px;border:1px solid var(--line-strong);background:var(--board);font-family:inherit;font-size:15px;color:var(--ink);transition:border-color .15s ease,box-shadow .15s ease}.ds-input::placeholder{color:#8391a7}.ds-input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(29,63,191,.14)}"
+    },
+    {
+      "name": "Magnet",
+      "kind": "custom",
+      "refersTo": "magnet",
+      "description": "A person as a board magnet; the me variant takes the blue wash.",
+      "html": "<span class=\"ds-magnet\"><i style=\"background:#E4572E\"></i>Diego</span> <span class=\"ds-magnet is-me\"><i style=\"background:#3B6EA5\"></i>Ana</span>",
+      "css": ".ds-magnet{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px 0 5px;border-radius:999px;background:var(--board);border:1px solid var(--line);box-shadow:var(--magnet-shadow);font-family:var(--font);font-size:13px;font-weight:650;color:var(--ink)}.ds-magnet i{width:18px;height:18px;border-radius:50%;box-shadow:0 1px 2px rgba(15,23,42,.35)}.ds-magnet.is-me{border-color:var(--blue-line);background:var(--blue-soft);color:var(--blue-ink)}"
+    },
+    {
+      "name": "Step Check",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Markable step; checking draws a green marker stroke.",
+      "html": "<button class=\"ds-step\" onclick=\"this.classList.toggle('is-done')\"><span class=\"ds-step-box\"><svg viewBox=\"0 0 24 24\"><path d=\"M5 12.5 10 17.5 19.5 6.5\"/></svg></span><span class=\"ds-step-label\">Calcular porciones para 80 personas</span></button>",
+      "css": ".ds-step{display:flex;align-items:flex-start;gap:11px;min-height:40px;padding:8px 6px;border:none;background:none;border-radius:8px;text-align:left;font-family:var(--font);cursor:pointer;transition:background .12s ease}.ds-step:hover{background:rgba(29,63,191,.06)}.ds-step:focus-visible{outline:2.5px solid var(--blue);outline-offset:2px}.ds-step-box{display:grid;place-items:center;width:22px;height:22px;border-radius:6px;border:2px solid var(--line-strong);background:var(--board);flex:none;transition:border-color .2s ease,background .2s ease}.ds-step-box svg{width:22px;height:22px;overflow:visible;fill:none;stroke:var(--green);stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:24;stroke-dashoffset:24;transition:stroke-dashoffset .32s var(--ease-out)}.ds-step.is-done .ds-step-box{border-color:var(--green);background:var(--green-soft)}.ds-step.is-done svg{stroke-dashoffset:0}.ds-step-label{font-size:14px;line-height:1.35;color:var(--ink)}.ds-step.is-done .ds-step-label{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line-strong)}"
+    },
+    {
+      "name": "Countdown",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Days-left box on the board, marker red.",
+      "html": "<div class=\"ds-countdown\"><strong>29</strong><span>días</span></div>",
+      "css": ".ds-countdown{display:inline-flex;flex-direction:column;align-items:center;min-width:84px;padding:8px 12px 10px;border-radius:12px;border:2px solid var(--red);color:var(--red);line-height:1;font-family:var(--font)}.ds-countdown strong{font-size:40px;font-weight:850;letter-spacing:-.04em;font-variant-numeric:tabular-nums}.ds-countdown span{margin-top:4px;font-size:12.5px;font-weight:750;text-transform:uppercase;letter-spacing:.06em}"
+    },
+    {
+      "name": "Board Column",
+      "kind": "card",
+      "refersTo": "kanban-column",
+      "description": "Column tray with red uppercase head over a blue rule.",
+      "html": "<div class=\"ds-col\"><h3 class=\"ds-col-head\">En curso <span>3</span></h3><div class=\"ds-col-item\">Definir el menú final</div><div class=\"ds-col-item\">Armar el cronograma</div></div>",
+      "css": ".ds-col{padding:12px;border-radius:14px;background:var(--frame-2);font-family:var(--font);width:260px}.ds-col-head{display:flex;justify-content:space-between;align-items:center;margin:0 0 10px;padding-bottom:6px;border-bottom:2px solid var(--blue);font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--red)}.ds-col-head span{min-width:24px;height:22px;padding:0 7px;border-radius:999px;background:var(--board);color:var(--ink-2);font-size:12px;letter-spacing:0;display:grid;place-items:center;box-shadow:var(--shadow-sm)}.ds-col-item{margin-top:8px;padding:9px 10px;border-radius:8px;background:var(--board);border:1px solid var(--line);font-size:13.5px;font-weight:650;color:var(--ink)}"
+    },
+    {
+      "name": "Rail Navigation",
+      "kind": "nav",
+      "refersTo": "nav-rail-item-active",
+      "description": "Desktop rail; the active item is a white magnet.",
+      "html": "<nav class=\"ds-rail\"><a class=\"ds-rail-item is-active\" href=\"#\">Inicio</a><a class=\"ds-rail-item\" href=\"#\">Actividades <b>14</b></a><a class=\"ds-rail-item\" href=\"#\">Equipo</a></nav>",
+      "css": ".ds-rail{display:flex;flex-direction:column;gap:2px;padding:14px;width:220px;background:var(--rail);font-family:var(--font)}.ds-rail-item{display:flex;align-items:center;padding:10px 12px;border-radius:10px;color:var(--rail-ink);font-size:14.5px;font-weight:600;text-decoration:none;transition:background .15s ease,color .15s ease}.ds-rail-item:hover{background:var(--rail-2);color:#fff}.ds-rail-item:focus-visible{outline:2.5px solid #fff;outline-offset:2px}.ds-rail-item.is-active{background:#fff;color:var(--blue);box-shadow:var(--magnet-shadow)}.ds-rail-item b{margin-left:auto;min-width:22px;height:22px;padding:0 7px;border-radius:999px;background:rgba(255,255,255,.12);color:#fff;font-size:12px;display:grid;place-items:center}"
+    },
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Selectable person or filter chip; selected gets the magnet shadow.",
+      "html": "<button class=\"ds-chip\">Rosa</button> <button class=\"ds-chip is-selected\">Ana</button>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;min-height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--line-strong);background:var(--board);font-family:var(--font);font-size:13.5px;font-weight:600;color:var(--ink-2);cursor:pointer;transition:border-color .15s ease,background .15s ease,color .15s ease}.ds-chip:hover{border-color:var(--blue)}.ds-chip:focus-visible{outline:2.5px solid var(--blue);outline-offset:2px}.ds-chip.is-selected{background:var(--blue-soft);border-color:var(--blue-line);color:var(--blue-ink);box-shadow:var(--magnet-shadow)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "La pizarra de turnos",
+    "overview": "The app is the office shift whiteboard. White enamel sits inside a blue-grey aluminum frame. Four markers write on it: blue for action and navigation, red for urgency and column headers, green for done, and ink black for everything else. People are round or pill-shaped color magnets with a short, real drop shadow. Activities move across columns (Pendiente, En curso, Hecho). Checking off a step draws a marker check stroke, and a finished activity jumps to Hecho.\n\nDensity is calm and operational, built mobile first for a thumb. The board is the hero object: a framed white panel with a marker tray under it, holding the event title, the countdown, team progress, the dashed \"tu imán\" zone with your own markable steps, and the three-column mini board. Around it, plain white cards on aluminum hold the supporting lists. There is one sans (Figtree) and no gradients, glass or blur anywhere in the build. Depth comes from physical objects (the frame, magnets) rather than floating UI.\n\nThe world rejects the generic dashboard of white KPI cards with a progress ring over cream and terracotta.",
+    "keyCharacteristics": [
+      "Aluminum frame (#e8edf5) as the page, white enamel as every writing surface.",
+      "Four markers with fixed jobs: blue acts, red warns and heads columns, green finishes, ink reads.",
+      "People are magnets: colored dot plus name in a pill, with a short hard-edged drop shadow.",
+      "Column-based progress (Pendiente / En curso / Hecho) instead of rings or KPI tiles.",
+      "Marker-stroke check animation as the signature feedback.",
+      "A single sans, Figtree, at heavy display weights (750 to 850) with tabular numerals."
+    ],
+    "rules": [
+      {
+        "name": "The Four Markers Rule",
+        "body": "Blue acts, red warns or heads a column, green means done, ink reads. A marker never takes another marker's job. Blue is never a status, and green is never a call to action other than \"complete\".",
+        "section": "colors"
+      },
+      {
+        "name": "The Contrast-Adapted Red Rule",
+        "body": "Interface red is #d33a2c and its deep #b42d21. The brighter #E5483A belongs to the brand mark artwork only and never appears as text, border or fill in the UI.",
+        "section": "colors"
+      },
+      {
+        "name": "The Belongs-To-Me Rule",
+        "body": "Anything that belongs to the current person (their magnet, task cards, roster row, member card) shifts to the blue wash or is outlined in Marker Blue Line. Nothing else uses that treatment.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Sans Rule",
+        "body": "Figtree is the only family. Add emphasis with weight (650, 750, 800), never with a second face.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Count Rule",
+        "body": "Every number that counts days, steps, money or people uses tabular numerals.",
+        "section": "typography"
+      },
+      {
+        "name": "The Real Magnet Rule",
+        "body": "The magnet shadow is short and tight (2 to 3px) because a magnet sits flush on enamel. Never blur it into a floating glow, and never give it to things that are not movable markers of state or identity.",
+        "section": "elevation"
+      },
+      {
+        "name": "The One Frame Rule",
+        "body": "Only the home board wears the aluminum frame and tray. Other surfaces are plain cards.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep the page Aluminum Frame (#e8edf5) and every writing surface white enamel.",
+      "Do use Marker Red #d33a2c (and #b42d21 for text on the red wash) for all interface red. Keep #E5483A inside the brand mark artwork only.",
+      "Do represent people as magnets (colored dot plus name pill with the magnet shadow), and mark \"mine\" with the blue wash or a Marker Blue Line outline.",
+      "Do show progress as columns (Pendiente / En curso / Hecho) with red uppercase column heads over a 2px blue rule, and as flat 8 to 12px progress tracks.",
+      "Do give step completion the drawn green marker check (0.32s, out-expo).",
+      "Do use tabular numerals for every count, date distance and amount.",
+      "Do use dashed borders only to mean an open slot (\"tu imán\", empty columns, \"+N más\", the step editor)."
+    ],
+    "donts": [
+      "Don't use gradients, glass or backdrop blur. The materials are enamel, aluminum and marker ink.",
+      "Don't add a second typeface. Figtree carries every role.",
+      "Don't build KPI tile rows or progress rings for the dashboard. The board and its columns are the progress display.",
+      "Don't blur the magnet shadow into a soft floating glow, or put the aluminum frame and tray on anything but the home board.",
+      "Don't use member or area data colors for UI chrome. They belong to dots, magnets and avatars.",
+      "Don't use Marker Blue for status or Marker Green for anything but completion."
+    ]
+  }
+}

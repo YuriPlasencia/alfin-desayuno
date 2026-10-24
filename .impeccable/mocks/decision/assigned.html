@@ -1,0 +1,66 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0}
+body{width:390px;height:844px;overflow:hidden;background:#F2F4F7;font-family:Figtree,sans-serif;color:#13294B}
+.top{background:#13294B;color:#fff;padding:18px 18px 70px}
+.row{display:flex;align-items:center;justify-content:space-between}
+.brand{font-family:'Bricolage Grotesque';font-weight:800;font-size:19px;letter-spacing:-.02em}
+.brand i{font-style:normal;color:#F5B700}
+.me{display:flex;align-items:center;gap:8px;font-size:13px;color:#C9D3E3}
+.av{width:30px;height:30px;border-radius:50%;background:#E4572E;display:grid;place-items:center;font-weight:700;font-size:12px;color:#fff}
+.hi{margin-top:20px;font-size:14px;color:#AFC0DA}
+h1{font-family:'Bricolage Grotesque';font-weight:700;font-size:30px;line-height:1.05;letter-spacing:-.03em;margin-top:4px}
+.ticket{margin:-54px 14px 0;display:flex;background:#fff;border-radius:14px;box-shadow:0 10px 24px -14px rgba(19,41,75,.45);position:relative}
+.main{flex:1;padding:16px}
+.stub{width:96px;background:#F5B700;border-radius:0 14px 14px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;border-left:2px dashed #13294B33;position:relative}
+.stub:before,.stub:after{content:"";position:absolute;left:-9px;width:16px;height:16px;border-radius:50%;background:#F2F4F7}
+.stub:before{top:-8px}.stub:after{bottom:-8px}
+.stub b{font-family:'Bricolage Grotesque';font-size:42px;line-height:1;font-weight:800}
+.stub span{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.serial{font-size:11px;font-weight:700;color:#6B7A93;letter-spacing:.06em}
+.t{font-weight:700;font-size:16px;margin:4px 0 10px}
+.step{display:flex;gap:10px;align-items:center;font-size:14px;padding:7px 0;border-top:1px solid #E6EAF0}
+.box{width:20px;height:20px;border-radius:6px;border:2px solid #13294B55;flex:none}
+.box.on{background:#1E8E5A;border-color:#1E8E5A}
+.done{color:#8A97AD;text-decoration:line-through}
+.sec{padding:20px 18px 8px;display:flex;justify-content:space-between;align-items:baseline}
+.sec h2{font-size:15px;font-weight:700}.sec a{font-size:13px;color:#2E5AAC;font-weight:600}
+.team{margin:0 14px;background:#fff;border-radius:14px;padding:14px 16px}
+.big{font-family:'Bricolage Grotesque';font-size:34px;font-weight:800}
+.bar{height:10px;background:#E6EAF0;border-radius:5px;overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;width:38%;background:#13294B}
+.runway{display:flex;gap:4px;margin-top:12px;align-items:flex-end;height:34px}
+.runway i{flex:1;background:#E6EAF0;border-radius:3px;height:8px}
+.runway i.k{background:#F5B700;height:26px}.runway i.n{background:#13294B;height:18px}
+.small{font-size:12px;color:#6B7A93}
+.nav{position:absolute;bottom:0;left:0;right:0;height:72px;background:#fff;border-top:1px solid #E1E6EE;display:flex;justify-content:space-around;align-items:center;font-size:11px;font-weight:600;color:#6B7A93}
+.nav .on{color:#13294B}.nav div{display:flex;flex-direction:column;align-items:center;gap:4px}
+.nav s{width:22px;height:22px;border-radius:7px;background:#E1E6EE;display:block}.nav .on s{background:#13294B}
+</style></head><body>
+<div class="top">
+ <div class="row"><span class="brand">Al Fin <i>Desayuno</i></span><span class="me"><span class="av">AT</span>Ana</span></div>
+ <p class="hi">Buenos días, Ana</p>
+ <h1>Te tocan 3 pasos<br>esta semana</h1>
+</div>
+<div class="ticket">
+ <div class="main">
+  <p class="serial">COO-02 · COORDINACIÓN</p>
+  <p class="t">Armar el cronograma del día</p>
+  <div class="step"><span class="box on"></span><span class="done">Horario de llegada del equipo</span></div>
+  <div class="step"><span class="box"></span>Orden de servicio por mesa</div>
+  <div class="step"><span class="box"></span>Enviar al grupo</div>
+ </div>
+ <div class="stub"><b>5</b><span>días</span></div>
+</div>
+<div class="sec"><h2>El equipo va así</h2><a>Ver todo</a></div>
+<div class="team">
+ <div class="row"><span class="big">38%</span><span class="small">18 de 47 pasos · faltan 29 días</span></div>
+ <div class="bar"><i></i></div>
+ <div class="runway"><i class="n"></i><i class="k"></i><i></i><i class="n"></i><i></i><i></i><i class="n"></i><i></i><i></i><i></i><i class="n"></i><i></i><i></i><i></i></div>
+ <p class="small" style="margin-top:6px">Hoy · · · · · · · · · · · · · 21 nov</p>
+</div>
+<div class="sec"><h2>Recién marcado</h2></div>
+<div class="team" style="display:flex;gap:10px;align-items:center"><span class="av" style="background:#2F8F5B">DH</span><div><b style="font-size:14px">Diego completó "Calcular porciones"</b><p class="small">hace 26 min</p></div></div>
+<div class="nav"><div class="on"><s></s>Inicio</div><div><s></s>Actividades</div><div><s></s>Acuerdos</div><div><s></s>Equipo</div><div><s></s>Caja</div></div>
+</body></html>
