@@ -83,8 +83,10 @@ export interface BudgetItem {
   owner_name?: string | null
   due_date: string | null
   note: string
+  receipt_url?: string
   created_at: string
 }
+
 
 export interface LogEntry {
   id: number
@@ -179,4 +181,14 @@ export interface PresenceStats {
   members: PresenceMember[]
   recent_views: RecentPageView[]
 }
+
+export interface ScrapedQuote {
+  ok: boolean
+  detectedAmount: number | null
+  detectedConcept: string
+  allPrices: number[]
+  rawText: string
+  error?: string
+}
+
 

@@ -14,3 +14,5 @@ debug.log
 .impeccable/review/
 .impeccable/decision-payload.json
 respaldo-*.json
+*.traineddata
+

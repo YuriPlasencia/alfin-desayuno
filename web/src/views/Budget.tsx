@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { api } from '../api'
+import { compressImageFile } from '../lib/image'
 import {
   Badge,
   Button,
@@ -17,7 +18,7 @@ import {
 } from '../components/ui'
 import { summarize } from '../lib/stats'
 import { formatDate, getTreasurer, money } from '../lib/format'
-import type { BudgetItem, BudgetKind, BudgetStatus, Member } from '../types'
+import type { BudgetItem, BudgetKind, BudgetStatus, Member, TaskOption } from '../types'
 
 export function Budget() {
   const { data, actor, mutate, toast } = useStore()
@@ -25,7 +26,24 @@ export function Budget() {
   const [filter, setFilter] = useState<'todos' | BudgetKind>('todos')
   const [editing, setEditing] = useState<BudgetItem | 'nuevo' | null>(null)
   const [showYape, setShowYape] = useState(false)
+  const [viewingReceipt, setViewingReceipt] = useState<string | null>(null)
   const summary = useMemo(() => (data ? summarize(data) : null), [data])
+
+  const winningOptions = useMemo(() => {
+    if (!data) return []
+    const list: { taskTitle: string; option: TaskOption }[] = []
+    for (const t of data.tasks) {
+      for (const opt of t.options || []) {
+        if (opt.is_winner === 1 && opt.price > 0) {
+          const already = data.budget.some((b) => b.concept.toLowerCase().includes(opt.title.toLowerCase()))
+          if (!already) {
+            list.push({ taskTitle: t.title, option: opt })
+          }
+        }
+      }
+    }
+    return list
+  }, [data])
 
   if (!data || !summary) return null
 
@@ -33,6 +51,7 @@ export function Budget() {
   const rows = data.budget.filter((item) => (filter === 'todos' ? true : item.kind === filter))
   const ingresos = data.budget.filter((item) => item.kind === 'ingreso')
   const gastos = data.budget.filter((item) => item.kind === 'gasto')
+
 
   const toggle = (item: BudgetItem) =>
     mutate(
@@ -156,6 +175,41 @@ Yape / Plin a: ${tName}${tPhone}
             </button>
           </div>
 
+      {winningOptions.length > 0 ? (
+        <div className="budget-quote-import-banner">
+          <div className="quote-import-info">
+            <span className="quote-import-icon">🏆</span>
+            <div>
+              <strong>Hay {winningOptions.length} cotización(es) ganadora(s) de actividades lista(s) para registrar en presupuesto</strong>
+              <p className="tiny muted">
+                {winningOptions.map((w) => `${w.option.title} (${money(w.option.price)})`).join(' · ')}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="soft"
+            size="sm"
+            icon="plus"
+            onClick={async () => {
+              for (const item of winningOptions) {
+                await api.createBudget({
+                  kind: 'gasto',
+                  concept: `${item.option.title} (${item.taskTitle})`,
+                  amount: item.option.price,
+                  status: 'pendiente',
+                  note: `Cotización ganadora de actividad: ${item.taskTitle}`,
+                  receipt_url: item.option.image_url || '',
+                })
+              }
+              await mutate(async () => {}, 'Cotizaciones agregadas al presupuesto')
+              toast('¡Cotizaciones pasadas a gastos del presupuesto!', 'ok')
+            }}
+          >
+            Pasar a gastos
+          </Button>
+        </div>
+      ) : null}
+
       {rows.length === 0 ? (
         <EmptyState icon="wallet" title="Sin movimientos" hint="Agrega los aportes y los gastos previstos del desayuno." />
       ) : (
@@ -176,9 +230,23 @@ Yape / Plin a: ${tName}${tPhone}
               {rows.map((item) => (
                 <tr key={item.id} className={item.status === 'hecho' ? 'is-done' : ''}>
                   <td>
-                    <span className="cell-title">{item.concept}</span>
+                    <div className="cell-concept-row">
+                      <span className="cell-title">{item.concept}</span>
+                      {item.receipt_url ? (
+                        <button
+                          type="button"
+                          className="receipt-chip-btn"
+                          onClick={() => setViewingReceipt(item.receipt_url!)}
+                          title="Ver imagen de la boleta o cotización"
+                        >
+                          <Icon name="camera" size={12} />
+                          <span>Ver boleta</span>
+                        </button>
+                      ) : null}
+                    </div>
                     {item.note ? <span className="cell-note">{item.note}</span> : null}
                   </td>
+
                   <td>
                     <Badge tone={item.kind === 'ingreso' ? 'success' : 'neutral'}>
                       {item.kind === 'ingreso' ? 'Ingreso' : 'Gasto'}
@@ -226,9 +294,26 @@ Yape / Plin a: ${tName}${tPhone}
           onClose={() => setShowYape(false)}
         />
       ) : null}
+
+      {viewingReceipt ? (
+        <div className="photo-lightbox" onClick={() => setViewingReceipt(null)}>
+          <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <img src={viewingReceipt} alt="Comprobante o Cotización" className="lightbox-img" />
+            <button
+              type="button"
+              className="lightbox-close"
+              onClick={() => setViewingReceipt(null)}
+              aria-label="Cerrar imagen"
+            >
+              <Icon name="x" size={24} />
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
+
 
 function TreasurerManager({
   settings,
@@ -533,7 +618,51 @@ function BudgetEditor({ item, onClose }: { item: BudgetItem | null; onClose: () 
   const [ownerId, setOwnerId] = useState(String(item?.owner_id ?? ''))
   const [dueDate, setDueDate] = useState(item?.due_date ?? '')
   const [note, setNote] = useState(item?.note ?? '')
+  const [receiptUrl, setReceiptUrl] = useState(item?.receipt_url ?? '')
+  const [compressing, setCompressing] = useState(false)
+  const [scanning, setScanning] = useState(false)
+  const [scrapedInfo, setScrapedInfo] = useState<{ amount: number | null; concept: string; allPrices: number[] } | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleReceiptSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      setCompressing(true)
+      const compressed = await compressImageFile(file, 900, 0.75)
+      setReceiptUrl(compressed)
+      setCompressing(false)
+
+      setScanning(true)
+      try {
+        const scraped = await api.scrapeQuoteImage(compressed)
+        if (scraped.ok) {
+          if (scraped.detectedAmount) {
+            setAmount(String(scraped.detectedAmount))
+          }
+          if (scraped.detectedConcept && !concept.trim()) {
+            setConcept(scraped.detectedConcept)
+          }
+          setScrapedInfo({
+            amount: scraped.detectedAmount,
+            concept: scraped.detectedConcept,
+            allPrices: scraped.allPrices || [],
+          })
+        }
+      } catch (ocrErr) {
+        console.warn('OCR error in budget editor:', ocrErr)
+      } finally {
+        setScanning(false)
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al procesar la foto')
+      setCompressing(false)
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   const save = async () => {
     if (!concept.trim()) return
@@ -546,6 +675,7 @@ function BudgetEditor({ item, onClose }: { item: BudgetItem | null; onClose: () 
       owner_id: ownerId ? Number(ownerId) : null,
       due_date: dueDate || null,
       note,
+      receipt_url: receiptUrl,
     }
     const ok = await mutate(
       () => (item ? api.updateBudget(item.id, payload) : api.createBudget(payload)),
@@ -560,7 +690,7 @@ function BudgetEditor({ item, onClose }: { item: BudgetItem | null; onClose: () 
       open
       onClose={onClose}
       title={item ? 'Editar movimiento' : 'Nuevo movimiento'}
-      description="Registra aportes, apoyo de la empresa o gastos del desayuno."
+      description="Registra aportes, cotizaciones con foto o gastos del desayuno."
       footer={
         <>
           <span className="spacer" />
@@ -574,6 +704,74 @@ function BudgetEditor({ item, onClose }: { item: BudgetItem | null; onClose: () 
       }
     >
       <div className="form-grid">
+        {/* Subida y escaneo de foto de cotización / boleta */}
+        <div className="budget-photo-section">
+          {receiptUrl ? (
+            <div className="budget-receipt-preview">
+              <img src={receiptUrl} alt="Boleta / Cotización" className="budget-receipt-img" />
+              <div className="budget-receipt-tools">
+                <Button size="sm" variant="outline" type="button" onClick={() => fileInputRef.current?.click()} disabled={compressing || scanning}>
+                  Cambiar imagen
+                </Button>
+                <Button size="sm" variant="danger" type="button" onClick={() => { setReceiptUrl(''); setScrapedInfo(null) }}>
+                  Quitar imagen
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="budget-receipt-dropzone" onClick={() => !compressing && fileInputRef.current?.click()}>
+              <Icon name="camera" size={24} />
+              <div>
+                <strong>{compressing ? 'Procesando imagen…' : 'Subir foto de cotización o boleta'}</strong>
+                <p className="tiny muted">
+                  {compressing ? 'Espera un momento…' : 'Escanea automáticamente el precio y concepto de la imagen con IA'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/*"
+            capture="environment"
+            style={{ display: 'none' }}
+            onChange={handleReceiptSelect}
+          />
+
+          {scanning ? (
+            <div className="ocr-scanning-pill">
+              <span className="live-ping-dot" />
+              <span>🔍 Leyendo cotización con IA (extrayendo monto)…</span>
+            </div>
+          ) : scrapedInfo?.amount ? (
+            <div className="ocr-detected-box">
+              <div className="ocr-detected-head">
+                <span className="ocr-sparkle">✨</span>
+                <strong>Monto detectado: S/ {scrapedInfo.amount.toFixed(2)}</strong>
+              </div>
+              <p className="tiny muted">
+                Se completó automáticamente en el campo de monto. Puedes editarlo o digitar otro valor si deseas.
+              </p>
+              {scrapedInfo.allPrices.length > 1 ? (
+                <div className="ocr-alt-row">
+                  <span className="tiny muted">Otros montos encontrados:</span>
+                  {scrapedInfo.allPrices.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      className={`ocr-chip-btn ${amount === String(p) ? 'is-selected' : ''}`}
+                      onClick={() => setAmount(String(p))}
+                    >
+                      S/ {p.toFixed(2)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
         <div className="form-row">
           <Field label="Tipo">
             <Select value={kind} onChange={(event) => setKind(event.target.value as BudgetKind)}>
@@ -581,12 +779,12 @@ function BudgetEditor({ item, onClose }: { item: BudgetItem | null; onClose: () 
               <option value="gasto">Gasto</option>
             </Select>
           </Field>
-          <Field label="Monto (S/)">
-            <Input type="number" min="0" step="10" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0" />
+          <Field label="Monto (S/) — puedes digitarlo o editarlo">
+            <Input type="number" min="0" step="0.5" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" />
           </Field>
         </div>
         <Field label="Concepto">
-          <Input value={concept} onChange={(event) => setConcept(event.target.value)} placeholder="Ej. Insumos del desayuno" autoFocus />
+          <Input value={concept} onChange={(event) => setConcept(event.target.value)} placeholder="Ej. Insumos del desayuno o proveedor" autoFocus />
         </Field>
         <div className="form-row">
           <Field label="Responsable">
@@ -616,3 +814,4 @@ function BudgetEditor({ item, onClose }: { item: BudgetItem | null; onClose: () 
     </Modal>
   )
 }
+

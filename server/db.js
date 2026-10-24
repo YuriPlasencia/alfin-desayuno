@@ -147,6 +147,13 @@ try {
   /* columna ya existe */
 }
 
+try {
+  db.exec('ALTER TABLE budget_items ADD COLUMN receipt_url TEXT NOT NULL DEFAULT "";')
+} catch {
+  /* columna ya existe */
+}
+
+
 export const nowIso = () => new Date().toISOString()
 
 export function plain(row) {

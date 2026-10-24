@@ -1,6 +1,7 @@
-import type { Bootstrap, TaskOption, PresenceStats } from './types'
+import type { Bootstrap, TaskOption, PresenceStats, ScrapedQuote } from './types'
 
 const ACTOR_KEY = 'alfin.actor.v1'
+
 
 
 export class ApiError extends Error {
@@ -105,6 +106,8 @@ export const api = {
     request<{ ok: boolean }>('/api/activity', json(body)),
   pingPresence: (view?: string) => request<{ ok: boolean }>('/api/presence', json({ view })),
   getPresenceStats: () => request<PresenceStats>('/api/presence/stats'),
+  scrapeQuoteImage: (image: string) => request<ScrapedQuote>('/api/ocr/scrape', json({ image })),
 }
+
 
 

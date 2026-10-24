@@ -14,6 +14,8 @@ import {
   plain,
 } from './db.js'
 import { seedDemo } from './seed.js'
+import { scrapeQuoteImage } from './ocr.js'
+
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.PORT || 8787)
@@ -678,8 +680,8 @@ app.post('/api/budget', (req, res) => {
   if (!concept) return res.status(400).json({ error: 'Escribe el concepto del movimiento' })
   const result = db
     .prepare(
-      `INSERT INTO budget_items (kind, concept, amount, status, owner_id, due_date, note, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO budget_items (kind, concept, amount, status, owner_id, due_date, note, receipt_url, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       oneOf(body.kind, ['ingreso', 'gasto'], 'gasto'),
@@ -689,6 +691,7 @@ app.post('/api/budget', (req, res) => {
       memberOrNull(body.owner_id),
       dateOrNull(body.due_date),
       text(body.note),
+      text(body.receipt_url, ''),
       nowIso(),
     )
   const id = Number(result.lastInsertRowid)
@@ -710,10 +713,11 @@ app.patch('/api/budget/:id', (req, res) => {
     owner_id: body.owner_id === undefined ? current.owner_id : memberOrNull(body.owner_id),
     due_date: body.due_date === undefined ? current.due_date : dateOrNull(body.due_date),
     note: body.note === undefined ? current.note : text(body.note),
+    receipt_url: body.receipt_url === undefined ? (current.receipt_url || '') : text(body.receipt_url),
   }
   db.prepare(
-    'UPDATE budget_items SET kind=?, concept=?, amount=?, status=?, owner_id=?, due_date=?, note=? WHERE id=?',
-  ).run(next.kind, next.concept, next.amount, next.status, next.owner_id, next.due_date, next.note, id)
+    'UPDATE budget_items SET kind=?, concept=?, amount=?, status=?, owner_id=?, due_date=?, note=?, receipt_url=? WHERE id=?',
+  ).run(next.kind, next.concept, next.amount, next.status, next.owner_id, next.due_date, next.note, next.receipt_url, id)
   note(req, 'budget', id, 'update', `Actualizó “${next.concept}” en el presupuesto`)
   broadcast()
   res.json({ item: plain(db.prepare('SELECT * FROM budget_items WHERE id = ?').get(id)) })
@@ -728,6 +732,20 @@ app.delete('/api/budget/:id', (req, res) => {
   broadcast()
   res.json({ ok: true })
 })
+
+// ---------- OCR & quote image scraping ----------
+
+app.post('/api/ocr/scrape', async (req, res) => {
+  const image = req.body?.image
+  if (!image) return res.status(400).json({ error: 'Falta la imagen para escanear' })
+  try {
+    const result = await scrapeQuoteImage(image)
+    res.json(result)
+  } catch (err) {
+    res.status(500).json({ error: 'Error al escanear la imagen', details: err.message })
+  }
+})
+
 
 // ---------- activity log / live alerts & kudos ----------
 

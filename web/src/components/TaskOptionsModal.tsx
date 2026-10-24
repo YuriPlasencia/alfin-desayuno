@@ -28,6 +28,8 @@ export function TaskOptionsModal({
   const [detail, setDetail] = useState('')
   const [photoDataUrl, setPhotoDataUrl] = useState('')
   const [compressing, setCompressing] = useState(false)
+  const [scanning, setScanning] = useState(false)
+  const [scrapedInfo, setScrapedInfo] = useState<{ amount: number | null; concept: string; allPrices: number[] } | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null)
   const [actionInProgress, setActionInProgress] = useState<number | null>(null)
@@ -46,11 +48,35 @@ export function TaskOptionsModal({
       setCompressing(true)
       const compressed = await compressImageFile(file, 900, 0.75)
       setPhotoDataUrl(compressed)
+      setCompressing(false)
+
+      // Escaneo / Scraping automático de cotizaciones con OCR
+      setScanning(true)
+      try {
+        const scraped = await api.scrapeQuoteImage(compressed)
+        if (scraped.ok) {
+          if (scraped.detectedAmount) {
+            setPrice(String(scraped.detectedAmount))
+          }
+          if (scraped.detectedConcept && !title.trim()) {
+            setTitle(scraped.detectedConcept)
+          }
+          setScrapedInfo({
+            amount: scraped.detectedAmount,
+            concept: scraped.detectedConcept,
+            allPrices: scraped.allPrices || [],
+          })
+        }
+      } catch (ocrErr) {
+        console.warn('OCR scan failed:', ocrErr)
+      } finally {
+        setScanning(false)
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al procesar la foto'
       alert(msg)
-    } finally {
       setCompressing(false)
+    } finally {
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
@@ -78,6 +104,7 @@ export function TaskOptionsModal({
       setPrice('')
       setDetail('')
       setPhotoDataUrl('')
+      setScrapedInfo(null)
       setAdding(false)
     }
   }
@@ -102,12 +129,31 @@ export function TaskOptionsModal({
     setActionInProgress(null)
   }
 
+  const handlePushToBudget = async (option: TaskOption) => {
+    if (!window.confirm(`¿Agregar el gasto de “${option.title}” (${money(option.price)}) al Presupuesto?`)) return
+    setActionInProgress(option.id)
+    await mutate(
+      () =>
+        api.createBudget({
+          kind: 'gasto',
+          concept: `${option.title} (${task.title})`,
+          amount: option.price || 0,
+          status: 'pendiente',
+          note: `De actividad: ${task.title}. Cotización de ${option.created_by_name || 'equipo'}. ${option.detail || ''}`,
+          receipt_url: option.image_url || '',
+        }),
+      `“${option.title}” agregada al Presupuesto`,
+    )
+    setActionInProgress(null)
+  }
+
   const handleDeleteOption = async (option: TaskOption) => {
     if (!window.confirm(`¿Eliminar la opción “${option.title}”?`)) return
     setActionInProgress(option.id)
     await mutate(() => api.deleteTaskOption(option.id), 'Opción eliminada')
     setActionInProgress(null)
   }
+
 
   return (
     <>
@@ -208,8 +254,40 @@ export function TaskOptionsModal({
                     />
                   </Field>
 
+                  {scanning ? (
+                    <div className="ocr-scanning-pill">
+                      <span className="live-ping-dot" />
+                      <span>🔍 Escaneando imagen con IA (extrayendo precios y cotización)…</span>
+                    </div>
+                  ) : scrapedInfo?.amount ? (
+                    <div className="ocr-detected-box">
+                      <div className="ocr-detected-head">
+                        <span className="ocr-sparkle">✨</span>
+                        <strong>Precio detectado: S/ {scrapedInfo.amount.toFixed(2)}</strong>
+                      </div>
+                      <p className="tiny muted">
+                        Se colocó automáticamente en el campo de precio. Puedes editarlo o digitar otro monto si es diferente.
+                      </p>
+                      {scrapedInfo.allPrices.length > 1 ? (
+                        <div className="ocr-alt-row">
+                          <span className="tiny muted">Otros montos en la imagen:</span>
+                          {scrapedInfo.allPrices.map((p) => (
+                            <button
+                              key={p}
+                              type="button"
+                              className={`ocr-chip-btn ${price === String(p) ? 'is-selected' : ''}`}
+                              onClick={() => setPrice(String(p))}
+                            >
+                              S/ {p.toFixed(2)}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   <div className="form-row">
-                    <Field label="Precio en Soles (opcional)" hint="Costo unitario o total">
+                    <Field label="Precio en Soles (opcional)" hint="Costo unitario o total (puedes digitarlo o editarlo)">
                       <Input
                         type="number"
                         step="0.10"
@@ -220,6 +298,7 @@ export function TaskOptionsModal({
                       />
                     </Field>
                   </div>
+
 
                   <Field label="Nota adicional (opcional)" hint="Qué incluye, porciones o detalles...">
                     <TextArea
@@ -396,7 +475,21 @@ export function TaskOptionsModal({
                             <Icon name="trophy" size={14} />
                             {option.is_winner ? 'Elegida' : 'Elegir'}
                           </button>
+
+                          {option.price > 0 ? (
+                            <button
+                              type="button"
+                              className="btn-push-budget"
+                              onClick={() => void handlePushToBudget(option)}
+                              disabled={actionInProgress === option.id}
+                              title="Pasar este monto directamente al presupuesto de gastos"
+                            >
+                              <Icon name="wallet" size={13} />
+                              <span>A presupuesto</span>
+                            </button>
+                          ) : null}
                         </div>
+
                       </div>
                     </div>
                   )
