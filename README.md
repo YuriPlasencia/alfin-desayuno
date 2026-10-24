@@ -130,9 +130,9 @@ Los nombres, montos y fechas son **de ejemplo**: cámbialos en **Equipo**, **Aju
 
 ---
 
-## 6. Publicarla en internet (Railway)
+## 6. Publicarla en internet (Render o Railway)
 
-Para que el equipo entre desde su casa o la oficina, la app se publica en un servidor con `https`. El proyecto ya trae todo listo para **Railway** (`railway.json`, Node 22 en `.nvmrc`).
+Para que el equipo entre desde su casa o la oficina, la app se publica en un servidor con `https`. El proyecto trae todo listo para **Render** (`render.yaml`) y para **Railway** (`railway.json`). Ambos usan Node 22 (`.nvmrc`).
 
 ### Código de acceso del equipo
 
@@ -140,7 +140,17 @@ Con la variable `TEAM_CODE` definida, la app pide ese código **una sola vez por
 
 Sin `TEAM_CODE` (uso en tu computadora) la app queda abierta como antes.
 
-### Pasos
+### Opción A: Render (recomendada)
+
+1. Crea una cuenta en [render.com](https://render.com) (puedes entrar con GitHub) y autoriza el acceso al repositorio `alfin-desayuno`.
+2. Ve a **New → Blueprint** y elige el repositorio. Render lee `render.yaml` y propone un servicio web **Starter** con un disco de 1 GB en `/data`.
+3. Cuando lo pida, escribe el valor de **`TEAM_CODE`** (el código que compartirás con el equipo). `DATA_DIR` y `NODE_VERSION` ya vienen definidos.
+4. Confirma con **Apply**. Render compila, arranca y revisa `/api/health`. El plan Starter y el disco son de pago: revisa el precio en pantalla antes de confirmar. El plan gratis no sirve porque no admite disco y la base se borraría.
+5. Tu enlace queda como `https://alfin-desayuno.onrender.com` (o similar). Compártelo junto con el código.
+
+Cada vez que subas cambios a `main` en GitHub, Render vuelve a desplegar solo.
+
+### Opción B: Railway
 
 1. Sube el proyecto a un repositorio de GitHub (privado está bien).
 2. En [railway.com](https://railway.com) crea una cuenta y un proyecto nuevo con **Deploy from GitHub repo** y elige el repositorio.

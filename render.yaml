@@ -1,0 +1,23 @@
+# Blueprint de Render para Al Fin Desayuno.
+# En Render: New → Blueprint → elige este repositorio. Te pedirá el valor de TEAM_CODE.
+services:
+  - type: web
+    name: alfin-desayuno
+    runtime: node
+    # El disco persistente (base SQLite) requiere un plan de pago; el gratis borra los datos.
+    plan: starter
+    region: virginia
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATA_DIR
+        value: /data
+      - key: TEAM_CODE
+        sync: false
+    disk:
+      name: alfin-data
+      mountPath: /data
+      sizeGB: 1
