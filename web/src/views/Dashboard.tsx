@@ -1,5 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useStore } from '../store'
+import { api } from '../api'
 import { Button, Icon, Magnet, Progress } from '../components/ui'
 import { StepToggle } from '../components/checklist'
 import { HelpPicker } from '../components/help'
@@ -13,6 +14,26 @@ const COLUMNS: { status: TaskStatus; label: string }[] = [
   { status: 'hecha', label: 'Hecho' },
 ]
 
+const RUNWAY_SCHEDULE = [
+  { id: 1, time: '06:30', title: 'Recepción de pan y encendido de cocina', detail: 'Panceta, tamales y cafeteras listas.', leads: 'Diego H. y Rosa Q.', area: 'Cocina' },
+  { id: 2, time: '07:15', title: 'Montaje de 10 mesas, vajilla y cubiertos', detail: '8 puestos por mesa con servilleteros.', leads: 'Marco V. y Sandra C.', area: 'Logística' },
+  { id: 3, time: '08:00', title: 'Apertura de puertas y bienvenida a los 80', detail: 'Recepción en puerta y ubicación.', leads: 'Ana T. y Fiorella N.', area: 'Coordinación' },
+  { id: 4, time: '08:30', title: 'Servicio de chicharrón, tamales y café', detail: 'Salida caliente por bandejas continuas.', leads: 'Yuli C. y Kevin F.', area: 'Servicio' },
+  { id: 5, time: '09:15', title: 'Dinámica de integración bancaria cruzada', detail: 'Juegos rápidos entre áreas y rompehielos.', leads: 'Luis R. y Bruno C.', area: 'Dinámicas' },
+  { id: 6, time: '10:00', title: 'Palabras de líderes, foto grupal y aplausos', detail: 'Foto oficial de los 80 colaboradores.', leads: 'Ana T. y Patricia L.', area: 'Comunicación' },
+  { id: 7, time: '10:30', title: 'Limpieza final, residuos y entrega de local', detail: 'Clasificación de desechos y vajilla.', leads: 'Andrés P. y Jorge S.', area: 'Servicio' },
+]
+
+const QUICK_ALERTS = [
+  '🥖 Mesas piden reposición de pan con chicharrón',
+  '☕ Se está agotando el café pasado en barra',
+  '🧊 Falta hielo o vasos biodegradables en mesas',
+  '🧹 Apoyo urgente con limpieza en salón',
+  '🔊 Micrófono / sonido requiere ajuste',
+]
+
+const KUDO_STICKERS = ['🥐', '☕', '👏', '⭐', '🥖', '🎉']
+
 const shortDate = new Intl.DateTimeFormat('es-PE', { day: 'numeric', month: 'short' })
 
 function greeting(): string {
@@ -23,18 +44,26 @@ function greeting(): string {
 }
 
 export function Dashboard({ onNavigate }: { onNavigate: (tab: string) => void }) {
-  const { data, actor, lastVisit } = useStore()
+  const { data, actor, lastVisit, toast } = useStore()
+  const [dayMode, setDayMode] = useState(false)
+  const [runwayChecks, setRunwayChecks] = useState<Record<number, boolean>>({})
+  const [showSos, setShowSos] = useState(false)
+  const [kudoNote, setKudoNote] = useState('')
+  const [kudoSticker, setKudoSticker] = useState('🥐')
+  const [sendingKudo, setSendingKudo] = useState(false)
+
   const summary = useMemo(() => (data ? summarize(data) : null), [data])
   const plate = useMemo(() => (data ? myPlate(data, actor?.id) : []), [data, actor])
   const news = useMemo(() => (data ? sinceVisit(data, lastVisit, actor?.id) : null), [data, lastVisit, actor])
   const feed = useMemo(
-    () => (data ? [...data.log].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 8) : []),
+    () => (data ? [...data.log].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 10) : []),
     [data],
   )
   if (!data || !summary) return null
 
   const { settings, members } = data
   const days = daysUntil(settings.event_date)
+  const isToday = days === 0
   const eventDate = parseDate(settings.event_date)
   const pct = Math.round(summary.overall * 100)
   const today = todayCount(data)
@@ -44,12 +73,73 @@ export function Dashboard({ onNavigate }: { onNavigate: (tab: string) => void })
   const blocked = data.tasks.filter((task) => task.status === 'bloqueada')
   const freshIds = new Set(news?.entries.map((entry) => entry.id))
 
+  const activeMode = dayMode || isToday
+
+  const triggerSos = async (alertText: string) => {
+    const who = actor?.name || 'Alguien del equipo'
+    try {
+      await api.logActivity({
+        entity: 'alerta',
+        action: 'sos',
+        detail: `🚨 ${who}: ${alertText}`,
+      })
+      toast(`Alerta emitida: “${alertText}”`, 'ok')
+      setShowSos(false)
+    } catch {
+      toast('No se pudo enviar la alerta', 'error')
+    }
+  }
+
+  const toggleRunwayStep = (id: number) => {
+    setRunwayChecks((prev) => {
+      const next = !prev[id]
+      const step = RUNWAY_SCHEDULE.find((s) => s.id === id)
+      if (step) {
+        api.logActivity({
+          entity: 'runway',
+          action: next ? 'hecho' : 'desmarcado',
+          detail: `${actor?.name || 'Alguien'} marcó como ${next ? 'completado' : 'pendiente'} el bloque “${step.time} ${step.title}”`,
+        }).catch(() => {})
+      }
+      return { ...prev, [id]: next }
+    })
+  }
+
+  const sendKudo = async () => {
+    if (!kudoNote.trim()) return
+    const who = actor?.name || 'Compañero Alfin'
+    setSendingKudo(true)
+    try {
+      await api.logActivity({
+        entity: 'kudos',
+        action: 'reconocimiento',
+        detail: `${kudoSticker} ${who}: “${kudoNote.trim()}”`,
+      })
+      setKudoNote('')
+      toast('¡Agradecimiento publicado en la pizarra!', 'win')
+    } catch {
+      toast('No se pudo enviar el reconocimiento', 'error')
+    } finally {
+      setSendingKudo(false)
+    }
+  }
+
   return (
     <div className="stack">
       <section className="board board-hero" aria-label="Resumen del desayuno">
         <div className="board-head">
           <div>
-            <h1 className="board-title">Desayuno · {eventDate ? shortDate.format(eventDate).replace('.', '') : 'fecha por definir'}</h1>
+            <div className="title-row">
+              <h1 className="board-title">Desayuno · {eventDate ? shortDate.format(eventDate).replace('.', '') : 'fecha por definir'}</h1>
+              <button
+                className={`runway-toggle-btn ${activeMode ? 'is-active' : ''}`}
+                onClick={() => setDayMode(!activeMode)}
+                title="Activar vista de escaleta y urgencias para el día del desayuno"
+              >
+                <Icon name="sparkles" size={15} />
+                <span>{activeMode ? 'Modo Día D activo' : 'Ver Modo Día D'}</span>
+              </button>
+            </div>
             <p className="board-sub">
               {formatLongDate(settings.event_date)} · {settings.event_time || 'Hora por definir'} · {settings.location || 'Lugar por definir'}
             </p>
@@ -131,6 +221,84 @@ export function Dashboard({ onNavigate }: { onNavigate: (tab: string) => void })
             </p>
           </div>
         )}
+
+        {activeMode ? (
+          <div className="runway-board">
+            <div className="runway-head">
+              <div>
+                <span className="runway-tag">
+                  <span className="live-dot is-live" /> EN VIVO · DÍA DEL DESAYUNO
+                </span>
+                <h2 className="runway-title">Escaleta y coordinación horaria</h2>
+                <p className="small muted">
+                  {summary.checklistDone} de {summary.checklistTotal} tareas listas · 80 invitados
+                </p>
+              </div>
+              <div className="runway-actions">
+                <Button variant={showSos ? 'outline' : 'danger'} icon="alert" onClick={() => setShowSos(!showSos)}>
+                  {showSos ? 'Cerrar auxilio' : '🚨 Pedir auxilio'}
+                </Button>
+              </div>
+            </div>
+
+            {showSos ? (
+              <div className="sos-panel">
+                <p className="sos-title">
+                  <strong>¿Necesitas apoyo en tu mesa o cocina?</strong> Toca una opción para alertar al equipo en vivo:
+                </p>
+                <div className="sos-grid">
+                  {QUICK_ALERTS.map((alertText) => (
+                    <button key={alertText} className="sos-btn" onClick={() => void triggerSos(alertText)}>
+                      {alertText}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="runway-contacts">
+              <span className="small muted">Líderes de guardia:</span>
+              <a href="tel:987654321" className="phone-chip">
+                <Icon name="phone" size={13} /> Ana Torres (Coordinación)
+              </a>
+              <a href="tel:944556677" className="phone-chip">
+                <Icon name="phone" size={13} /> Diego Huamán (Cocina)
+              </a>
+              <a href="tel:998112233" className="phone-chip">
+                <Icon name="phone" size={13} /> Carla Mendoza (Caja)
+              </a>
+            </div>
+
+            <ul className="runway-list">
+              {RUNWAY_SCHEDULE.map((item) => {
+                const isDone = Boolean(runwayChecks[item.id])
+                return (
+                  <li key={item.id} className={`runway-item ${isDone ? 'is-done' : ''}`}>
+                    <span className="runway-time">{item.time}</span>
+                    <div className="runway-body">
+                      <div className="runway-item-head">
+                        <strong>{item.title}</strong>
+                        <span className="area-pill small">
+                          <span className="dot" style={{ background: AREA_COLORS[item.area] || '#64748b' }} />
+                          {item.area}
+                        </span>
+                      </div>
+                      <p className="small muted">{item.detail}</p>
+                      <p className="tiny muted">Responsables: {item.leads}</p>
+                    </div>
+                    <button
+                      className={`runway-check-btn ${isDone ? 'is-checked' : ''}`}
+                      onClick={() => toggleRunwayStep(item.id)}
+                      aria-label={`Marcar bloque de ${item.time}`}
+                    >
+                      {isDone ? <Icon name="check" size={16} /> : <span className="empty-box" />}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ) : null}
 
         <div className="mini-board" aria-label="Columnas del equipo">
           {COLUMNS.map((column) => {
@@ -253,27 +421,69 @@ export function Dashboard({ onNavigate }: { onNavigate: (tab: string) => void })
           </section>
         </div>
 
-        <section className="card">
-          <header className="card-head">
-            <h2>Por área</h2>
-          </header>
-          <ul className="area-list">
-            {summary.areas.map((area) => (
-              <li key={area.area}>
-                <div className="area-row">
-                  <span className="area-name">
-                    <span className="dot" style={{ background: AREA_COLORS[area.area] || '#64748B' }} />
-                    {area.area}
-                  </span>
-                  <span className="muted small tabular">
-                    {Math.round(area.progress * 100)}% · {area.done}/{area.total}
-                  </span>
-                </div>
-                <Progress value={area.progress} tone={area.progress === 1 ? 'success' : 'brand'} />
-              </li>
-            ))}
-          </ul>
-        </section>
+        <div className="stack">
+          <section className="card">
+            <header className="card-head">
+              <h2>Por área</h2>
+            </header>
+            <ul className="area-list">
+              {summary.areas.map((area) => (
+                <li key={area.area}>
+                  <div className="area-row">
+                    <span className="area-name">
+                      <span className="dot" style={{ background: AREA_COLORS[area.area] || '#64748B' }} />
+                      {area.area}
+                    </span>
+                    <span className="muted small tabular">
+                      {Math.round(area.progress * 100)}% · {area.done}/{area.total}
+                    </span>
+                  </div>
+                  <Progress value={area.progress} tone={area.progress === 1 ? 'success' : 'brand'} />
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="card kudos-card">
+            <header className="card-head">
+              <div>
+                <h2>Muro de Reconocimientos</h2>
+                <p className="small muted">Reconoce a tus compañeros de cocina, servicio y logística</p>
+              </div>
+              <span className="lead-star" title="Kudos y agradecimientos">
+                <Icon name="heart" size={16} />
+              </span>
+            </header>
+            <div className="kudos-form">
+              <div className="kudo-stickers">
+                {KUDO_STICKERS.map((stk) => (
+                  <button
+                    key={stk}
+                    type="button"
+                    className={`sticker-btn ${kudoSticker === stk ? 'is-active' : ''}`}
+                    onClick={() => setKudoSticker(stk)}
+                  >
+                    {stk}
+                  </button>
+                ))}
+              </div>
+              <div className="kudo-input-row">
+                <input
+                  className="input kudo-input"
+                  value={kudoNote}
+                  onChange={(e) => setKudoNote(e.target.value)}
+                  placeholder="Ej. ¡El chicharrón y el café quedaron de 10!"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void sendKudo()
+                  }}
+                />
+                <Button size="sm" onClick={() => void sendKudo()} disabled={sendingKudo || !kudoNote.trim()}>
+                  Enviar
+                </Button>
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
 
       <p className="muted tiny">Actualizado {relativeTime(data.serverTime)}</p>

@@ -90,4 +90,7 @@ export const api = {
   updateSettings: (body: Record<string, unknown>) =>
     request<{ settings: Bootstrap['settings'] }>('/api/settings', { method: 'PATCH', body: JSON.stringify(body) }),
   importData: (data: unknown) => request<Bootstrap>('/api/import', json(data)),
+  logActivity: (body: { entity?: string; action?: string; detail: string; entityId?: number }) =>
+    request<{ ok: boolean }>('/api/activity', json(body)),
 }
+

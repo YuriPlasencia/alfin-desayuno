@@ -18,8 +18,9 @@ import { summarize } from '../lib/stats'
 const COLOR_OPTIONS = ['#E4572E', '#D98E04', '#2F8F5B', '#3B6EA5', '#8B5CF6', '#C2412D', '#0E7490', '#A16207', '#DB2777', '#475569']
 
 export function Team() {
-  const { data, actor, mutate } = useStore()
+  const { data, actor, mutate, toast } = useStore()
   const [editing, setEditing] = useState<Member | 'nuevo' | null>(null)
+  const [viewTab, setViewTab] = useState<'organizadores' | 'invitados'>('organizadores')
 
   const summary = useMemo(() => (data ? summarize(data) : null), [data])
   if (!data || !summary) return null
@@ -31,19 +32,59 @@ export function Team() {
     await mutate(() => api.deleteMember(member.id), 'Integrante retirado')
   }
 
+  const copyRsvpInvite = async () => {
+    const text = `🥐 *¡LLEGA EL DESAYUNO DE INTEGRACIÓN ALFIN!*
+📅 *Fecha:* ${data.settings.event_date || 'Por confirmar'} · ${data.settings.event_time || '08:30 a.m.'}
+📍 *Lugar:* ${data.settings.location || 'Local Comunal'}
+👥 *Comensales:* 80 colaboradores de todas las áreas
+
+🥖 *Menú Criollo:*
+• Pan con chicharrón caliente con camote frito y salsa criolla
+• Tamal criollo de cerdo
+• Café pasado de Chanchamayo, jugo de naranja y fruta de estación
+
+⚠️ *¿Tienes alguna dieta especial o restricción médica?*
+Contamos con opciones vegetarianas y sin gluten/lactosa. Por favor avisa a Ana Torres o Fiorella Núñez para tener tu plato especial listo.
+
+¡Te esperamos para compartir una gran mañana de equipo!`
+
+    try {
+      await navigator.clipboard.writeText(text)
+      toast('¡Tarjeta de invitación RSVP copiada! Lista para enviar por Teams o WhatsApp.', 'ok')
+    } catch {
+      toast('No se pudo copiar la invitación', 'error')
+    }
+  }
+
   return (
     <div className="stack">
       <PageHeader
-        title="Equipo"
-        subtitle={`${data.members.length} personas con un rol claro para atender a ${data.settings.guests} invitados`}
+        title="Equipo e Invitados"
+        subtitle={`${data.members.length} organizadores a cargo de atender a ${data.settings.guests} compañeros del banco`}
         action={
-          <Button icon="plus" onClick={() => setEditing('nuevo')}>
-            Agregar integrante
-          </Button>
+          viewTab === 'organizadores' ? (
+            <Button icon="plus" onClick={() => setEditing('nuevo')}>
+              Agregar integrante
+            </Button>
+          ) : (
+            <Button variant="soft" icon="share" onClick={() => void copyRsvpInvite()}>
+              Copiar invitación RSVP
+            </Button>
+          )
         }
       />
 
-      <section className="board magnet-wall" aria-label="Pizarra del equipo">
+      <div className="segmented">
+        <button className={viewTab === 'organizadores' ? 'is-active' : ''} onClick={() => setViewTab('organizadores')}>
+          Organizadores <span className="seg-count">{data.members.length}</span>
+        </button>
+        <button className={viewTab === 'invitados' ? 'is-active' : ''} onClick={() => setViewTab('invitados')}>
+          Invitados y Menú <span className="seg-count">{data.settings.guests}</span>
+        </button>
+      </div>
+
+      {viewTab === 'organizadores' ? (
+        <section className="board magnet-wall" aria-label="Pizarra del equipo">
         <div className="team-meter-row">
           <p>
             <strong>{data.tasks.filter((task) => task.status !== 'hecha').length}</strong> actividades abiertas repartidas entre el equipo
@@ -100,6 +141,158 @@ export function Team() {
           })}
         </ul>
       </section>
+      ) : (
+        <div className="stack">
+          {/* Ficha de Preferencias y Dietas */}
+          <section className="board" aria-label="Preferencias de Menú">
+            <header className="board-head">
+              <div>
+                <h2 className="board-title">Distribución de Menú y Dietas</h2>
+                <p className="board-sub">80 invitados confirmados de las áreas del banco</p>
+              </div>
+              <div className="countdown" aria-label="80 comensales">
+                <strong>80</strong>
+                <span>invitados</span>
+              </div>
+            </header>
+
+            <div className="diet-grid">
+              <div className="diet-card primary">
+                <div className="diet-icon-wrap">🥐</div>
+                <div className="diet-info">
+                  <strong>72 Menú Clásico Criollo (90%)</strong>
+                  <p className="small muted">
+                    Pan con chicharrón de panceta crocante, camote frito, tamal criollo de cerdo y salsa criolla de hierbabuena.
+                  </p>
+                </div>
+              </div>
+              <div className="diet-card veg">
+                <div className="diet-icon-wrap">🥑</div>
+                <div className="diet-info">
+                  <strong>5 Menú Vegetariano (6%)</strong>
+                  <p className="small muted">
+                    Tamal verde de alcachofa y champiñones al ajillo, palta fuerte, camote dorado y salsa criolla.
+                  </p>
+                </div>
+              </div>
+              <div className="diet-card alert">
+                <div className="diet-icon-wrap">🥛</div>
+                <div className="diet-info">
+                  <strong>3 Restricciones Médicas (4%)</strong>
+                  <p className="small muted">
+                    1 Celíaco (estricto sin gluten / plato rotulado) · 2 Intolerancia a la lactosa (café solo o infusión).
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Calculadora Inteligente de Cocina Criolla (Google Smart Portions) */}
+          <section className="card">
+            <header className="card-head">
+              <div>
+                <h2>Calculadora Criolla de Insumos</h2>
+                <p className="small muted">Cálculo paramétrico para 80 comensales con merma de fritura y margen de seguridad</p>
+              </div>
+              <span className="lead-star" title="Google Smart Portions">
+                <Icon name="sparkles" size={16} />
+              </span>
+            </header>
+            <div className="portions-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Insumo Clave</th>
+                    <th>Cantidad Bruta</th>
+                    <th>Factor / Merma</th>
+                    <th>Porción Servida</th>
+                    <th>Estado de Compra</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>Panceta de cerdo cruda</strong></td>
+                    <td className="tabular font-bold">12.5 kg</td>
+                    <td className="muted small">38% merma fritura y grasa</td>
+                    <td>~110g por pan (72 porciones)</td>
+                    <td><span className="badge-soon">Cotizado en mayorista</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Pan francés / ciabatta</strong></td>
+                    <td className="tabular font-bold">90 unidades</td>
+                    <td className="muted small">+12% holgura (roturas)</td>
+                    <td>1 por invitado + 10 de reserva</td>
+                    <td><span className="badge-done">Panadería reservada</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Tamales criollos (cerdo / pollo)</strong></td>
+                    <td className="tabular font-bold">80 unidades</td>
+                    <td className="muted small">75 cerdo + 5 verdes</td>
+                    <td>1 tamal por comensal</td>
+                    <td><span className="badge-soon">Pedido en proceso</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Camote amarillo</strong></td>
+                    <td className="tabular font-bold">8.0 kg</td>
+                    <td className="muted small">15% merma pelado</td>
+                    <td>2-3 rodajas por plato</td>
+                    <td><span className="badge-soon">Compra sábado 6am</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Cebolla morada (salsa criolla)</strong></td>
+                    <td className="tabular font-bold">6.0 kg</td>
+                    <td className="muted small">Con ají limo y hierbabuena</td>
+                    <td>Platillos compartidos</td>
+                    <td><span className="badge-soon">Compra sábado 6am</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Café pasado Chanchamayo</strong></td>
+                    <td className="tabular font-bold">18.0 litros</td>
+                    <td className="muted small">2 termos industriales</td>
+                    <td>~220ml por taza (con refill)</td>
+                    <td><span className="badge-done">Cafeteras listas</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* Plan de Integración de Mesas Cruzadas */}
+          <section className="card">
+            <header className="card-head">
+              <div>
+                <h2>Plan de Integración: 10 Mesas Cruzadas</h2>
+                <p className="small muted">
+                  Distribuimos a las áreas del banco en parejas para romper silos y fomentar la camaradería real
+                </p>
+              </div>
+            </header>
+            <div className="table-plan-grid">
+              {[
+                { num: 1, areas: 'Comercial Lima Centro + Riesgos Créditos', icon: '🏦' },
+                { num: 2, areas: 'Operaciones & Cajas + Tecnología (TI)', icon: '💻' },
+                { num: 3, areas: 'Recuperaciones & Cobranzas + Finanzas', icon: '📊' },
+                { num: 4, areas: 'Banca Empresa + Recursos Humanos', icon: '🤝' },
+                { num: 5, areas: 'Auditoría + Cumplimiento & Legal', icon: '⚖️' },
+                { num: 6, areas: 'Transformación Digital + Agencias Provincia', icon: '🚀' },
+                { num: 7, areas: 'Experiencia del Cliente + Marketing', icon: '⭐' },
+                { num: 8, areas: 'Planeamiento Estratégico + Ciberseguridad', icon: '🛡️' },
+                { num: 9, areas: 'Soporte Operativo + Inteligencia de Negocios', icon: '📈' },
+                { num: 10, areas: 'Mesa Mixta de Coordinación y Líderes', icon: '🏆' },
+              ].map((m) => (
+                <div key={m.num} className="table-plan-card">
+                  <div className="table-number">
+                    <span>{m.icon}</span>
+                    <strong>Mesa {m.num}</strong>
+                  </div>
+                  <p className="table-areas">{m.areas}</p>
+                  <span className="small muted">8 asientos asignados</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
 
       {editing ? <MemberEditor member={editing === 'nuevo' ? null : editing} onClose={() => setEditing(null)} /> : null}
     </div>

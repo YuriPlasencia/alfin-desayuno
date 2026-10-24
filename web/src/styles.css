@@ -3118,6 +3118,447 @@ select {
   }
 }
 
+/* ============================================================
+   Google-caliber Enhancements:
+   Modo Día D (Live Runway), FinTech (Yape/Plin), Dietas y Kudos
+   ============================================================ */
+
+.btn-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.runway-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 750;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--blue-line);
+  background: var(--blue-soft);
+  color: var(--blue-ink);
+  transition: all 0.15s ease;
+}
+
+.runway-toggle-btn:hover {
+  background: #d6e2fa;
+}
+
+.runway-toggle-btn.is-active {
+  background: var(--blue);
+  color: #ffffff;
+  border-color: var(--blue);
+}
+
+.runway-board {
+  background: var(--well);
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-top: 18px;
+}
+
+.runway-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.runway-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  color: var(--blue-ink);
+  text-transform: uppercase;
+}
+
+.runway-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin-top: 2px;
+}
+
+.runway-contacts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0 16px;
+}
+
+.phone-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 650;
+  background: var(--board);
+  border: 1px solid var(--line);
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: var(--ink-2);
+  transition: border-color 0.15s ease;
+}
+
+.phone-chip:hover {
+  border-color: var(--blue);
+  color: var(--blue-ink);
+}
+
+.runway-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.runway-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: var(--board);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+
+.runway-item.is-done {
+  opacity: 0.65;
+  background: var(--green-soft);
+  border-color: var(--green);
+}
+
+.runway-time {
+  font-size: 14px;
+  font-weight: 850;
+  font-feature-settings: 'tnum';
+  color: var(--blue-ink);
+  min-width: 48px;
+}
+
+.runway-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.runway-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.runway-check-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1.5px solid var(--line-strong);
+  background: var(--board);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--green);
+  transition: all 0.15s ease;
+}
+
+.runway-check-btn:hover {
+  border-color: var(--green);
+}
+
+.runway-check-btn.is-checked {
+  background: var(--green);
+  border-color: var(--green);
+  color: #ffffff;
+}
+
+.sos-panel {
+  background: var(--red-soft);
+  border: 1.5px solid var(--red);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  margin: 12px 0 16px;
+}
+
+.sos-title {
+  font-size: 13.5px;
+  color: var(--red-ink);
+  margin-bottom: 8px;
+}
+
+.sos-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sos-btn {
+  background: var(--board);
+  border: 1.5px solid var(--red);
+  color: var(--red-ink);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sos-btn:hover {
+  background: var(--red);
+  color: #ffffff;
+}
+
+/* FinTech Yape / Plin */
+.yape-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  text-align: center;
+}
+
+.yape-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.yape-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.yape-pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 850;
+  color: #ffffff;
+}
+
+.yape-pill.yape {
+  background: #742284;
+}
+
+.yape-pill.plin {
+  background: #00b5e2;
+}
+
+.yape-interop {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.yape-amount {
+  font-size: 32px;
+  font-weight: 850;
+  color: var(--ink);
+  margin: 4px 0 0;
+  letter-spacing: -0.03em;
+}
+
+.yape-titular {
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.yape-qr-box {
+  padding: 14px 18px;
+  background: #f8fafc;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.yape-qr-svg {
+  width: 140px;
+  height: 140px;
+}
+
+.yape-phone-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  max-width: 320px;
+  padding: 10px 14px;
+  background: var(--well);
+  border-radius: 10px;
+  border: 1px solid var(--line);
+}
+
+.yape-phone-info {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+}
+
+.yape-confirm-form {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Dietas y comensales */
+.diet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.diet-card {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--line);
+  background: var(--board);
+}
+
+.diet-card.primary {
+  border-color: var(--blue-line);
+  background: var(--blue-soft);
+}
+
+.diet-card.veg {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.diet-card.alert {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.diet-icon-wrap {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.diet-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13.5px;
+}
+
+.portions-table-wrap {
+  overflow-x: auto;
+  margin-top: 10px;
+}
+
+.table-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.table-plan-card {
+  padding: 12px 14px;
+  background: var(--well);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.table-number {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.table-areas {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--blue-ink);
+  line-height: 1.35;
+}
+
+/* Kudos / Muro de Reconocimientos */
+.kudos-card {
+  background: var(--board);
+}
+
+.kudos-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.kudo-stickers {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sticker-btn {
+  font-size: 20px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1.5px solid var(--line);
+  background: var(--well);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sticker-btn:hover {
+  border-color: var(--blue);
+}
+
+.sticker-btn.is-active {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  transform: scale(1.1);
+}
+
+.kudo-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.kudo-input {
+  flex: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

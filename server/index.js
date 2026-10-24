@@ -557,6 +557,20 @@ app.delete('/api/budget/:id', (req, res) => {
   res.json({ ok: true })
 })
 
+// ---------- activity log / live alerts & kudos ----------
+
+app.post('/api/activity', (req, res) => {
+  const body = req.body || {}
+  const detail = text(body.detail)
+  if (!detail) return res.status(400).json({ error: 'Detalle requerido' })
+  const entity = text(body.entity, 'general')
+  const action = text(body.action, 'nota')
+  const entityId = body.entityId ? Number(body.entityId) : null
+  note(req, entity, entityId, action, detail)
+  broadcast()
+  res.json({ ok: true })
+})
+
 // ---------- import / export ----------
 
 app.get('/api/export', (_req, res) => {

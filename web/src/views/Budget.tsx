@@ -17,12 +17,13 @@ import {
 } from '../components/ui'
 import { summarize } from '../lib/stats'
 import { formatDate, money } from '../lib/format'
-import type { BudgetItem, BudgetKind, BudgetStatus } from '../types'
+import type { BudgetItem, BudgetKind, BudgetStatus, Member } from '../types'
 
 export function Budget() {
-  const { data, mutate } = useStore()
+  const { data, actor, mutate, toast } = useStore()
   const [filter, setFilter] = useState<'todos' | BudgetKind>('todos')
   const [editing, setEditing] = useState<BudgetItem | 'nuevo' | null>(null)
+  const [showYape, setShowYape] = useState(false)
   const summary = useMemo(() => (data ? summarize(data) : null), [data])
 
   if (!data || !summary) return null
@@ -42,15 +43,44 @@ export function Budget() {
     await mutate(() => api.deleteBudget(item.id), 'Movimiento eliminado')
   }
 
+  const copyWhatsAppReport = async () => {
+    const text = `🥐 *AL FIN DESAYUNO · REPORTE DE CAJA*
+📅 *Evento:* ${data.settings.event_name}
+📍 *Lugar:* ${data.settings.location || 'Por definir'}
+------------------------------------
+💰 *Saldo en caja:* ${money(summary.budget.saldo)}
+📥 *Ingresos cobrados:* ${money(summary.budget.cobrado)} de ${money(summary.budget.ingresos)} (${Math.round(summary.budget.avanceCobro * 100)}%)
+📤 *Gastos pagados:* ${money(summary.budget.pagado)} de ${money(summary.budget.gastos)}
+
+📲 *Cuotas individuales (S/ 100.00):*
+Yape / Plin a: Carla Mendoza · *998 112 233*
+(Al yapear, envía tu constancia o regístrala en la app)`
+
+    try {
+      await navigator.clipboard.writeText(text)
+      toast('¡Reporte copiado para WhatsApp! Pégalo en el grupo.', 'ok')
+    } catch {
+      toast('No se pudo copiar al portapapeles', 'error')
+    }
+  }
+
   return (
     <div className="stack">
       <PageHeader
         title="Presupuesto"
         subtitle="Aportes del equipo, gastos previstos y saldo disponible"
         action={
-          <Button icon="plus" onClick={() => setEditing('nuevo')}>
-            Nuevo movimiento
-          </Button>
+          <div className="btn-group">
+            <Button variant="soft" icon="share" onClick={() => void copyWhatsAppReport()}>
+              WhatsApp
+            </Button>
+            <Button variant="soft" icon="qrCode" onClick={() => setShowYape(true)}>
+              Pagar con Yape
+            </Button>
+            <Button icon="plus" onClick={() => setEditing('nuevo')}>
+              Nuevo movimiento
+            </Button>
+          </div>
         }
       />
 
@@ -162,9 +192,150 @@ export function Budget() {
       </p>
 
       {editing ? <BudgetEditor item={editing === 'nuevo' ? null : editing} onClose={() => setEditing(null)} /> : null}
+      {showYape && data ? (
+        <YapeModal members={data.members} currentActorId={actor?.id ?? null} onClose={() => setShowYape(false)} />
+      ) : null}
     </div>
   )
 }
+
+function YapeModal({
+  onClose,
+  members,
+  currentActorId,
+}: {
+  onClose: () => void
+  members: Member[]
+  currentActorId: number | null
+}) {
+  const { toast } = useStore()
+  const [payerId, setPayerId] = useState<string>(currentActorId ? String(currentActorId) : '')
+  const [code, setCode] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const copyPhone = async () => {
+    try {
+      await navigator.clipboard.writeText('998112233')
+      toast('Número copiado: 998 112 233 (Carla Mendoza)', 'ok')
+    } catch {
+      toast('Copia manual: 998 112 233', 'ok')
+    }
+  }
+
+  const submit = async () => {
+    const member = members.find((m) => m.id === Number(payerId))
+    const who = member ? member.name : 'Alguien'
+    const cleanCode = code.trim() || 'Sin código'
+    setSaving(true)
+    try {
+      await api.logActivity({
+        entity: 'budget',
+        action: 'yape',
+        detail: `${who} registró constancia de aporte por Yape/Plin S/ 100.00 (Op: ${cleanCode})`,
+      })
+      toast(`¡Aporte de S/ 100 registrado para ${who}!`, 'win')
+      onClose()
+    } catch {
+      toast('No se pudo registrar la constancia', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Pagar cuota por Yape / Plin"
+      description="Cuota individual de S/ 100 acordada para el desayuno del equipo"
+      footer={
+        <>
+          <span className="spacer" />
+          <Button variant="outline" onClick={onClose}>
+            Cerrar
+          </Button>
+          <Button onClick={() => void submit()} disabled={saving || !payerId}>
+            {saving ? 'Registrando…' : 'Registrar mi aporte'}
+          </Button>
+        </>
+      }
+    >
+      <div className="yape-card">
+        <div className="yape-header">
+          <div className="yape-badges">
+            <span className="yape-pill yape">Yape</span>
+            <span className="yape-pill plin">Plin</span>
+            <span className="yape-interop">Interoperable</span>
+          </div>
+          <p className="yape-amount">S/ 100.00</p>
+          <p className="yape-titular">
+            <strong>Carla Mendoza</strong> · Tesorería Alfin
+          </p>
+        </div>
+
+        <div className="yape-qr-box">
+          <svg className="yape-qr-svg" viewBox="0 0 120 120" aria-label="Código QR de Yape y Plin">
+            <rect width="120" height="120" fill="#ffffff" rx="8" />
+            <rect x="10" y="10" width="30" height="30" fill="#742284" rx="4" />
+            <rect x="16" y="16" width="18" height="18" fill="#ffffff" rx="2" />
+            <rect x="20" y="20" width="10" height="10" fill="#742284" rx="1" />
+            <rect x="80" y="10" width="30" height="30" fill="#742284" rx="4" />
+            <rect x="86" y="16" width="18" height="18" fill="#ffffff" rx="2" />
+            <rect x="90" y="20" width="10" height="10" fill="#742284" rx="1" />
+            <rect x="10" y="80" width="30" height="30" fill="#742284" rx="4" />
+            <rect x="16" y="86" width="18" height="18" fill="#ffffff" rx="2" />
+            <rect x="20" y="90" width="10" height="10" fill="#742284" rx="1" />
+            <rect x="48" y="14" width="8" height="8" fill="#00b5e2" rx="1" />
+            <rect x="62" y="14" width="8" height="16" fill="#742284" rx="1" />
+            <rect x="48" y="30" width="16" height="8" fill="#742284" rx="1" />
+            <rect x="48" y="46" width="24" height="24" fill="#00b5e2" rx="2" />
+            <rect x="14" y="48" width="24" height="8" fill="#742284" rx="1" />
+            <rect x="24" y="62" width="16" height="10" fill="#00b5e2" rx="1" />
+            <rect x="80" y="48" width="12" height="14" fill="#742284" rx="1" />
+            <rect x="98" y="52" width="12" height="24" fill="#00b5e2" rx="1" />
+            <rect x="48" y="78" width="14" height="14" fill="#742284" rx="1" />
+            <rect x="70" y="84" width="16" height="8" fill="#00b5e2" rx="1" />
+            <rect x="92" y="84" width="18" height="18" fill="#742284" rx="1" />
+            <rect x="68" y="98" width="18" height="12" fill="#742284" rx="1" />
+          </svg>
+          <p className="small muted">Escanea desde tu app bancaria con tu celular</p>
+        </div>
+
+        <div className="yape-phone-row">
+          <div className="yape-phone-info">
+            <span className="small muted">Número de Yape / Plin</span>
+            <strong>998 112 233</strong>
+          </div>
+          <Button variant="outline" size="sm" icon="clipboard" onClick={() => void copyPhone()}>
+            Copiar
+          </Button>
+        </div>
+
+        <div className="yape-confirm-form">
+          <Field label="¿Quién eres? (Tu imán en el equipo)">
+            <Select value={payerId} onChange={(e) => setPayerId(e.target.value)}>
+              <option value="">Selecciona tu nombre</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="N° de constancia u operación (opcional)">
+            <Input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Ej. OP-492104"
+              maxLength={20}
+            />
+          </Field>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 
 function BudgetEditor({ item, onClose }: { item: BudgetItem | null; onClose: () => void }) {
   const { data, mutate } = useStore()
