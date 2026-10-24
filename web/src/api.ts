@@ -1,4 +1,4 @@
-import type { Bootstrap } from './types'
+import type { Bootstrap, TaskOption } from './types'
 
 const ACTOR_KEY = 'alfin.actor.v1'
 
@@ -65,6 +65,16 @@ export const api = {
       body: JSON.stringify(body),
     }),
   deleteChecklistItem: (id: number) => request<{ ok: boolean }>(`/api/checklist/${id}`, { method: 'DELETE' }),
+  createTaskOption: (taskId: number, body: { title: string; detail?: string; price?: number; image_url?: string }) =>
+    request<{ option: TaskOption }>(`/api/tasks/${taskId}/options`, json(body)),
+  voteTaskOption: (optionId: number) =>
+    request<{ ok: boolean; option: TaskOption }>(`/api/options/${optionId}/vote`, { method: 'POST' }),
+  setOptionWinner: (optionId: number, isWinner: boolean) =>
+    request<{ ok: boolean; option: TaskOption }>(`/api/options/${optionId}/winner`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_winner: isWinner ? 1 : 0 }),
+    }),
+  deleteTaskOption: (optionId: number) => request<{ ok: boolean }>(`/api/options/${optionId}`, { method: 'DELETE' }),
 
   createAgreement: (body: Record<string, unknown>) =>
     request<{ agreement: Bootstrap['agreements'][number] }>('/api/agreements', json(body)),

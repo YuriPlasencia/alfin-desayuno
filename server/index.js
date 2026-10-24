@@ -25,7 +25,7 @@ seedDemo()
 const app = express()
 // Detrás del proxy de Railway (u otro), para saber si la conexión es https.
 app.set('trust proxy', 1)
-app.use(express.json({ limit: '2mb' }))
+app.use(express.json({ limit: '15mb' }))
 
 // ---------- código de acceso del equipo ----------
 // Con TEAM_CODE definido, la API exige el código una vez por dispositivo (cookie de un año).
@@ -152,10 +152,27 @@ const AREAS = ['Coordinación', 'Finanzas', 'Compras', 'Cocina', 'Logística', '
 function taskDetail(id) {
   const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id)
   if (!task) return null
+  const optionsRaw = db.prepare('SELECT * FROM task_options WHERE task_id = ? ORDER BY id ASC').all(id).map(plain)
+  const votesRaw = db
+    .prepare('SELECT * FROM task_option_votes WHERE option_id IN (SELECT id FROM task_options WHERE task_id = ?)')
+    .all(id)
+    .map(plain)
+  const votesByOption = new Map()
+  for (const v of votesRaw) {
+    if (!votesByOption.has(v.option_id)) votesByOption.set(v.option_id, [])
+    votesByOption.get(v.option_id).push(v.member_id)
+  }
+  const options = optionsRaw.map((opt) => ({
+    ...opt,
+    votes: votesByOption.get(opt.id) || [],
+    vote_count: (votesByOption.get(opt.id) || []).length,
+  }))
+
   return {
     ...plain(task),
     assignees: db.prepare('SELECT member_id FROM task_assignees WHERE task_id = ?').all(id).map((r) => r.member_id),
     checklist: db.prepare('SELECT * FROM checklist_items WHERE task_id = ? ORDER BY position, id').all(id).map(plain),
+    options,
   }
 }
 
@@ -424,6 +441,121 @@ app.delete('/api/checklist/:id', (req, res) => {
   res.json({ ok: true })
 })
 
+// ---------- task options & photo scouting & voting ----------
+
+function optionDetail(id) {
+  const opt = db.prepare('SELECT * FROM task_options WHERE id = ?').get(id)
+  if (!opt) return null
+  const votes = db
+    .prepare('SELECT member_id FROM task_option_votes WHERE option_id = ? ORDER BY created_at ASC')
+    .all(id)
+    .map((r) => r.member_id)
+  return {
+    ...plain(opt),
+    votes,
+    vote_count: votes.length,
+  }
+}
+
+app.post('/api/tasks/:id/options', (req, res) => {
+  const taskId = Number(req.params.id)
+  const task = db.prepare('SELECT id, title FROM tasks WHERE id = ?').get(taskId)
+  if (!task) return res.status(404).json({ error: 'Actividad no encontrada' })
+  const body = req.body || {}
+  const title = text(body.title)
+  if (!title) return res.status(400).json({ error: 'Escribe el nombre del proveedor u opción' })
+  const who = actor(req)
+  const price = Math.max(0, num(body.price, 0))
+  const detail = text(body.detail)
+  const imageUrl = typeof body.image_url === 'string' ? body.image_url.trim() : ''
+
+  const result = db
+    .prepare(
+      `INSERT INTO task_options (task_id, title, detail, price, image_url, created_by, created_by_name, is_winner, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+    )
+    .run(taskId, title, detail, price, imageUrl, who.id, who.name, nowIso())
+
+  const optId = Number(result.lastInsertRowid)
+  note(req, 'task', taskId, 'option', `Subió la opción “${title}” ${imageUrl ? 'con foto ' : ''}para “${task.title}”`)
+  broadcast()
+  res.status(201).json({ option: optionDetail(optId) })
+})
+
+app.post('/api/options/:id/vote', (req, res) => {
+  const optionId = Number(req.params.id)
+  const opt = db
+    .prepare('SELECT o.*, t.title AS task_title FROM task_options o JOIN tasks t ON t.id = o.task_id WHERE o.id = ?')
+    .get(optionId)
+  if (!opt) return res.status(404).json({ error: 'Opción no encontrada' })
+  const who = actor(req)
+  if (!who.id) return res.status(400).json({ error: 'Elige quién eres arriba para poder votar' })
+
+  const existing = db
+    .prepare('SELECT 1 FROM task_option_votes WHERE option_id = ? AND member_id = ?')
+    .get(optionId, who.id)
+  let voted = false
+  if (existing) {
+    db.prepare('DELETE FROM task_option_votes WHERE option_id = ? AND member_id = ?').run(optionId, who.id)
+    voted = false
+  } else {
+    db.prepare('INSERT INTO task_option_votes (option_id, member_id, created_at) VALUES (?, ?, ?)').run(
+      optionId,
+      who.id,
+      nowIso(),
+    )
+    voted = true
+  }
+
+  note(
+    req,
+    'task',
+    opt.task_id,
+    'vote',
+    `${voted ? 'Votó por' : 'Quitó su voto de'} la opción “${opt.title}” de “${opt.task_title}”`,
+  )
+  broadcast()
+  res.json({ ok: true, option: optionDetail(optionId) })
+})
+
+app.patch('/api/options/:id/winner', (req, res) => {
+  const optionId = Number(req.params.id)
+  const opt = db
+    .prepare('SELECT o.*, t.title AS task_title FROM task_options o JOIN tasks t ON t.id = o.task_id WHERE o.id = ?')
+    .get(optionId)
+  if (!opt) return res.status(404).json({ error: 'Opción no encontrada' })
+  const isWinner = req.body?.is_winner ? 1 : 0
+
+  if (isWinner) {
+    db.prepare('UPDATE task_options SET is_winner = 0 WHERE task_id = ?').run(opt.task_id)
+  }
+  db.prepare('UPDATE task_options SET is_winner = ? WHERE id = ?').run(isWinner, optionId)
+
+  note(
+    req,
+    'task',
+    opt.task_id,
+    'option_winner',
+    isWinner
+      ? `Eligió la opción “${opt.title}” como ganadora para “${opt.task_title}”`
+      : `Quitó a “${opt.title}” como opción ganadora`,
+  )
+  broadcast()
+  res.json({ ok: true, option: optionDetail(optionId) })
+})
+
+app.delete('/api/options/:id', (req, res) => {
+  const optionId = Number(req.params.id)
+  const opt = db
+    .prepare('SELECT o.*, t.title AS task_title FROM task_options o JOIN tasks t ON t.id = o.task_id WHERE o.id = ?')
+    .get(optionId)
+  if (!opt) return res.status(404).json({ error: 'Opción no encontrada' })
+  db.prepare('DELETE FROM task_options WHERE id = ?').run(optionId)
+  note(req, 'task', opt.task_id, 'option_delete', `Eliminó la opción “${opt.title}” de “${opt.task_title}”`)
+  broadcast()
+  res.json({ ok: true })
+})
+
 // ---------- agreements ----------
 
 app.get('/api/agreements', (_req, res) => res.json(db.prepare('SELECT * FROM agreements ORDER BY id').all().map(plain)))
@@ -588,6 +720,8 @@ app.post('/api/import', (req, res) => {
   db.exec('BEGIN')
   try {
     db.exec(`
+      DELETE FROM task_option_votes;
+      DELETE FROM task_options;
       DELETE FROM task_assignees;
       DELETE FROM checklist_items;
       DELETE FROM tasks;
@@ -622,6 +756,12 @@ app.post('/api/import', (req, res) => {
     const insertCheck = db.prepare(
       'INSERT INTO checklist_items (task_id, title, done, position) VALUES (?, ?, ?, ?)',
     )
+    const insertOption = db.prepare(
+      `INSERT INTO task_options (id, task_id, title, detail, price, image_url, created_by, created_by_name, is_winner, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    const insertVote = db.prepare('INSERT OR IGNORE INTO task_option_votes (option_id, member_id, created_at) VALUES (?, ?, ?)')
+
     data.tasks.forEach((task, index) => {
       const taskId = Number(task.id) || index + 1
       insertTask.run(
@@ -639,6 +779,24 @@ app.post('/api/import', (req, res) => {
       ;(task.assignees || []).forEach((memberId) => insertAssignee.run(taskId, Number(memberId)))
       ;(task.checklist || []).forEach((item, itemIndex) => {
         insertCheck.run(taskId, text(item.title), item.done ? 1 : 0, itemIndex)
+      })
+      ;(task.options || []).forEach((opt, optIndex) => {
+        const optId = Number(opt.id) || Number(`${taskId}${optIndex + 1}`)
+        insertOption.run(
+          optId,
+          taskId,
+          text(opt.title, 'Opción'),
+          text(opt.detail),
+          Math.max(0, num(opt.price, 0)),
+          typeof opt.image_url === 'string' ? opt.image_url : '',
+          memberOrNull(opt.created_by),
+          text(opt.created_by_name),
+          opt.is_winner ? 1 : 0,
+          opt.created_at || nowIso(),
+        )
+        ;(opt.votes || []).forEach((voterId) => {
+          insertVote.run(optId, Number(voterId), nowIso())
+        })
       })
     })
     const insertAgreement = db.prepare(

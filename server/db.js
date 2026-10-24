@@ -101,6 +101,26 @@ db.exec(`
     detail TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS task_options (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    detail TEXT NOT NULL DEFAULT '',
+    price REAL NOT NULL DEFAULT 0,
+    image_url TEXT NOT NULL DEFAULT '',
+    created_by INTEGER REFERENCES members(id) ON DELETE SET NULL,
+    created_by_name TEXT NOT NULL DEFAULT '',
+    is_winner INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS task_option_votes (
+    option_id INTEGER NOT NULL REFERENCES task_options(id) ON DELETE CASCADE,
+    member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (option_id, member_id)
+  );
 `)
 
 try {
@@ -207,6 +227,26 @@ export function listTasks() {
     checklistByTask.get(item.task_id).push(plain(item))
   }
 
+  const options = db.prepare('SELECT * FROM task_options ORDER BY id ASC').all().map(plain)
+  const votes = db.prepare('SELECT * FROM task_option_votes ORDER BY created_at ASC').all().map(plain)
+  const votesByOption = new Map()
+  for (const v of votes) {
+    if (!votesByOption.has(v.option_id)) votesByOption.set(v.option_id, [])
+    votesByOption.get(v.option_id).push(v.member_id)
+  }
+
+  const optionsByTask = new Map()
+  for (const opt of options) {
+    const voterIds = votesByOption.get(opt.id) || []
+    const withVotes = {
+      ...opt,
+      votes: voterIds,
+      vote_count: voterIds.length,
+    }
+    if (!optionsByTask.has(opt.task_id)) optionsByTask.set(opt.task_id, [])
+    optionsByTask.get(opt.task_id).push(withVotes)
+  }
+
   return tasks.map((task) => {
     const items = checklistByTask.get(task.id) || []
     return {
@@ -215,6 +255,7 @@ export function listTasks() {
       checklist: items,
       checklist_total: items.length,
       checklist_done: items.filter((i) => i.done).length,
+      options: optionsByTask.get(task.id) || [],
     }
   })
 }

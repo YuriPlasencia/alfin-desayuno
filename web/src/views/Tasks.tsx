@@ -18,6 +18,7 @@ import {
   TextArea,
 } from '../components/ui'
 import { StepToggle } from '../components/checklist'
+import { TaskOptionsModal } from '../components/TaskOptionsModal'
 import { AREAS, AREA_COLORS, type Member, type Priority, type Task, type TaskStatus } from '../types'
 import { TASK_STATUS_META, deadlineLabel, formatDate } from '../lib/format'
 import { taskProgress } from '../lib/stats'
@@ -64,6 +65,7 @@ export function Tasks() {
   const [owner, setOwner] = useState('todos')
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<Task | 'nueva' | null>(null)
+  const [optionsModal, setOptionsModal] = useState<{ taskId: number; initialAdding: boolean } | null>(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   const setView = (next: View) => {
@@ -133,6 +135,8 @@ export function Tasks() {
       onAdvance={() => void quickStatus(task)}
       onEdit={() => setEditing(task)}
       onRemove={() => void removeTask(task)}
+      onOpenOptions={() => setOptionsModal({ taskId: task.id, initialAdding: false })}
+      onOpenAddOption={() => setOptionsModal({ taskId: task.id, initialAdding: true })}
     />
   )
 
@@ -251,6 +255,22 @@ export function Tasks() {
           onClose={() => setEditing(null)}
         />
       ) : null}
+
+      {optionsModal && data ? (
+        (() => {
+          const targetTask = data.tasks.find((t) => t.id === optionsModal.taskId)
+          if (!targetTask) return null
+          return (
+            <TaskOptionsModal
+              task={targetTask}
+              members={data.members}
+              me={actor}
+              initialAdding={optionsModal.initialAdding}
+              onClose={() => setOptionsModal(null)}
+            />
+          )
+        })()
+      ) : null}
     </div>
   )
 }
@@ -263,6 +283,8 @@ function TaskCard({
   onAdvance,
   onEdit,
   onRemove,
+  onOpenOptions,
+  onOpenAddOption,
 }: {
   task: Task
   members: Member[]
@@ -271,6 +293,8 @@ function TaskCard({
   onAdvance: () => void
   onEdit: () => void
   onRemove: () => void
+  onOpenOptions: () => void
+  onOpenAddOption: () => void
 }) {
   const owners = members.filter((member) => task.assignees.includes(member.id))
   const due = deadlineLabel(task.due_date)
@@ -284,6 +308,10 @@ function TaskCard({
       {task.status === 'hecha' || !task.due_date ? null : ` · ${due.text}`}
     </span>
   )
+  const options = task.options || []
+  const winnerOpt = options.find((o) => o.is_winner)
+  const totalVotes = options.reduce((sum, o) => sum + (o.vote_count || 0), 0)
+
   return (
     <article
       className={`task-card status-${task.status} ${mine ? 'is-mine' : ''}`}
@@ -335,6 +363,71 @@ function TaskCard({
           <span className="muted small">Sin pasos todavía</span>
           {dueChip}
         </div>
+      )}
+
+      {/* Tira visual de cotizaciones y fotos para votación */}
+      {options.length > 0 ? (
+        <div
+          className="task-options-strip"
+          onClick={onOpenOptions}
+          role="button"
+          tabIndex={0}
+          title="Ver cotizaciones, fotos y votar la mejor opción"
+          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onOpenOptions()}
+        >
+          <div className="options-strip-header">
+            <span className="options-strip-title">
+              <Icon name="camera" size={13} /> {options.length} {options.length === 1 ? 'cotización' : 'cotizaciones'}
+            </span>
+            {winnerOpt ? (
+              <span className="strip-badge-winner">
+                <Icon name="trophy" size={11} /> Elegida
+              </span>
+            ) : totalVotes > 0 ? (
+              <span className="strip-badge-votes">
+                <Icon name="thumbsUp" size={11} /> {totalVotes} {totalVotes === 1 ? 'voto' : 'votos'}
+              </span>
+            ) : (
+              <span className="strip-badge-pending">Votar aquí</span>
+            )}
+          </div>
+
+          <div className="options-strip-thumbs">
+            {options.slice(0, 3).map((opt) => (
+              <div
+                key={opt.id}
+                className={`strip-thumb ${opt.is_winner ? 'is-winner' : ''}`}
+                title={`${opt.title} (${opt.vote_count} votos)`}
+              >
+                {opt.image_url ? (
+                  <img src={opt.image_url} alt={opt.title} />
+                ) : (
+                  <span className="thumb-no-img">
+                    <Icon name="image" size={13} />
+                  </span>
+                )}
+                {opt.is_winner ? (
+                  <span className="thumb-winner-crown">
+                    <Icon name="trophy" size={10} />
+                  </span>
+                ) : null}
+              </div>
+            ))}
+            {options.length > 3 ? (
+              <span className="strip-more">+{options.length - 3}</span>
+            ) : null}
+            <span className="strip-cta">Ver y votar &rarr;</span>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="task-add-option-btn"
+          onClick={onOpenAddOption}
+          title="Subir foto de cotización o producto encontrado para comparar"
+        >
+          <Icon name="camera" size={13} /> Subir cotización con foto
+        </button>
       )}
 
       <footer className="task-actions">

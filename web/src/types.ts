@@ -28,6 +28,21 @@ export interface ChecklistItem {
   done_by_name?: string | null
 }
 
+export interface TaskOption {
+  id: number
+  task_id: number
+  title: string
+  detail: string
+  price: number
+  image_url: string
+  created_by: number | null
+  created_by_name: string
+  is_winner: number
+  created_at: string
+  votes: number[]
+  vote_count: number
+}
+
 export interface Task {
   id: number
   title: string
@@ -43,6 +58,7 @@ export interface Task {
   checklist: ChecklistItem[]
   checklist_total: number
   checklist_done: number
+  options?: TaskOption[]
 }
 
 export interface Agreement {
