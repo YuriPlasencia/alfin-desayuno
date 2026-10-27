@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { api } from '../api'
 import { compressImageFile } from '../lib/image'
@@ -17,16 +17,31 @@ import {
   TextArea,
 } from '../components/ui'
 import { summarize } from '../lib/stats'
+import { CuotaModal, CuotasPanel, FlowView, ReceiptViewer, scanVoucher } from '../components/voucher'
+import { takeSharedFile } from '../lib/shared'
 import { formatDate, getTreasurer, money } from '../lib/format'
 import type { BudgetItem, BudgetKind, BudgetStatus, Member, TaskOption } from '../types'
 
 export function Budget() {
   const { data, actor, mutate, toast } = useStore()
   const [mainTab, setMainTab] = useState<'movimientos' | 'tesorero'>('movimientos')
-  const [filter, setFilter] = useState<'todos' | BudgetKind>('todos')
-  const [editing, setEditing] = useState<BudgetItem | 'nuevo' | null>(null)
-  const [showYape, setShowYape] = useState(false)
-  const [viewingReceipt, setViewingReceipt] = useState<string | null>(null)
+  const [filter, setFilter] = useState<'todos' | BudgetKind | 'flujo'>('todos')
+  const [editing, setEditing] = useState<BudgetItem | 'nuevo' | 'gasto' | null>(null)
+  const [cuota, setCuota] = useState<{ file: File | null } | null>(null)
+  const [viewing, setViewing] = useState<BudgetItem | null>(null)
+  const [shared, setShared] = useState<File | null>(null)
+  const [sharedChoice, setSharedChoice] = useState<File | null>(null)
+
+  // Constancia compartida desde Yape, Plin o la galería (menú Compartir del celular).
+  useEffect(() => {
+    let alive = true
+    void takeSharedFile().then((file) => {
+      if (alive && file) setShared(file)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
   const summary = useMemo(() => (data ? summarize(data) : null), [data])
 
   const winningOptions = useMemo(() => {
@@ -48,7 +63,9 @@ export function Budget() {
   if (!data || !summary) return null
 
   const treasurer = getTreasurer(data.settings, data.members)
-  const rows = data.budget.filter((item) => (filter === 'todos' ? true : item.kind === filter))
+  const rows = data.budget.filter((item) => (filter === 'todos' || filter === 'flujo' ? true : item.kind === filter))
+  // Al abrir una constancia se muestra la versión al día del movimiento.
+  const viewingNow = viewing ? data.budget.find((item) => item.id === viewing.id) || null : null
   const ingresos = data.budget.filter((item) => item.kind === 'ingreso')
   const gastos = data.budget.filter((item) => item.kind === 'gasto')
 
@@ -95,15 +112,18 @@ Yape / Plin a: ${tName}${tPhone}
         subtitle="Aportes del equipo, cobranza por Yape/Plin y saldo disponible"
         action={
           <div className="btn-group">
-            <Button variant="soft" icon="share" onClick={() => void copyWhatsAppReport()}>
+            <Button icon="camera" onClick={() => setCuota({ file: null })}>
+              Subir cuota
+            </Button>
+            <Button variant="soft" icon="camera" onClick={() => setEditing('gasto')}>
+              Subir gasto
+            </Button>
+            <Button variant="outline" icon="share" onClick={() => void copyWhatsAppReport()}>
               WhatsApp
             </Button>
-            <Button variant="soft" icon="qrCode" onClick={() => setShowYape(true)}>
-              Pagar con Yape
-            </Button>
             {mainTab === 'movimientos' ? (
-              <Button icon="plus" onClick={() => setEditing('nuevo')}>
-                Nuevo movimiento
+              <Button variant="outline" icon="plus" onClick={() => setEditing('nuevo')}>
+                Movimiento
               </Button>
             ) : null}
           </div>
@@ -163,6 +183,8 @@ Yape / Plin a: ${tName}${tPhone}
             </div>
           </section>
 
+          <CuotasPanel members={data.members} budget={data.budget} onOpen={setViewing} onPay={() => setCuota({ file: null })} />
+
           <div className="segmented">
             <button className={filter === 'todos' ? 'is-active' : ''} onClick={() => setFilter('todos')}>
               Todos <span className="seg-count">{data.budget.length}</span>
@@ -172,6 +194,9 @@ Yape / Plin a: ${tName}${tPhone}
             </button>
             <button className={filter === 'gasto' ? 'is-active' : ''} onClick={() => setFilter('gasto')}>
               Gastos <span className="seg-count">{gastos.length}</span>
+            </button>
+            <button className={filter === 'flujo' ? 'is-active' : ''} onClick={() => setFilter('flujo')}>
+              <Icon name="chart" size={15} /> Flujo
             </button>
           </div>
 
@@ -210,7 +235,9 @@ Yape / Plin a: ${tName}${tPhone}
         </div>
       ) : null}
 
-      {rows.length === 0 ? (
+      {filter === 'flujo' ? (
+        <FlowView budget={data.budget} members={data.members} onOpen={setViewing} />
+      ) : rows.length === 0 ? (
         <EmptyState icon="wallet" title="Sin movimientos" hint="Agrega los aportes y los gastos previstos del desayuno." />
       ) : (
         <div className="card table-card">
@@ -232,16 +259,25 @@ Yape / Plin a: ${tName}${tPhone}
                   <td>
                     <div className="cell-concept-row">
                       <span className="cell-title">{item.concept}</span>
-                      {item.receipt_url ? (
+                      {item.has_receipt ? (
                         <button
                           type="button"
                           className="receipt-chip-btn"
-                          onClick={() => setViewingReceipt(item.receipt_url!)}
-                          title="Ver imagen de la boleta o cotización"
+                          onClick={() => setViewing(item)}
+                          title="Ver la constancia y validarla"
                         >
                           <Icon name="camera" size={12} />
-                          <span>Ver boleta</span>
+                          <span>{item.kind === 'ingreso' ? 'Ver constancia' : 'Ver boleta'}</span>
                         </button>
+                      ) : null}
+                      {item.has_receipt ? (
+                        item.validated_by ? (
+                          <span className="tag-ok" title={`Validado por ${item.validated_by_name || ''}`}>
+                            validado
+                          </span>
+                        ) : (
+                          <span className="tag-wait">por validar</span>
+                        )
                       ) : null}
                     </div>
                     {item.note ? <span className="cell-note">{item.note}</span> : null}
@@ -279,36 +315,49 @@ Yape / Plin a: ${tName}${tPhone}
         </div>
       )}
 
-      <p className="muted tiny">
-        Los montos están en soles (S/). El saldo se calcula con todos los ingresos y gastos, estén pagados o no.
-      </p>
+      {filter === 'flujo' ? null : (
+        <p className="muted tiny">
+          Los montos están en soles (S/). Este saldo usa todo lo previsto; en Flujo ves solo lo cobrado y pagado.
+        </p>
+      )}
         </>
       )}
 
-      {editing ? <BudgetEditor item={editing === 'nuevo' ? null : editing} onClose={() => setEditing(null)} /> : null}
-      {showYape && data ? (
-        <YapeModal
-          members={data.members}
-          currentActorId={actor?.id ?? null}
-          treasurer={treasurer}
-          onClose={() => setShowYape(false)}
+      {editing ? (
+        <BudgetEditor
+          item={editing === 'nuevo' || editing === 'gasto' ? null : editing}
+          preset={editing === 'gasto' ? { kind: 'gasto', status: 'hecho', ownerId: actor?.id ?? null, pick: !sharedChoice } : undefined}
+          initialFile={editing === 'gasto' ? sharedChoice : null}
+          onClose={() => {
+            setEditing(null)
+            setSharedChoice(null)
+          }}
         />
       ) : null}
-
-      {viewingReceipt ? (
-        <div className="photo-lightbox" onClick={() => setViewingReceipt(null)}>
-          <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
-            <img src={viewingReceipt} alt="Comprobante o Cotización" className="lightbox-img" />
-            <button
-              type="button"
-              className="lightbox-close"
-              onClick={() => setViewingReceipt(null)}
-              aria-label="Cerrar imagen"
-            >
-              <Icon name="x" size={24} />
-            </button>
-          </div>
-        </div>
+      {cuota ? (
+        <CuotaModal
+          members={data.members}
+          budget={data.budget}
+          treasurer={treasurer}
+          initialFile={cuota.file}
+          onClose={() => setCuota(null)}
+        />
+      ) : null}
+      {viewingNow ? <ReceiptViewer item={viewingNow} onClose={() => setViewing(null)} /> : null}
+      {shared ? (
+        <SharedChoice
+          file={shared}
+          onClose={() => setShared(null)}
+          onCuota={() => {
+            setCuota({ file: shared })
+            setShared(null)
+          }}
+          onGasto={() => {
+            setSharedChoice(shared)
+            setEditing('gasto')
+            setShared(null)
+          }}
+        />
       ) : null}
     </div>
   )
@@ -466,159 +515,47 @@ function TreasurerManager({
   )
 }
 
-function YapeModal({
-  onClose,
-  members,
-  currentActorId,
-  treasurer,
-}: {
-  onClose: () => void
-  members: Member[]
-  currentActorId: number | null
-  treasurer: Member | null
-}) {
-  const { toast } = useStore()
-  const [payerId, setPayerId] = useState<string>(currentActorId ? String(currentActorId) : '')
-  const [code, setCode] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  const treasurerName = treasurer?.name || 'Tesorería Alfin'
-  const treasurerPhone = treasurer?.phone || '998 112 233'
-  const cleanPhone = treasurerPhone.replace(/\s/g, '')
-
-  const copyPhone = async () => {
-    try {
-      await navigator.clipboard.writeText(cleanPhone)
-      toast(`Número copiado: ${treasurerPhone} (${treasurerName})`, 'ok')
-    } catch {
-      toast(`Copia manual: ${treasurerPhone}`, 'ok')
-    }
-  }
-
-  const submit = async () => {
-    const member = members.find((m) => m.id === Number(payerId))
-    const who = member ? member.name : 'Alguien'
-    const cleanCode = code.trim() || 'Sin código'
-    setSaving(true)
-    try {
-      await api.logActivity({
-        entity: 'budget',
-        action: 'yape',
-        detail: `${who} registró constancia de aporte por Yape/Plin S/ 100.00 a ${treasurerName} (Op: ${cleanCode})`,
-      })
-      toast(`¡Aporte de S/ 100 registrado para ${who}!`, 'win')
-      onClose()
-    } catch {
-      toast('No se pudo registrar la constancia', 'error')
-    } finally {
-      setSaving(false)
-    }
-  }
-
+/** Una imagen llegó por el menú Compartir: ¿es una cuota o un gasto? */
+function SharedChoice({ file, onClose, onCuota, onGasto }: { file: File; onClose: () => void; onCuota: () => void; onGasto: () => void }) {
+  const [preview] = useState(() => URL.createObjectURL(file))
+  useEffect(() => () => URL.revokeObjectURL(preview), [preview])
   return (
-    <Modal
-      open
-      onClose={onClose}
-      title="Pagar cuota por Yape / Plin"
-      description={`Cuota individual de S/ 100 dirigida a ${treasurerName}`}
-      footer={
-        <>
-          <span className="spacer" />
-          <Button variant="outline" onClick={onClose}>
-            Cerrar
-          </Button>
-          <Button onClick={() => void submit()} disabled={saving || !payerId}>
-            {saving ? 'Registrando…' : 'Registrar mi aporte'}
-          </Button>
-        </>
-      }
-    >
-      <div className="yape-card">
-        <div className="yape-header">
-          <div className="yape-badges">
-            <span className="yape-pill yape">Yape</span>
-            <span className="yape-pill plin">Plin</span>
-            <span className="yape-interop">Interoperable</span>
-          </div>
-          <p className="yape-amount">S/ 100.00</p>
-          <p className="yape-titular">
-            <strong>{treasurerName}</strong> · {treasurer?.role || 'Tesorería Alfin'}
-          </p>
-        </div>
-
-        <div className="yape-qr-box">
-          <svg className="yape-qr-svg" viewBox="0 0 120 120" aria-label="Código QR de Yape y Plin">
-            <rect width="120" height="120" fill="#ffffff" rx="8" />
-            <rect x="10" y="10" width="30" height="30" fill="#742284" rx="4" />
-            <rect x="16" y="16" width="18" height="18" fill="#ffffff" rx="2" />
-            <rect x="20" y="20" width="10" height="10" fill="#742284" rx="1" />
-            <rect x="80" y="10" width="30" height="30" fill="#742284" rx="4" />
-            <rect x="86" y="16" width="18" height="18" fill="#ffffff" rx="2" />
-            <rect x="90" y="20" width="10" height="10" fill="#742284" rx="1" />
-            <rect x="10" y="80" width="30" height="30" fill="#742284" rx="4" />
-            <rect x="16" y="86" width="18" height="18" fill="#ffffff" rx="2" />
-            <rect x="20" y="90" width="10" height="10" fill="#742284" rx="1" />
-            <rect x="48" y="14" width="8" height="8" fill="#00b5e2" rx="1" />
-            <rect x="62" y="14" width="8" height="16" fill="#742284" rx="1" />
-            <rect x="48" y="30" width="16" height="8" fill="#742284" rx="1" />
-            <rect x="48" y="46" width="24" height="24" fill="#00b5e2" rx="2" />
-            <rect x="14" y="48" width="24" height="8" fill="#742284" rx="1" />
-            <rect x="24" y="62" width="16" height="10" fill="#00b5e2" rx="1" />
-            <rect x="80" y="48" width="12" height="14" fill="#742284" rx="1" />
-            <rect x="98" y="52" width="12" height="24" fill="#00b5e2" rx="1" />
-            <rect x="48" y="78" width="14" height="14" fill="#742284" rx="1" />
-            <rect x="70" y="84" width="16" height="8" fill="#00b5e2" rx="1" />
-            <rect x="92" y="84" width="18" height="18" fill="#742284" rx="1" />
-            <rect x="68" y="98" width="18" height="12" fill="#742284" rx="1" />
-          </svg>
-          <p className="small muted">Escanea desde tu app bancaria con tu celular</p>
-        </div>
-
-        <div className="yape-phone-row">
-          <div className="yape-phone-info">
-            <span className="small muted">Número de Yape / Plin ({treasurerName.split(' ')[0]})</span>
-            <strong>{treasurerPhone}</strong>
-          </div>
-          <Button variant="outline" size="sm" icon="clipboard" onClick={() => void copyPhone()}>
-            Copiar
-          </Button>
-        </div>
-
-        <div className="yape-confirm-form">
-          <Field label="¿Quién eres? (Tu imán en el equipo)">
-            <Select value={payerId} onChange={(e) => setPayerId(e.target.value)}>
-              <option value="">Selecciona tu nombre</option>
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="N° de constancia u operación (opcional)">
-            <Input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="Ej. OP-492104"
-              maxLength={20}
-            />
-          </Field>
-        </div>
+    <Modal open onClose={onClose} title="Recibimos tu constancia" description="¿Qué quieres registrar con esta imagen?">
+      <div className="share-choice">
+        <img src={preview} alt="Imagen compartida" />
+        <Button icon="download" onClick={onCuota}>
+          Es el pago de una cuota
+        </Button>
+        <Button variant="soft" icon="upload" onClick={onGasto}>
+          Es un gasto (boleta o pago)
+        </Button>
       </div>
     </Modal>
   )
 }
 
-function BudgetEditor({ item, onClose }: { item: BudgetItem | null; onClose: () => void }) {
+function BudgetEditor({
+  item,
+  preset,
+  initialFile,
+  onClose,
+}: {
+  item: BudgetItem | null
+  preset?: { kind: BudgetKind; status: BudgetStatus; ownerId: number | null; pick: boolean }
+  initialFile?: File | null
+  onClose: () => void
+}) {
   const { data, mutate } = useStore()
-  const [kind, setKind] = useState<BudgetKind>(item?.kind ?? 'gasto')
+  const [kind, setKind] = useState<BudgetKind>(item?.kind ?? preset?.kind ?? 'gasto')
   const [concept, setConcept] = useState(item?.concept ?? '')
   const [amount, setAmount] = useState(String(item?.amount ?? ''))
-  const [status, setStatus] = useState<BudgetStatus>(item?.status ?? 'pendiente')
-  const [ownerId, setOwnerId] = useState(String(item?.owner_id ?? ''))
+  const [status, setStatus] = useState<BudgetStatus>(item?.status ?? preset?.status ?? 'pendiente')
+  const [ownerId, setOwnerId] = useState(String(item?.owner_id ?? preset?.ownerId ?? ''))
   const [dueDate, setDueDate] = useState(item?.due_date ?? '')
   const [note, setNote] = useState(item?.note ?? '')
   const [receiptUrl, setReceiptUrl] = useState(item?.receipt_url ?? '')
+  // La foto guardada no viene en el refresco: se pide al abrir. Solo se envía si cambió.
+  const [receiptChanged, setReceiptChanged] = useState(false)
   const [compressing, setCompressing] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [scrapedInfo, setScrapedInfo] = useState<{ amount: number | null; concept: string; allPrices: number[] } | null>(null)
@@ -626,24 +563,51 @@ function BudgetEditor({ item, onClose }: { item: BudgetItem | null; onClose: () 
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  useEffect(() => {
+    if (!item?.has_receipt || item.receipt_url) return
+    let alive = true
+    void api.getReceipt(item.id).then((res) => alive && setReceiptUrl(res.receipt_url)).catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [item])
+
+  const started = useRef(false)
+  useEffect(() => {
+    if (started.current) return
+    started.current = true
+    if (initialFile) void processFile(initialFile)
+    else if (preset?.pick) fileInputRef.current?.click()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleReceiptSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
+    if (file) await processFile(file)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const processFile = async (file: File) => {
     try {
       setCompressing(true)
-      const compressed = await compressImageFile(file, 900, 0.75)
+      const compressed = await compressImageFile(file, 1100, 0.78)
       setReceiptUrl(compressed)
+      setReceiptChanged(true)
       setCompressing(false)
 
       setScanning(true)
       try {
-        const scraped = await api.scrapeQuoteImage(compressed)
+        const scraped = await scanVoucher(file, compressed)
         if (scraped.ok) {
           if (scraped.detectedAmount) {
             setAmount(String(scraped.detectedAmount))
           }
           if (scraped.detectedConcept && !concept.trim()) {
             setConcept(scraped.detectedConcept)
+          }
+          if (scraped.paidAt && !dueDate) setDueDate(scraped.paidAt)
+          if ((scraped.wallet || scraped.operationCode) && !note.trim()) {
+            setNote([scraped.wallet, scraped.operationCode ? `Op. ${scraped.operationCode}` : ''].filter(Boolean).join(' · '))
           }
           setScrapedInfo({
             amount: scraped.detectedAmount,
@@ -659,8 +623,6 @@ function BudgetEditor({ item, onClose }: { item: BudgetItem | null; onClose: () 
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error al procesar la foto')
       setCompressing(false)
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -675,7 +637,7 @@ function BudgetEditor({ item, onClose }: { item: BudgetItem | null; onClose: () 
       owner_id: ownerId ? Number(ownerId) : null,
       due_date: dueDate || null,
       note,
-      receipt_url: receiptUrl,
+      ...(receiptChanged || !item ? { receipt_url: receiptUrl } : {}),
     }
     const ok = await mutate(
       () => (item ? api.updateBudget(item.id, payload) : api.createBudget(payload)),
@@ -713,7 +675,7 @@ function BudgetEditor({ item, onClose }: { item: BudgetItem | null; onClose: () 
                 <Button size="sm" variant="outline" type="button" onClick={() => fileInputRef.current?.click()} disabled={compressing || scanning}>
                   Cambiar imagen
                 </Button>
-                <Button size="sm" variant="danger" type="button" onClick={() => { setReceiptUrl(''); setScrapedInfo(null) }}>
+                <Button size="sm" variant="danger" type="button" onClick={() => { setReceiptUrl(''); setReceiptChanged(true); setScrapedInfo(null) }}>
                   Quitar imagen
                 </Button>
               </div>
@@ -734,7 +696,6 @@ function BudgetEditor({ item, onClose }: { item: BudgetItem | null; onClose: () 
             type="file"
             ref={fileInputRef}
             accept="image/*"
-            capture="environment"
             style={{ display: 'none' }}
             onChange={handleReceiptSelect}
           />

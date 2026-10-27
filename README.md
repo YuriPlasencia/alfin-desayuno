@@ -24,6 +24,15 @@ Relanzamiento visual (la **pizarra de turnos**):
 - **Tablero por columnas** (Pendiente / En curso / Bloqueada / Hecho) además de la vista de lista.
 - Al marcar el primer paso, la actividad pasa sola a *En curso*; al marcar el último, salta a *Hecho* y celebra el nuevo avance del equipo.
 
+Caja con constancias:
+
+- **Subir cuota**: cada integrante sube la captura de su Yape, Plin o transferencia. La app lee el monto, la billetera y el n.° de operación (lectura automática con Tesseract; siempre se puede corregir) y la cuota suma al instante a lo recaudado.
+- **¿Quién ya pagó?**: lista del equipo con lo pagado, lo pendiente y lo que falta validar. Cualquiera toca un nombre, ve la foto de la constancia y la **valida**; queda registrado quién validó.
+- **Subir gasto**: foto de la boleta o constancia; se lee el TOTAL y queda como gasto pagado por quien lo sube.
+- **Flujo**: ingresos cobrados, gastos pagados y saldo en caja, en orden y con saldo acumulado.
+- **Compartir**: con la app instalada en Android, aparece en el menú Compartir de Yape, Plin, el banco o la galería.
+- Las fotos de actividades y constancias se pueden tomar con la cámara o elegir de la galería.
+
 Extras ya funcionando:
 
 - **Sincronización en vivo** (SSE): si alguien marca un paso, los demás lo ven sin recargar.

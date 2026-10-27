@@ -13,6 +13,7 @@ import {
   Select,
 } from '../components/ui'
 import { TrafficMonitor } from '../components/TrafficMonitor'
+import { PhotoField } from '../components/photo'
 import { AREAS, AREA_COLORS, type Member } from '../types'
 import { summarize } from '../lib/stats'
 
@@ -320,12 +321,13 @@ function MemberEditor({ member, onClose }: { member: Member | null; onClose: () 
   const [email, setEmail] = useState(member?.email ?? '')
   const [color, setColor] = useState(member?.color ?? COLOR_OPTIONS[0])
   const [isLead, setIsLead] = useState(Boolean(member?.is_lead))
+  const [photo, setPhoto] = useState(member?.photo_url ?? '')
   const [saving, setSaving] = useState(false)
 
   const save = async () => {
     if (!name.trim()) return
     setSaving(true)
-    const payload = { name: name.trim(), role, area, phone, email, color, is_lead: isLead ? 1 : 0 }
+    const payload = { name: name.trim(), role, area, phone, email, color, is_lead: isLead ? 1 : 0, photo_url: photo }
     const ok = await mutate(
       () => (member ? api.updateMember(member.id, payload) : api.createMember(payload)),
       member ? 'Integrante actualizado' : 'Integrante agregado',
@@ -353,6 +355,9 @@ function MemberEditor({ member, onClose }: { member: Member | null; onClose: () 
       }
     >
       <div className="form-grid">
+        <Field label="Foto" hint="Desde la cámara o la galería del celular">
+          <PhotoField member={{ name: name || 'Integrante', color }} value={photo} onChange={setPhoto} />
+        </Field>
         <Field label="Nombre">
           <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nombre y apellido" autoFocus />
         </Field>

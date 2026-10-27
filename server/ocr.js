@@ -91,12 +91,57 @@ export function parseQuoteText(text) {
     }
   }
 
+  // Constancias de billetera o banco (Yape, Plin, transferencias)
+  const voucher = parseVoucher(text)
+  if (voucher.wallet && voucher.amount) detectedAmount = voucher.amount
+
   return {
     detectedAmount,
     detectedConcept,
     allPrices: allPrices.slice(0, 6),
     rawText: text.slice(0, 2000),
+    wallet: voucher.wallet,
+    operationCode: voucher.operationCode,
+    paidAt: voucher.paidAt,
   }
+}
+
+const WALLETS = [
+  ['Yape', /\byape(aste|ado)?\b/i],
+  ['Plin', /\bplin\b/i],
+  ['BCP', /\bbcp\b/i],
+  ['Interbank', /\binterbank\b/i],
+  ['BBVA', /\bbbva\b/i],
+  ['Scotiabank', /\bscotiabank\b/i],
+]
+
+const MONTHS = { ene: 1, feb: 2, mar: 3, abr: 4, may: 5, jun: 6, jul: 7, ago: 8, set: 9, sep: 9, oct: 10, nov: 11, dic: 12 }
+
+/** Lee lo típico de una constancia: billetera, monto principal, n.° de operación y fecha. */
+export function parseVoucher(text) {
+  const wallet = WALLETS.find(([, pattern]) => pattern.test(text))?.[0] || ''
+
+  // En Yape/Plin el monto grande aparece primero, con "S/".
+  const first = text.match(/s\s*\/\s*\.?\s*([0-9]{1,5}(?:[.,][0-9]{1,2})?)/i)
+  const amount = first ? parseFloat(first[1].replace(',', '.')) : null
+
+  const op = text.match(/(?:operaci[oó]n|n[°º.ro]*\s*de\s*operaci[oó]n|c[oó]digo|transacci[oó]n)\s*[:#n°º.]*\s*([0-9]{5,14})/i)
+  const operationCode = op ? op[1] : ''
+
+  let paidAt = ''
+  const dm = text.match(/\b([0-3]?[0-9])\s*(?:de\s*)?(ene|feb|mar|abr|may|jun|jul|ago|set|sep|oct|nov|dic)[a-z.]*\s*(?:de\s*)?(20[0-9]{2})/i)
+  const dn = text.match(/\b([0-3]?[0-9])[/-]([01]?[0-9])[/-](20[0-9]{2})\b/)
+  if (dm) paidAt = iso(dm[3], MONTHS[dm[2].toLowerCase().slice(0, 3)], dm[1])
+  else if (dn) paidAt = iso(dn[3], dn[2], dn[1])
+
+  return { wallet, amount: amount && amount > 0 ? amount : null, operationCode, paidAt }
+}
+
+function iso(year, month, day) {
+  const m = Number(month)
+  const d = Number(day)
+  if (!m || m > 12 || !d || d > 31) return ''
+  return `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 }
 
 export async function scrapeQuoteImage(imageBufferOrDataUrl) {
@@ -123,6 +168,9 @@ export async function scrapeQuoteImage(imageBufferOrDataUrl) {
       detectedConcept: '',
       allPrices: [],
       rawText: '',
+      wallet: '',
+      operationCode: '',
+      paidAt: '',
     }
   }
 }

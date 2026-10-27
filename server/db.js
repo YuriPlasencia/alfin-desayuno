@@ -153,6 +153,17 @@ try {
   /* columna ya existe */
 }
 
+// Columnas añadidas después: se agregan solo si faltan.
+function addColumn(table, column, definition) {
+  const exists = db.prepare(`PRAGMA table_info(${table})`).all().some((col) => col.name === column)
+  if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`)
+}
+
+addColumn('members', 'photo_url', "TEXT NOT NULL DEFAULT ''")
+addColumn('budget_items', 'category', "TEXT NOT NULL DEFAULT ''")
+addColumn('budget_items', 'validated_by', 'INTEGER REFERENCES members(id) ON DELETE SET NULL')
+addColumn('budget_items', 'validated_at', 'TEXT')
+
 
 export const nowIso = () => new Date().toISOString()
 
@@ -285,11 +296,19 @@ export function listTasks() {
   })
 }
 
-export function listBudget() {
+// Las fotos de constancias no viajan en cada refresco (pesan ~100 KB c/u):
+// se piden aparte con /api/budget/:id/receipt. `full` las incluye (respaldo).
+export function listBudget({ full = false } = {}) {
   return db
     .prepare(
-      `SELECT b.*, m.name AS owner_name
-       FROM budget_items b LEFT JOIN members m ON m.id = b.owner_id
+      `SELECT b.id, b.kind, b.concept, b.amount, b.status, b.owner_id, b.due_date, b.note, b.category,
+              b.validated_by, b.validated_at, b.created_at,
+              ${full ? 'b.receipt_url,' : ''}
+              CASE WHEN b.receipt_url <> '' THEN 1 ELSE 0 END AS has_receipt,
+              m.name AS owner_name, v.name AS validated_by_name
+       FROM budget_items b
+       LEFT JOIN members m ON m.id = b.owner_id
+       LEFT JOIN members v ON v.id = b.validated_by
        ORDER BY b.kind DESC, COALESCE(b.due_date, '9999-12-31') ASC, b.id ASC`,
     )
     .all()

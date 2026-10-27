@@ -7,6 +7,7 @@ import {
   db,
   getBootstrap,
   getSettings,
+  listBudget,
   listMembers,
   listTasks,
   logActivity,
@@ -163,6 +164,16 @@ function text(value, fallback = '') {
   return String(value).trim().slice(0, 2000)
 }
 
+// Fotos como data URL (ya comprimidas en el celular). `text()` las cortaría a 2000 caracteres.
+const MAX_IMAGE_CHARS = 4_000_000
+function imageData(value, fallback = '') {
+  if (value === undefined || value === null) return fallback
+  const clean = String(value).trim()
+  if (clean === '') return ''
+  if (!/^data:image\/(jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(clean) || clean.length > MAX_IMAGE_CHARS) return fallback
+  return clean
+}
+
 function oneOf(value, allowed, fallback) {
   return allowed.includes(value) ? value : fallback
 }
@@ -188,6 +199,7 @@ const TASK_STATUS = ['pendiente', 'en_curso', 'bloqueada', 'hecha']
 const PRIORITY = ['alta', 'media', 'baja']
 const AGREEMENT_STATUS = ['propuesto', 'acordado', 'cumplido']
 const BUDGET_STATUS = ['pendiente', 'hecho']
+const BUDGET_CATEGORY = ['', 'cuota']
 const AREAS = ['Coordinación', 'Finanzas', 'Compras', 'Cocina', 'Logística', 'Ambientación', 'Servicio', 'Comunicación', 'Regalos', 'Dinámicas']
 
 function taskDetail(id) {
@@ -293,8 +305,8 @@ app.post('/api/members', (req, res) => {
   const position = db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM members').get().p
   const result = db
     .prepare(
-      `INSERT INTO members (name, role, area, phone, email, color, is_lead, position, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO members (name, role, area, phone, email, color, is_lead, photo_url, position, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       name,
@@ -304,6 +316,7 @@ app.post('/api/members', (req, res) => {
       text(body.email),
       text(body.color) || '#E4572E',
       body.is_lead ? 1 : 0,
+      imageData(body.photo_url),
       position,
       nowIso(),
     )
@@ -326,8 +339,9 @@ app.patch('/api/members/:id', (req, res) => {
     email: text(body.email, current.email),
     color: text(body.color, current.color),
     is_lead: body.is_lead === undefined ? current.is_lead : body.is_lead ? 1 : 0,
+    photo_url: imageData(body.photo_url, current.photo_url || ''),
   }
-  db.prepare('UPDATE members SET name=?, role=?, area=?, phone=?, email=?, color=?, is_lead=? WHERE id=?').run(
+  db.prepare('UPDATE members SET name=?, role=?, area=?, phone=?, email=?, color=?, is_lead=?, photo_url=? WHERE id=?').run(
     next.name,
     next.role,
     next.area,
@@ -335,9 +349,11 @@ app.patch('/api/members/:id', (req, res) => {
     next.email,
     next.color,
     next.is_lead,
+    next.photo_url,
     id,
   )
-  note(req, 'member', id, 'update', `Actualizó el perfil de ${next.name}`)
+  const onlyPhoto = Object.keys(body).length === 1 && body.photo_url !== undefined
+  note(req, 'member', id, 'update', onlyPhoto ? `${next.name} actualizó su foto` : `Actualizó el perfil de ${next.name}`)
   broadcast()
   res.json({ member: plain(db.prepare('SELECT * FROM members WHERE id = ?').get(id)) })
 })
@@ -680,8 +696,8 @@ app.post('/api/budget', (req, res) => {
   if (!concept) return res.status(400).json({ error: 'Escribe el concepto del movimiento' })
   const result = db
     .prepare(
-      `INSERT INTO budget_items (kind, concept, amount, status, owner_id, due_date, note, receipt_url, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO budget_items (kind, concept, amount, status, owner_id, due_date, note, receipt_url, category, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       oneOf(body.kind, ['ingreso', 'gasto'], 'gasto'),
@@ -691,11 +707,21 @@ app.post('/api/budget', (req, res) => {
       memberOrNull(body.owner_id),
       dateOrNull(body.due_date),
       text(body.note),
-      text(body.receipt_url, ''),
+      imageData(body.receipt_url),
+      oneOf(body.category, BUDGET_CATEGORY, ''),
       nowIso(),
     )
   const id = Number(result.lastInsertRowid)
-  note(req, 'budget', id, 'create', `Registró “${concept}” en el presupuesto`)
+  const amountText = `S/ ${Math.max(0, num(body.amount, 0)).toFixed(2)}`
+  note(
+    req,
+    'budget',
+    id,
+    'create',
+    body.category === 'cuota'
+      ? `Subió la constancia de “${concept}” (${amountText})`
+      : `Registró “${concept}” en el presupuesto (${amountText})`,
+  )
   broadcast()
   res.status(201).json({ item: plain(db.prepare('SELECT * FROM budget_items WHERE id = ?').get(id)) })
 })
@@ -713,14 +739,49 @@ app.patch('/api/budget/:id', (req, res) => {
     owner_id: body.owner_id === undefined ? current.owner_id : memberOrNull(body.owner_id),
     due_date: body.due_date === undefined ? current.due_date : dateOrNull(body.due_date),
     note: body.note === undefined ? current.note : text(body.note),
-    receipt_url: body.receipt_url === undefined ? (current.receipt_url || '') : text(body.receipt_url),
+    receipt_url: imageData(body.receipt_url, current.receipt_url || ''),
+    category: body.category === undefined ? current.category || '' : oneOf(body.category, BUDGET_CATEGORY, ''),
   }
+  // Si cambia el monto o la foto, la validación anterior ya no aplica.
+  const revalidate = next.amount !== current.amount || next.receipt_url !== (current.receipt_url || '')
   db.prepare(
-    'UPDATE budget_items SET kind=?, concept=?, amount=?, status=?, owner_id=?, due_date=?, note=?, receipt_url=? WHERE id=?',
-  ).run(next.kind, next.concept, next.amount, next.status, next.owner_id, next.due_date, next.note, next.receipt_url, id)
+    'UPDATE budget_items SET kind=?, concept=?, amount=?, status=?, owner_id=?, due_date=?, note=?, receipt_url=?, category=? WHERE id=?',
+  ).run(next.kind, next.concept, next.amount, next.status, next.owner_id, next.due_date, next.note, next.receipt_url, next.category, id)
+  if (revalidate) db.prepare('UPDATE budget_items SET validated_by=NULL, validated_at=NULL WHERE id=?').run(id)
   note(req, 'budget', id, 'update', `Actualizó “${next.concept}” en el presupuesto`)
   broadcast()
   res.json({ item: plain(db.prepare('SELECT * FROM budget_items WHERE id = ?').get(id)) })
+})
+
+app.get('/api/budget/:id/receipt', (req, res) => {
+  const row = db.prepare('SELECT receipt_url FROM budget_items WHERE id = ?').get(Number(req.params.id))
+  if (!row) return res.status(404).json({ error: 'Movimiento no encontrado' })
+  res.setHeader('Cache-Control', 'private, max-age=300')
+  res.json({ receipt_url: row.receipt_url || '' })
+})
+
+// Cualquier integrante puede validar una constancia después de verla.
+app.post('/api/budget/:id/validate', (req, res) => {
+  const id = Number(req.params.id)
+  const current = db.prepare('SELECT * FROM budget_items WHERE id = ?').get(id)
+  if (!current) return res.status(404).json({ error: 'Movimiento no encontrado' })
+  const who = actor(req)
+  const undo = req.body?.validated === false
+  if (!undo && !who.id) return res.status(400).json({ error: 'Elige tu imán para validar' })
+  db.prepare('UPDATE budget_items SET validated_by=?, validated_at=? WHERE id=?').run(
+    undo ? null : who.id,
+    undo ? null : nowIso(),
+    id,
+  )
+  note(
+    req,
+    'budget',
+    id,
+    'validate',
+    undo ? `Quitó la validación de “${current.concept}”` : `Validó la constancia de “${current.concept}” (S/ ${Number(current.amount).toFixed(2)})`,
+  )
+  broadcast()
+  res.json({ ok: true })
 })
 
 app.delete('/api/budget/:id', (req, res) => {
@@ -834,7 +895,8 @@ app.get('/api/presence/stats', (req, res) => {
 // ---------- import / export ----------
 
 app.get('/api/export', (_req, res) => {
-  const payload = getBootstrap()
+  // El respaldo sí incluye las fotos de constancias.
+  const payload = { ...getBootstrap(), budget: listBudget({ full: true }) }
   res.setHeader('Content-Disposition', `attachment; filename="alfin-desayuno-${new Date().toISOString().slice(0, 10)}.json"`)
   res.json(payload)
 })
@@ -858,8 +920,8 @@ app.post('/api/import', (req, res) => {
       DELETE FROM members;
     `)
     const insertMember = db.prepare(
-      `INSERT INTO members (id, name, role, area, phone, email, color, is_lead, position, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO members (id, name, role, area, phone, email, color, is_lead, photo_url, position, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     data.members.forEach((member, index) => {
       insertMember.run(
@@ -871,6 +933,7 @@ app.post('/api/import', (req, res) => {
         text(member.email),
         text(member.color) || '#E4572E',
         member.is_lead ? 1 : 0,
+        imageData(member.photo_url),
         index,
         nowIso(),
       )
@@ -943,8 +1006,8 @@ app.post('/api/import', (req, res) => {
       )
     })
     const insertBudget = db.prepare(
-      `INSERT INTO budget_items (id, kind, concept, amount, status, owner_id, due_date, note, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO budget_items (id, kind, concept, amount, status, owner_id, due_date, note, receipt_url, category, validated_by, validated_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     ;(data.budget || []).forEach((item, index) => {
       insertBudget.run(
@@ -956,7 +1019,11 @@ app.post('/api/import', (req, res) => {
         item.owner_id ? Number(item.owner_id) : null,
         dateOrNull(item.due_date),
         text(item.note),
-        nowIso(),
+        imageData(item.receipt_url),
+        oneOf(item.category, BUDGET_CATEGORY, ''),
+        item.validated_by ? Number(item.validated_by) : null,
+        item.validated_at ? text(item.validated_at) : null,
+        item.created_at ? text(item.created_at) : nowIso(),
       )
     })
     if (data.settings) {
@@ -982,6 +1049,9 @@ app.post('/api/import', (req, res) => {
   broadcast()
   res.json(getBootstrap())
 })
+
+// Si el celular comparte antes de que la app quede instalada en caché, al menos abre Presupuesto.
+app.post('/compartir', (_req, res) => res.redirect(303, '/#/presupuesto'))
 
 // ---------- static ----------
 

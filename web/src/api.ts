@@ -98,6 +98,9 @@ export const api = {
   updateBudget: (id: number, body: Record<string, unknown>) =>
     request<{ item: Bootstrap['budget'][number] }>(`/api/budget/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteBudget: (id: number) => request<{ ok: boolean }>(`/api/budget/${id}`, { method: 'DELETE' }),
+  getReceipt: (id: number) => request<{ receipt_url: string }>(`/api/budget/${id}/receipt`),
+  validateBudget: (id: number, validated = true) =>
+    request<{ ok: boolean }>(`/api/budget/${id}/validate`, json({ validated })),
 
   updateSettings: (body: Record<string, unknown>) =>
     request<{ settings: Bootstrap['settings'] }>('/api/settings', { method: 'PATCH', body: JSON.stringify(body) }),

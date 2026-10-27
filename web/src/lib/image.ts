@@ -3,6 +3,40 @@
  * Esto garantiza subidas instantáneas, mínimo consumo de datos móviles y persistencia
  * limpia y ligera dentro de SQLite / copias de seguridad JSON.
  */
+/** Foto de perfil: recorte cuadrado centrado, pequeño para que viaje en cada refresco. */
+export function squarePhoto(file: File, size = 192, quality = 0.78): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('El archivo seleccionado no es una imagen.'))
+      return
+    }
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('El formato de la foto no es compatible.'))
+    }
+    img.onload = () => {
+      const side = Math.min(img.width, img.height)
+      const canvas = document.createElement('canvas')
+      canvas.width = size
+      canvas.height = size
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        URL.revokeObjectURL(url)
+        reject(new Error('No se pudo preparar la foto.'))
+        return
+      }
+      ctx.fillStyle = '#FFFFFF'
+      ctx.fillRect(0, 0, size, size)
+      ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size)
+      URL.revokeObjectURL(url)
+      resolve(canvas.toDataURL('image/jpeg', quality))
+    }
+    img.src = url
+  })
+}
+
 export function compressImageFile(file: File, maxDimension = 900, quality = 0.75): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!file.type.startsWith('image/')) {

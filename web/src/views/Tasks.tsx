@@ -733,7 +733,6 @@ function TaskEditor({ task, members, onClose }: { task: Task | null; members: Me
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                capture="environment"
                 style={{ display: 'none' }}
                 onChange={handleFileSelected}
               />

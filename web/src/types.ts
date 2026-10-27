@@ -13,6 +13,8 @@ export interface Member {
   email: string
   color: string
   is_lead: number
+  /** Foto de perfil (data URL), vacía si no tiene. */
+  photo_url?: string
   position: number
   created_at: string
 }
@@ -83,7 +85,14 @@ export interface BudgetItem {
   owner_name?: string | null
   due_date: string | null
   note: string
+  /** Solo llega al pedir la constancia o en el respaldo; en el refresco viene has_receipt. */
   receipt_url?: string
+  has_receipt?: number
+  /** 'cuota' para el aporte de un integrante. */
+  category?: string
+  validated_by?: number | null
+  validated_by_name?: string | null
+  validated_at?: string | null
   created_at: string
 }
 
@@ -189,6 +198,9 @@ export interface ScrapedQuote {
   allPrices: number[]
   rawText: string
   error?: string
+  wallet?: string
+  operationCode?: string
+  paidAt?: string
 }
 
 

@@ -329,7 +329,12 @@ export function Progress({ value, tone = 'brand' }: { value: number; tone?: stri
   )
 }
 
-export function Avatar({ member, size = 'md' }: { member: Pick<Member, 'name' | 'color'>; size?: 'sm' | 'md' | 'lg' }) {
+type Person = Pick<Member, 'name' | 'color'> & { photo_url?: string }
+
+export function Avatar({ member, size = 'md' }: { member: Person; size?: 'sm' | 'md' | 'lg' }) {
+  if (member.photo_url) {
+    return <img className={`avatar avatar-${size} avatar-photo`} src={member.photo_url} alt={member.name} title={member.name} />
+  }
   return (
     <span className={`avatar avatar-${size}`} style={{ background: member.color }} title={member.name}>
       {initials(member.name)}
@@ -337,17 +342,21 @@ export function Avatar({ member, size = 'md' }: { member: Pick<Member, 'name' | 
   )
 }
 
-/** Un integrante como imán de pizarra: punto de color + nombre corto. */
-export function Magnet({ member, me = false }: { member: Pick<Member, 'name' | 'color'>; me?: boolean }) {
+/** Un integrante como imán de pizarra: punto de color (o su foto) + nombre corto. */
+export function Magnet({ member, me = false }: { member: Person; me?: boolean }) {
   return (
     <span className={`magnet ${me ? 'is-me' : ''}`} title={member.name}>
-      <span className="magnet-dot" style={{ background: member.color }} />
+      {member.photo_url ? (
+        <img className="magnet-dot magnet-photo" src={member.photo_url} alt="" style={{ borderColor: member.color }} />
+      ) : (
+        <span className="magnet-dot" style={{ background: member.color }} />
+      )}
       {member.name.split(' ')[0]}
     </span>
   )
 }
 
-export function AvatarStack({ members, max = 4 }: { members: Pick<Member, 'name' | 'color'>[]; max?: number }) {
+export function AvatarStack({ members, max = 4 }: { members: Person[]; max?: number }) {
   if (members.length === 0) return <span className="muted small">Sin responsable</span>
   const shown = members.slice(0, max)
   return (

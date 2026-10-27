@@ -236,7 +236,6 @@ export function TaskOptionsModal({
                     type="file"
                     ref={fileInputRef}
                     accept="image/*"
-                    capture="environment"
                     style={{ display: 'none' }}
                     onChange={handlePhotoSelect}
                   />

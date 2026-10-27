@@ -26,6 +26,13 @@ export default defineConfig({
         background_color: '#E8EDF5',
         theme_color: '#1D3FBF',
         categories: ['productivity', 'business'],
+        // Aparece en el menú Compartir del celular (Android, con la app instalada).
+        share_target: {
+          action: '/compartir',
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: { title: 'titulo', text: 'texto', files: [{ name: 'constancia', accept: ['image/*'] }] },
+        },
         icons: [
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -38,6 +45,7 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
+        importScripts: ['share-target.js'],
       },
       devOptions: { enabled: false },
     }),
