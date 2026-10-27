@@ -3,6 +3,7 @@ import { useStore } from '../store'
 import { api } from '../api'
 import { compressImageFile } from '../lib/image'
 import { money, relativeTime } from '../lib/format'
+import { sendPhotoToExpenses } from '../lib/shared'
 import { Button, Field, Icon, IconButton, Input, Magnet, Modal, TextArea } from './ui'
 import type { Member, Task, TaskOption } from '../types'
 
@@ -21,7 +22,9 @@ export function TaskOptionsModal({
   onClose,
   initialAdding = false,
 }: TaskOptionsModalProps) {
-  const { mutate } = useStore()
+  const { data, mutate } = useStore()
+  // Fotos ya usadas como constancia de un gasto.
+  const usedOptions = new Set((data?.budget || []).map((item) => item.option_id).filter(Boolean))
   const [adding, setAdding] = useState(initialAdding)
   const [title, setTitle] = useState('')
   const [price, setPrice] = useState('')
@@ -125,24 +128,6 @@ export function TaskOptionsModal({
     await mutate(
       () => api.setOptionWinner(option.id, willBeWinner),
       willBeWinner ? `“${option.title}” elegida como opción oficial` : 'Opción desmarcada',
-    )
-    setActionInProgress(null)
-  }
-
-  const handlePushToBudget = async (option: TaskOption) => {
-    if (!window.confirm(`¿Agregar el gasto de “${option.title}” (${money(option.price)}) al Presupuesto?`)) return
-    setActionInProgress(option.id)
-    await mutate(
-      () =>
-        api.createBudget({
-          kind: 'gasto',
-          concept: `${option.title} (${task.title})`,
-          amount: option.price || 0,
-          status: 'pendiente',
-          note: `De actividad: ${task.title}. Cotización de ${option.created_by_name || 'equipo'}. ${option.detail || ''}`,
-          receipt_url: option.image_url || '',
-        }),
-      `“${option.title}” agregada al Presupuesto`,
     )
     setActionInProgress(null)
   }
@@ -475,17 +460,26 @@ export function TaskOptionsModal({
                             {option.is_winner ? 'Elegida' : 'Elegir'}
                           </button>
 
-                          {option.price > 0 ? (
-                            <button
-                              type="button"
-                              className="btn-push-budget"
-                              onClick={() => void handlePushToBudget(option)}
-                              disabled={actionInProgress === option.id}
-                              title="Pasar este monto directamente al presupuesto de gastos"
-                            >
-                              <Icon name="wallet" size={13} />
-                              <span>A presupuesto</span>
-                            </button>
+                          {option.image_url.startsWith('data:image/') ? (
+                            usedOptions.has(option.id) ? (
+                              <span className="btn-push-budget is-done" title="Esta foto ya es la constancia de un gasto">
+                                <Icon name="check" size={13} />
+                                <span>En gastos</span>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn-push-budget"
+                                onClick={() => {
+                                  onClose()
+                                  sendPhotoToExpenses(option.id)
+                                }}
+                                title="Usar esta foto como constancia de un gasto"
+                              >
+                                <Icon name="wallet" size={13} />
+                                <span>Pasar a gastos</span>
+                              </button>
+                            )
                           ) : null}
                         </div>
 

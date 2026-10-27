@@ -3084,6 +3084,45 @@ select {
 
 /* ---------- fotos de actividades para registrar gastos ---------- */
 
+.strip-expense {
+  margin-top: -2px;
+}
+
+.strip-expense-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  box-shadow: 0 2px 4px -2px rgba(29, 63, 191, 0.6);
+}
+
+.strip-expense-btn:hover {
+  background: var(--blue-ink);
+}
+
+.strip-expense-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--green-ink);
+}
+
+.btn-push-budget.is-done {
+  color: var(--green-ink);
+  background: var(--green-soft);
+  border-color: transparent;
+  cursor: default;
+}
+
+
 .activity-photos {
   display: flex;
   flex-direction: column;

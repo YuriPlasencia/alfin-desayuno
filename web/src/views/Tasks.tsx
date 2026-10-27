@@ -18,6 +18,7 @@ import {
   TextArea,
 } from '../components/ui'
 import { StepToggle } from '../components/checklist'
+import { sendPhotoToExpenses } from '../lib/shared'
 import { TaskOptionsModal } from '../components/TaskOptionsModal'
 import { compressImageFile } from '../lib/image'
 import { AREAS, AREA_COLORS, type Member, type Priority, type Task, type TaskOption, type TaskStatus } from '../types'
@@ -311,6 +312,12 @@ function TaskCard({
   )
   const options = task.options || []
   const winnerOpt = options.find((o) => o.is_winner)
+  const { data: store } = useStore()
+  const usedOptions = new Set((store?.budget || []).map((item) => item.option_id).filter(Boolean))
+  const withPhoto = options.filter((o) => o.image_url.startsWith('data:image/'))
+  // Con una sola foto (o una elegida) se pasa directo; con varias se elige en "Ver y votar".
+  const photoForExpense = winnerOpt && withPhoto.includes(winnerOpt) ? winnerOpt : withPhoto.length === 1 ? withPhoto[0] : null
+  const allUsed = withPhoto.length > 0 && withPhoto.every((o) => usedOptions.has(o.id))
   const totalVotes = options.reduce((sum, o) => sum + (o.vote_count || 0), 0)
 
   return (
@@ -368,6 +375,7 @@ function TaskCard({
 
       {/* Tira visual de cotizaciones y fotos para votación */}
       {options.length > 0 ? (
+        <>
         <div
           className="task-options-strip"
           onClick={onOpenOptions}
@@ -420,6 +428,29 @@ function TaskCard({
             <span className="strip-cta">Ver y votar &rarr;</span>
           </div>
         </div>
+        {withPhoto.length > 0 ? (
+          <div className="strip-expense">
+            {allUsed || (photoForExpense && usedOptions.has(photoForExpense.id)) ? (
+              <span className="strip-expense-done">
+                <Icon name="check" size={13} /> Foto ya registrada en gastos
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="strip-expense-btn"
+                title="Usar esta foto como constancia de un gasto"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  if (photoForExpense) sendPhotoToExpenses(photoForExpense.id)
+                  else onOpenOptions()
+                }}
+              >
+                <Icon name="wallet" size={14} /> {photoForExpense ? 'Pasar a gastos' : 'Elegir foto para gastos'}
+              </button>
+            )}
+          </div>
+        ) : null}
+        </>
       ) : (
         <button
           type="button"

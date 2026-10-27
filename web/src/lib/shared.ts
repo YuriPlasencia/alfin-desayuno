@@ -18,3 +18,27 @@ export async function takeSharedFile(): Promise<File | null> {
     return null
   }
 }
+
+const OPTION_KEY = 'alfin.gastoDesdeFoto'
+
+/** Desde una actividad: abre Presupuesto con el gasto armado a partir de esa foto. */
+export function sendPhotoToExpenses(optionId: number) {
+  try {
+    sessionStorage.setItem(OPTION_KEY, String(optionId))
+  } catch {
+    /* sin almacenamiento: igual se abre Presupuesto */
+  }
+  window.location.hash = '#/presupuesto'
+}
+
+/** La foto de actividad pendiente de registrar como gasto (se entrega una sola vez). */
+export function takePhotoForExpense(): number | null {
+  try {
+    const raw = sessionStorage.getItem(OPTION_KEY)
+    sessionStorage.removeItem(OPTION_KEY)
+    const id = Number(raw)
+    return id > 0 ? id : null
+  } catch {
+    return null
+  }
+}

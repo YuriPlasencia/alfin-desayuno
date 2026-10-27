@@ -18,7 +18,7 @@ import {
 } from '../components/ui'
 import { isCuota, summarize } from '../lib/stats'
 import { CUOTA, CuotaModal, CuotasPanel, FlowView, ReceiptViewer, ValidateButton, findPayer, scanVoucher } from '../components/voucher'
-import { takeSharedFile } from '../lib/shared'
+import { takePhotoForExpense, takeSharedFile } from '../lib/shared'
 import { formatDate, getTreasurer, money, plural } from '../lib/format'
 import type { BudgetItem, BudgetKind, BudgetStatus, Member, Task, TaskOption } from '../types'
 
@@ -46,6 +46,7 @@ export function Budget() {
   const [cuota, setCuota] = useState<{ file: File | null } | null>(null)
   const [viewing, setViewing] = useState<BudgetItem | null>(null)
   const [shared, setShared] = useState<File | null>(null)
+  const [pendingPhoto, setPendingPhoto] = useState<number | null>(null)
 
   // Constancia compartida desde Yape, Plin o la galería (menú Compartir del celular).
   useEffect(() => {
@@ -58,6 +59,28 @@ export function Budget() {
     }
   }, [])
   const summary = useMemo(() => (data ? summarize(data) : null), [data])
+
+  // Llegada desde una actividad con "Pasar a gastos".
+  const photoRequest = useRef<number | null | undefined>(undefined)
+  if (photoRequest.current === undefined) photoRequest.current = takePhotoForExpense()
+  useEffect(() => {
+    if (photoRequest.current) {
+      setPendingPhoto(photoRequest.current)
+      photoRequest.current = null
+    }
+  }, [])
+  // Cuando ya están los datos, se abre el gasto armado con esa foto.
+  useEffect(() => {
+    if (!pendingPhoto || !data) return
+    if (!data.tasks.some((task) => task.options?.some((option) => option.id === pendingPhoto))) return
+    setPendingPhoto(null)
+    setMainTab('ejecucion')
+    setFilter('gasto')
+    setEditing({
+      item: null,
+      preset: { kind: 'gasto', status: 'hecho', stage: 'real', ownerId: actor?.id ?? null, pick: false, optionId: pendingPhoto },
+    })
+  }, [pendingPhoto, data, actor])
 
   const winningOptions = useMemo(() => {
     if (!data) return []
