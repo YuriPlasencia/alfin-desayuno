@@ -16,7 +16,7 @@ import {
   Select,
   TextArea,
 } from '../components/ui'
-import { summarize } from '../lib/stats'
+import { isCuota, summarize } from '../lib/stats'
 import { CUOTA, CuotaModal, CuotasPanel, FlowView, ReceiptViewer, ValidateButton, findPayer, scanVoucher } from '../components/voucher'
 import { takeSharedFile } from '../lib/shared'
 import { formatDate, getTreasurer, money, plural } from '../lib/format'
@@ -465,7 +465,7 @@ function PlanTable({
 }) {
   const items = plan.filter((item) => item.kind === kind)
   const cuotasCobradas = real
-    .filter((item) => item.kind === 'ingreso' && item.category === 'cuota' && item.status === 'hecho')
+    .filter((item) => isCuota(item) && item.status === 'hecho')
     .reduce((acc, item) => acc + item.amount, 0)
   const rows = [
     ...(kind === 'ingreso'
@@ -484,7 +484,7 @@ function PlanTable({
   const totalPlanned = rows.reduce((acc, row) => acc + row.planned, 0)
   const totalExecuted = rows.reduce((acc, row) => acc + row.executed, 0)
   const unplanned = real
-    .filter((item) => item.kind === kind && item.status === 'hecho' && !item.plan_id && !(kind === 'ingreso' && item.category === 'cuota'))
+    .filter((item) => item.kind === kind && item.status === 'hecho' && !item.plan_id && !isCuota(item))
     .reduce((acc, item) => acc + item.amount, 0)
 
   return (
@@ -762,7 +762,7 @@ function IncomeTable({
               <td>
                 <span className="cell-title">{item.owner_name || item.concept}</span>
                 <span className="cell-note">
-                  {item.owner_name && item.category !== 'cuota' ? `${item.concept} · ` : ''}
+                  {item.owner_name && !isCuota(item) ? `${item.concept} · ` : ''}
                   {item.due_date ? formatDate(item.due_date) : 'Sin fecha'}
                   {item.status === 'hecho' ? '' : ' · por cobrar'}
                 </span>
@@ -847,7 +847,7 @@ function BudgetEditor({
   const [receiptUrl, setReceiptUrl] = useState(item?.receipt_url ?? '')
   // La foto guardada no viene en el refresco: se pide al abrir. Solo se envía si cambió.
   const [receiptChanged, setReceiptChanged] = useState(false)
-  const [isCuota, setIsCuota] = useState(item?.category === 'cuota')
+  const [markedCuota, setMarkedCuota] = useState(item?.category === 'cuota')
   const [compressing, setCompressing] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [scrapedInfo, setScrapedInfo] = useState<{ amount: number | null; concept: string; allPrices: number[] } | null>(null)
@@ -904,7 +904,7 @@ function BudgetEditor({
             if (payer && !ownerId) setOwnerId(String(payer.id))
             if (!concept.trim()) setConcept(payer ? `Cuota de ${payer.name}` : `Pago por ${scraped.wallet}`)
             setStatus('hecho')
-            setIsCuota(true)
+            setMarkedCuota(true)
           } else if (scraped.wallet && kind === 'gasto' && !concept.trim()) {
             setConcept(`Pago por ${scraped.wallet}`)
           }
@@ -941,7 +941,8 @@ function BudgetEditor({
       due_date: dueDate || null,
       note,
       ...(receiptChanged || !item ? { receipt_url: receiptUrl } : {}),
-      ...(kind === 'ingreso' && isCuota ? { category: 'cuota' } : kind === 'gasto' ? { category: '' } : {}),
+      // Un ingreso cuyo concepto dice "cuota" cuenta como cuota en "¿Quién ya pagó?".
+      ...(kind === 'ingreso' && (markedCuota || /\bcuota/i.test(concept)) ? { category: 'cuota' } : kind === 'gasto' ? { category: '' } : {}),
       stage,
       ...(isPlan ? { status: 'pendiente' } : { plan_id: planId ? Number(planId) : null }),
     }

@@ -4,7 +4,7 @@ import { api } from '../api'
 import { compressImageFile } from '../lib/image'
 import { formatDate, money } from '../lib/format'
 import type { BudgetItem, Member, ScrapedQuote } from '../types'
-import { CUOTA } from '../lib/stats'
+import { CUOTA, isCuota } from '../lib/stats'
 import { Avatar, Badge, Button, Field, Icon, Input, Magnet, Modal, Progress, Select } from './ui'
 
 export { CUOTA }
@@ -175,7 +175,7 @@ export function CuotaModal({
   }, [voucher.scan, members, treasurer])
 
   const payer = members.find((member) => member.id === Number(payerId))
-  const previous = budget.filter((item) => item.category === 'cuota' && item.owner_id === Number(payerId))
+  const previous = budget.filter((item) => isCuota(item) && item.owner_id === Number(payerId))
   const phone = treasurer?.phone || ''
 
   const copyPhone = async () => {
@@ -448,8 +448,10 @@ export function CuotasPanel({
   onPay: () => void
 }) {
   const { actor } = useStore()
-  const cuotas = budget.filter((item) => item.kind === 'ingreso' && item.category === 'cuota' && item.status === 'hecho')
+  const cuotas = budget.filter((item) => isCuota(item) && item.status === 'hecho')
   const collected = cuotas.reduce((acc, item) => acc + item.amount, 0)
+  // Cuotas cargadas sin decir quién pagó: suman, pero no se ven en la lista.
+  const unnamed = cuotas.filter((item) => !item.owner_id || !members.some((member) => member.id === item.owner_id))
   const goal = CUOTA * members.length
   const paidIds = new Set(cuotas.map((item) => item.owner_id))
   const pendingValidation = cuotas.filter((item) => !item.validated_by).length
@@ -475,7 +477,15 @@ export function CuotasPanel({
           <strong>{money(collected)}</strong> recaudado de {money(goal)}
         </p>
       </div>
-      <Progress value={goal ? collected / goal : 0} tone={collected >= goal && goal > 0 ? 'success' : 'brand'} />
+      <Progress value={goal ? Math.min(1, collected / goal) : 0} tone={collected >= goal && goal > 0 ? 'success' : 'brand'} />
+      {unnamed.length > 0 ? (
+        <p className="notice-inline cuota-unnamed">
+          {unnamed.length === 1 ? 'Hay 1 cuota' : `Hay ${unnamed.length} cuotas`} sin nombre de quién pagó ({money(unnamed.reduce((acc, item) => acc + item.amount, 0))}).{' '}
+          <button type="button" className="link-btn" onClick={() => onOpen(unnamed[0])}>
+            Revisar
+          </button>
+        </p>
+      ) : null}
       <ul className="cuota-list">
         {members.map((member) => {
           const items = cuotas.filter((item) => item.owner_id === member.id)

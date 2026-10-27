@@ -203,6 +203,14 @@ const BUDGET_STATUS = ['pendiente', 'hecho']
 const BUDGET_CATEGORY = ['', 'cuota']
 const BUDGET_STAGE = ['plan', 'real']
 
+// Un ingreso real cuyo concepto dice "cuota" es una cuota, aunque se haya cargado con "Movimiento".
+function categoryFor(body, fallback = '') {
+  const category = body.category === undefined ? fallback : oneOf(body.category, BUDGET_CATEGORY, '')
+  const kind = body.kind ?? 'gasto'
+  if (kind === 'ingreso' && body.stage !== 'plan' && /\bcuota/i.test(String(body.concept || ''))) return 'cuota'
+  return category
+}
+
 function planOrNull(value) {
   const id = Number(value)
   if (!id) return null
@@ -717,7 +725,7 @@ app.post('/api/budget', (req, res) => {
       dateOrNull(body.due_date),
       text(body.note),
       imageData(body.receipt_url),
-      oneOf(body.category, BUDGET_CATEGORY, ''),
+      categoryFor(body),
       oneOf(body.stage, BUDGET_STAGE, 'real'),
       oneOf(body.stage, BUDGET_STAGE, 'real') === 'real' ? planOrNull(body.plan_id) : null,
       nowIso(),
@@ -751,7 +759,10 @@ app.patch('/api/budget/:id', (req, res) => {
     due_date: body.due_date === undefined ? current.due_date : dateOrNull(body.due_date),
     note: body.note === undefined ? current.note : text(body.note),
     receipt_url: imageData(body.receipt_url, current.receipt_url || ''),
-    category: body.category === undefined ? current.category || '' : oneOf(body.category, BUDGET_CATEGORY, ''),
+    category: categoryFor(
+      { ...body, kind: body.kind ?? current.kind, concept: body.concept ?? current.concept, stage: body.stage ?? current.stage },
+      current.category || '',
+    ),
     stage: oneOf(body.stage, BUDGET_STAGE, current.stage || 'real'),
     plan_id: body.plan_id === undefined ? current.plan_id : planOrNull(body.plan_id),
   }

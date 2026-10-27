@@ -1,7 +1,16 @@
-import type { Bootstrap, Task } from '../types'
+import type { BudgetItem, Bootstrap, Task } from '../types'
 
 /** Cuota por integrante (la misma del reporte de WhatsApp y de "Subir cuota"). */
 export const CUOTA = 100
+
+/**
+ * ¿Es el pago de una cuota? Marcado por "Subir cuota" o, si se cargó con
+ * "Movimiento", porque el concepto dice "cuota".
+ */
+export function isCuota(item: Pick<BudgetItem, 'kind' | 'category' | 'concept' | 'stage'>): boolean {
+  if (item.kind !== 'ingreso' || item.stage === 'plan') return false
+  return item.category === 'cuota' || /\bcuota/i.test(item.concept)
+}
 
 export function taskProgress(task: Task): number {
   if (task.status === 'hecha') return 1

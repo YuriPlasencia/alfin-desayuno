@@ -170,6 +170,10 @@ if (addColumn('budget_items', 'stage', "TEXT NOT NULL DEFAULT 'real'")) {
   db.exec("UPDATE budget_items SET stage = 'plan' WHERE status = 'pendiente' AND receipt_url = '' AND category = ''")
 }
 addColumn('budget_items', 'plan_id', 'INTEGER REFERENCES budget_items(id) ON DELETE SET NULL')
+// Cuotas cargadas con "Movimiento" (concepto "Cuota…") antes de que se marcaran solas.
+db.exec(
+  "UPDATE budget_items SET category = 'cuota' WHERE kind = 'ingreso' AND stage = 'real' AND category = '' AND lower(concept) LIKE '%cuota%'",
+)
 
 
 export const nowIso = () => new Date().toISOString()
