@@ -186,7 +186,10 @@ export function Settings() {
         </div>
       </section>
 
-      <p className="muted tiny">Al Fin Desayuno · versión 0.1.0 · datos guardados en SQLite en el servidor</p>
+      <p className="muted tiny">
+        Al Fin Desayuno · versión {__APP_VERSION__} · compilada{' '}
+        {new Date(__BUILT_AT__).toLocaleString('es-PE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+      </p>
     </div>
   )
 }

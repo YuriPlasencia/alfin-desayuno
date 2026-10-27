@@ -60,7 +60,8 @@ function hasAccess(req) {
   return !TEAM_CODE || sameSecret(readCookie(req, ACCESS_COOKIE), ACCESS_TOKEN)
 }
 
-app.get('/api/health', (_req, res) => res.json({ ok: true }))
+const VERSION = (process.env.RENDER_GIT_COMMIT || '').slice(0, 7) || 'local'
+app.get('/api/health', (_req, res) => res.json({ ok: true, version: VERSION }))
 
 app.get('/api/auth', (req, res) => res.json({ required: Boolean(TEAM_CODE), ok: hasAccess(req) }))
 

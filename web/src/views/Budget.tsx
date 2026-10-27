@@ -19,7 +19,7 @@ import {
 import { summarize } from '../lib/stats'
 import { CUOTA, CuotaModal, CuotasPanel, FlowView, ReceiptViewer, ValidateButton, findPayer, scanVoucher } from '../components/voucher'
 import { takeSharedFile } from '../lib/shared'
-import { formatDate, getTreasurer, money } from '../lib/format'
+import { formatDate, getTreasurer, money, plural } from '../lib/format'
 import type { BudgetItem, BudgetKind, BudgetStatus, Member, TaskOption } from '../types'
 
 type MainTab = 'inicial' | 'ejecucion' | 'tesorero'
@@ -80,6 +80,9 @@ export function Budget() {
   const plan = data.budget.filter((item) => item.stage === 'plan')
   const real = data.budget.filter((item) => item.stage !== 'plan')
   const rows = real.filter((item) => (filter === 'todos' || filter === 'flujo' ? true : item.kind === filter))
+  // Ejecución: todo lo que se va registrando (ingresos, gastos y su diferencia).
+  const realIngresos = real.filter((item) => item.kind === 'ingreso').reduce((acc, item) => acc + item.amount, 0)
+  const realGastos = real.filter((item) => item.kind === 'gasto').reduce((acc, item) => acc + item.amount, 0)
   // Al abrir una constancia se muestra la versión al día del movimiento.
   const viewingNow = viewing ? data.budget.find((item) => item.id === viewing.id) || null : null
 
@@ -275,35 +278,25 @@ Yape / Plin a: ${tName}${tPhone}
             <div className="ledger-figures">
               <div className="ledger-figure income">
                 <span className="budget-label">
-                  <Icon name="download" size={16} /> Ingresos cobrados
+                  <Icon name="download" size={16} /> Ingresos
                 </span>
-                <strong>{money(summary.budget.cobrado)}</strong>
-                <span className="small">de {money(summary.budget.ingresos)} presupuestados</span>
+                <strong>{money(realIngresos)}</strong>
+                <span className="small">{plural(real.filter((item) => item.kind === 'ingreso').length, 'registro', 'registros')}</span>
               </div>
               <div className="ledger-figure expense">
                 <span className="budget-label">
-                  <Icon name="upload" size={16} /> Gastos pagados
+                  <Icon name="upload" size={16} /> Gastos
                 </span>
-                <strong>{money(summary.budget.pagado)}</strong>
-                <span className="small">de {money(summary.budget.gastos)} presupuestados</span>
+                <strong>{money(realGastos)}</strong>
+                <span className="small">{plural(real.filter((item) => item.kind === 'gasto').length, 'registro', 'registros')}</span>
               </div>
-              <div className={`ledger-figure balance ${summary.budget.saldo < 0 ? 'is-negative' : ''}`}>
+              <div className={`ledger-figure balance ${realIngresos - realGastos < 0 ? 'is-negative' : ''}`}>
                 <span className="budget-label">
-                  <Icon name="wallet" size={16} /> Saldo en caja
+                  <Icon name="wallet" size={16} /> Saldo disponible
                 </span>
-                <strong className={summary.budget.saldo < 0 ? 'danger-text' : ''}>{money(summary.budget.saldo)}</strong>
-                <span className="small">lo cobrado menos lo pagado</span>
+                <strong className={realIngresos - realGastos < 0 ? 'danger-text' : ''}>{money(realIngresos - realGastos)}</strong>
+                <span className="small">ingresos menos gastos</span>
               </div>
-            </div>
-            <div className="ledger-meter">
-              <div className="team-meter-row">
-                <p>
-                  <strong>{Math.round(summary.budget.avanceCobro * 100)}%</strong> cobrado · {money(summary.budget.cobrado)} de{' '}
-                  {money(summary.budget.ingresos)}
-                </p>
-                {summary.budget.avanceCobro >= 1 ? <Badge tone="success">Meta completa</Badge> : null}
-              </div>
-              <Progress value={Math.min(1, summary.budget.avanceCobro)} tone={summary.budget.avanceCobro >= 1 ? 'success' : 'brand'} />
             </div>
           </section>
 

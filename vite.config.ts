@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
@@ -6,8 +7,22 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
+// Versión visible en Ajustes: el commit con el que se construyó (Render lo entrega en RENDER_GIT_COMMIT).
+function buildVersion(): string {
+  if (process.env.RENDER_GIT_COMMIT) return process.env.RENDER_GIT_COMMIT.slice(0, 7)
+  try {
+    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+  } catch {
+    return 'local'
+  }
+}
+
 export default defineConfig({
   root: path.join(dirname, 'web'),
+  define: {
+    __APP_VERSION__: JSON.stringify(buildVersion()),
+    __BUILT_AT__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     VitePWA({
