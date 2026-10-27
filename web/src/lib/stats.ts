@@ -1,5 +1,8 @@
 import type { Bootstrap, Task } from '../types'
 
+/** Cuota por integrante (la misma del reporte de WhatsApp y de "Subir cuota"). */
+export const CUOTA = 100
+
 export function taskProgress(task: Task): number {
   if (task.status === 'hecha') return 1
   if (task.checklist_total === 0) return 0
@@ -37,6 +40,8 @@ export interface Summary {
     cobrado: number
     pagado: number
     avanceCobro: number
+    /** Cuotas de integrantes que aún no registran su pago (ya sumadas en ingresos). */
+    cuotasPorCobrar: number
   }
   upcoming: Task[]
   workload: Record<number, MemberWorkload>
@@ -73,7 +78,11 @@ export function summarize(data: Bootstrap): Summary {
     pendientes: data.agreements.filter((a) => a.status !== 'cumplido').length,
   }
 
-  const ingresos = data.budget.filter((b) => b.kind === 'ingreso').reduce((acc, b) => acc + b.amount, 0)
+  const registrados = data.budget.filter((b) => b.kind === 'ingreso').reduce((acc, b) => acc + b.amount, 0)
+  // Lo previsto incluye la cuota de quien todavía no paga: si no, el saldo previsto saldría muy negativo.
+  const conCuota = new Set(data.budget.filter((b) => b.kind === 'ingreso' && b.category === 'cuota').map((b) => b.owner_id))
+  const cuotasPorCobrar = CUOTA * data.members.filter((member) => !conCuota.has(member.id)).length
+  const ingresos = registrados + cuotasPorCobrar
   const gastos = data.budget.filter((b) => b.kind === 'gasto').reduce((acc, b) => acc + b.amount, 0)
   const cobrado = data.budget
     .filter((b) => b.kind === 'ingreso' && b.status === 'hecho')
@@ -116,6 +125,7 @@ export function summarize(data: Bootstrap): Summary {
       cobrado,
       pagado,
       avanceCobro: ingresos === 0 ? 0 : cobrado / ingresos,
+      cuotasPorCobrar,
     },
     upcoming,
     workload,

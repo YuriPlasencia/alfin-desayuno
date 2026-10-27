@@ -4,12 +4,41 @@ import { api } from '../api'
 import { compressImageFile } from '../lib/image'
 import { formatDate, money } from '../lib/format'
 import type { BudgetItem, Member, ScrapedQuote } from '../types'
+import { CUOTA } from '../lib/stats'
 import { Avatar, Badge, Button, Field, Icon, Input, Magnet, Modal, Progress, Select } from './ui'
 
-/** Cuota por integrante (la misma que se anuncia en el reporte de WhatsApp). */
-export const CUOTA = 100
+export { CUOTA }
 
 const today = () => new Date().toISOString().slice(0, 10)
+
+const plainText = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+
+/**
+ * Busca en el texto de la captura el nombre de alguien del equipo.
+ * En Yape/Plin suele salir el destinatario (el tesorero), así que se descarta.
+ */
+export function findPayer(rawText: string, members: Member[], treasurerId: number | null): Member | null {
+  const text = plainText(rawText)
+  if (!text.trim()) return null
+  const found = members
+    .map((member) => {
+      const [first = '', last = ''] = plainText(member.name).split(/\s+/)
+      const hasFirst = first.length > 2 && new RegExp(`\\b${first}\\b`).test(text)
+      if (!hasFirst) return null
+      const hasLast = last.length > 1 && new RegExp(`\\b${last}\\b`).test(text)
+      const hasInitial = last.length > 0 && new RegExp(`\\b${first}\\s+${last[0]}\\b`).test(text)
+      const score = hasLast ? 2 : hasInitial ? 1 : 0
+      return score > 0 ? { member, score } : null
+    })
+    .filter((entry): entry is { member: Member; score: number } => Boolean(entry))
+    .filter((entry) => entry.member.id !== treasurerId)
+    .sort((a, b) => b.score - a.score)
+  return found[0]?.member ?? null
+}
 
 /**
  * Lee una constancia. Tesseract pierde los números muy grandes (el "S/ 100" de Yape),
@@ -129,6 +158,8 @@ export function CuotaModal({
   const { actor, mutate, toast } = useStore()
   const voucher = useVoucher(initialFile)
   const [payerId, setPayerId] = useState(actor ? String(actor.id) : '')
+  const [recognized, setRecognized] = useState<'si' | 'no' | null>(null)
+  const payerTouched = useRef(false)
   const [amount, setAmount] = useState(String(CUOTA))
   const [operation, setOperation] = useState('')
   const [saving, setSaving] = useState(false)
@@ -138,7 +169,10 @@ export function CuotaModal({
     if (!voucher.scan) return
     if (voucher.scan.detectedAmount && !touched.current) setAmount(String(voucher.scan.detectedAmount))
     if (voucher.scan.operationCode) setOperation((current) => current || voucher.scan!.operationCode!)
-  }, [voucher.scan])
+    const match = findPayer(voucher.scan.rawText || '', members, treasurer?.id ?? null)
+    setRecognized(match ? 'si' : 'no')
+    if (match && !payerTouched.current) setPayerId(String(match.id))
+  }, [voucher.scan, members, treasurer])
 
   const payer = members.find((member) => member.id === Number(payerId))
   const previous = budget.filter((item) => item.category === 'cuota' && item.owner_id === Number(payerId))
@@ -209,8 +243,23 @@ export function CuotaModal({
         ) : null}
         <VoucherDrop voucher={voucher} label="Sube la captura de tu pago" />
         <div className="form-row">
-          <Field label="¿Quién pagó?">
-            <Select value={payerId} onChange={(event) => setPayerId(event.target.value)}>
+          <Field
+            label="¿Quién pagó? (nombre y apellido)"
+            hint={
+              recognized === 'si' && payer
+                ? `Lo leímos en la captura: ${payer.name}. Cámbialo si no es correcto.`
+                : recognized === 'no'
+                  ? 'La captura no muestra quién pagó: confirma el nombre.'
+                  : undefined
+            }
+          >
+            <Select
+              value={payerId}
+              onChange={(event) => {
+                payerTouched.current = true
+                setPayerId(event.target.value)
+              }}
+            >
               <option value="">Elige el nombre</option>
               {members.map((member) => (
                 <option key={member.id} value={member.id}>

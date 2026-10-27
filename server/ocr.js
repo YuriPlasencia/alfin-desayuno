@@ -78,21 +78,23 @@ export function parseQuoteText(text) {
     detectedAmount = Math.max(...allPrices)
   }
 
-  // Concept: look for first line that looks like a business name or product
+  // Constancias de billetera o banco (Yape, Plin, transferencias)
+  const voucher = parseVoucher(text)
+
+  // Concepto: primera línea con aspecto de comercio o producto. En una constancia
+  // de billetera no hay comercio: la app arma el concepto ("Cuota de …").
   let detectedConcept = ''
-  for (const line of lines) {
+  for (const line of voucher.wallet ? [] : lines) {
     if (
       line.length > 3 &&
       !/^[0-9\s.,:\/-]+$/.test(line) &&
-      !/^(total|subtotal|ruc|fecha|hora|igv|boleta|factura|dni|telefono|tel|cel|mesa|serie|numero)/i.test(line)
+      !/^(total|subtotal|ruc|fecha|hora|igv|boleta|factura|dni|telefono|tel|cel|mesa|serie|numero)/i.test(line) &&
+      !isStatusBar(line)
     ) {
       detectedConcept = line.slice(0, 60).trim()
       break
     }
   }
-
-  // Constancias de billetera o banco (Yape, Plin, transferencias)
-  const voucher = parseVoucher(text)
   if (voucher.wallet && voucher.amount) detectedAmount = voucher.amount
 
   return {
@@ -104,6 +106,15 @@ export function parseQuoteText(text) {
     operationCode: voucher.operationCode,
     paidAt: voucher.paidAt,
   }
+}
+
+/** Barra de estado de una captura de pantalla (operador, hora, señal, batería) o ruido del OCR. */
+function isStatusBar(line) {
+  if (/\b(claro|movistar|entel|bitel|4g|5g|lte|volte|wi-?fi)\b/i.test(line)) return true
+  if (/\b[0-2]?[0-9]:[0-5][0-9]\b/.test(line) && line.length < 40) return true
+  if (/%/.test(line)) return true
+  const letters = (line.match(/[a-záéíóúñ]/gi) || []).length
+  return letters / line.length < 0.6
 }
 
 const WALLETS = [

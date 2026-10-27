@@ -2958,6 +2958,37 @@ select {
   font-weight: 600;
 }
 
+.income-table {
+  min-width: 520px;
+}
+
+.income-table tr.is-pending .cell-title {
+  color: var(--muted);
+}
+
+.receipt-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 0;
+  color: var(--blue);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+}
+
+.link-btn:hover {
+  color: var(--blue-ink);
+}
+
 /* ---------- cuotas: ¿quién ya pagó? ---------- */
 
 .cuotas .progress {

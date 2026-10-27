@@ -17,7 +17,7 @@ import {
   TextArea,
 } from '../components/ui'
 import { summarize } from '../lib/stats'
-import { CuotaModal, CuotasPanel, FlowView, ReceiptViewer, scanVoucher } from '../components/voucher'
+import { CuotaModal, CuotasPanel, FlowView, ReceiptViewer, findPayer, scanVoucher } from '../components/voucher'
 import { takeSharedFile } from '../lib/shared'
 import { formatDate, getTreasurer, money } from '../lib/format'
 import type { BudgetItem, BudgetKind, BudgetStatus, Member, TaskOption } from '../types'
@@ -154,7 +154,10 @@ Yape / Plin a: ${tName}${tPhone}
                   <Icon name="download" size={16} /> Ingresos previstos
                 </span>
                 <strong>{money(summary.budget.ingresos)}</strong>
-                <span className="small">{money(summary.budget.cobrado)} ya cobrado</span>
+                <span className="small">
+                  {money(summary.budget.cobrado)} ya cobrado
+                  {summary.budget.cuotasPorCobrar > 0 ? ` · incluye ${money(summary.budget.cuotasPorCobrar)} de cuotas por cobrar` : ''}
+                </span>
               </div>
               <div className="ledger-figure expense">
                 <span className="budget-label">
@@ -237,6 +240,8 @@ Yape / Plin a: ${tName}${tPhone}
 
       {filter === 'flujo' ? (
         <FlowView budget={data.budget} members={data.members} onOpen={setViewing} />
+      ) : filter === 'ingreso' && rows.length > 0 ? (
+        <IncomeTable rows={rows} onOpen={setViewing} onEdit={setEditing} onRemove={(item) => void remove(item)} />
       ) : rows.length === 0 ? (
         <EmptyState icon="wallet" title="Sin movimientos" hint="Agrega los aportes y los gastos previstos del desayuno." />
       ) : (
@@ -515,6 +520,81 @@ function TreasurerManager({
   )
 }
 
+/** Ingresos: quién pagó, cuánto y su constancia. */
+function IncomeTable({
+  rows,
+  onOpen,
+  onEdit,
+  onRemove,
+}: {
+  rows: BudgetItem[]
+  onOpen: (item: BudgetItem) => void
+  onEdit: (item: BudgetItem) => void
+  onRemove: (item: BudgetItem) => void
+}) {
+  const total = rows.reduce((acc, item) => acc + item.amount, 0)
+  return (
+    <div className="card table-card">
+      <table className="data-table income-table">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th className="right">Monto</th>
+            <th>Constancia</th>
+            <th aria-label="Acciones" />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((item) => (
+            <tr key={item.id} className={item.status === 'hecho' ? '' : 'is-pending'}>
+              <td>
+                <span className="cell-title">{item.owner_name || item.concept}</span>
+                <span className="cell-note">
+                  {item.owner_name && item.category !== 'cuota' ? `${item.concept} · ` : ''}
+                  {item.due_date ? formatDate(item.due_date) : 'Sin fecha'}
+                  {item.status === 'hecho' ? '' : ' · por cobrar'}
+                </span>
+              </td>
+              <td className="right amount positive">{money(item.amount)}</td>
+              <td>
+                {item.has_receipt ? (
+                  <span className="receipt-cell">
+                    <button type="button" className="link-btn" onClick={() => onOpen(item)}>
+                      <Icon name="camera" size={14} /> Ver foto
+                    </button>
+                    {item.validated_by ? (
+                      <span className="tag-ok" title={`Validado por ${item.validated_by_name || ''}`}>
+                        validado
+                      </span>
+                    ) : (
+                      <span className="tag-wait">por validar</span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="muted small">Sin foto</span>
+                )}
+              </td>
+              <td className="actions-cell">
+                <IconButton icon="pencil" label="Editar ingreso" onClick={() => onEdit(item)} />
+                <IconButton icon="trash" label="Eliminar ingreso" onClick={() => onRemove(item)} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>
+              Total · {rows.length} {rows.length === 1 ? 'ingreso' : 'ingresos'}
+            </td>
+            <td className="right amount">{money(total)}</td>
+            <td colSpan={2} />
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  )
+}
+
 /** Una imagen llegó por el menú Compartir: ¿es una cuota o un gasto? */
 function SharedChoice({ file, onClose, onCuota, onGasto }: { file: File; onClose: () => void; onCuota: () => void; onGasto: () => void }) {
   const [preview] = useState(() => URL.createObjectURL(file))
@@ -556,6 +636,7 @@ function BudgetEditor({
   const [receiptUrl, setReceiptUrl] = useState(item?.receipt_url ?? '')
   // La foto guardada no viene en el refresco: se pide al abrir. Solo se envía si cambió.
   const [receiptChanged, setReceiptChanged] = useState(false)
+  const [isCuota, setIsCuota] = useState(item?.category === 'cuota')
   const [compressing, setCompressing] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [scrapedInfo, setScrapedInfo] = useState<{ amount: number | null; concept: string; allPrices: number[] } | null>(null)
@@ -605,6 +686,17 @@ function BudgetEditor({
           if (scraped.detectedConcept && !concept.trim()) {
             setConcept(scraped.detectedConcept)
           }
+          // Constancia de Yape/Plin/banco en un ingreso: es una cuota ya cobrada.
+          if (scraped.wallet && kind === 'ingreso' && data) {
+            const payer = data.members.find((m) => m.id === Number(ownerId)) ??
+              findPayer(scraped.rawText || '', data.members, data.settings.treasurer_id ?? null)
+            if (payer && !ownerId) setOwnerId(String(payer.id))
+            if (!concept.trim()) setConcept(payer ? `Cuota de ${payer.name}` : `Pago por ${scraped.wallet}`)
+            setStatus('hecho')
+            setIsCuota(true)
+          } else if (scraped.wallet && kind === 'gasto' && !concept.trim()) {
+            setConcept(`Pago por ${scraped.wallet}`)
+          }
           if (scraped.paidAt && !dueDate) setDueDate(scraped.paidAt)
           if ((scraped.wallet || scraped.operationCode) && !note.trim()) {
             setNote([scraped.wallet, scraped.operationCode ? `Op. ${scraped.operationCode}` : ''].filter(Boolean).join(' · '))
@@ -638,6 +730,7 @@ function BudgetEditor({
       due_date: dueDate || null,
       note,
       ...(receiptChanged || !item ? { receipt_url: receiptUrl } : {}),
+      ...(kind === 'ingreso' && isCuota ? { category: 'cuota' } : kind === 'gasto' ? { category: '' } : {}),
     }
     const ok = await mutate(
       () => (item ? api.updateBudget(item.id, payload) : api.createBudget(payload)),
@@ -748,7 +841,7 @@ function BudgetEditor({
           <Input value={concept} onChange={(event) => setConcept(event.target.value)} placeholder="Ej. Insumos del desayuno o proveedor" autoFocus />
         </Field>
         <div className="form-row">
-          <Field label="Responsable">
+          <Field label={kind === 'ingreso' ? 'Quién pagó' : 'Responsable'}>
             <Select value={ownerId} onChange={(event) => setOwnerId(event.target.value)}>
               <option value="">Sin responsable</option>
               {data?.members.map((member) => (
