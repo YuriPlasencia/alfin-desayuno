@@ -5,7 +5,7 @@ import { compressImageFile } from '../lib/image'
 import { formatDate, money } from '../lib/format'
 import type { BudgetItem, Member, ScrapedQuote } from '../types'
 import { CUOTA, isCuota } from '../lib/stats'
-import { Avatar, Badge, Button, Field, Icon, Input, Magnet, Modal, Progress, Select } from './ui'
+import { Avatar, Badge, Button, Field, Icon, Input, Magnet, Modal, Select } from './ui'
 
 export { CUOTA }
 
@@ -452,7 +452,6 @@ export function CuotasPanel({
   const collected = cuotas.reduce((acc, item) => acc + item.amount, 0)
   // Cuotas cargadas sin decir quién pagó: suman, pero no se ven en la lista.
   const unnamed = cuotas.filter((item) => !item.owner_id || !members.some((member) => member.id === item.owner_id))
-  const goal = CUOTA * members.length
   const paidIds = new Set(cuotas.map((item) => item.owner_id))
   const pendingValidation = cuotas.filter((item) => !item.validated_by).length
   const mine = actor ? cuotas.filter((item) => item.owner_id === actor.id) : []
@@ -472,12 +471,9 @@ export function CuotasPanel({
           </Button>
         ) : null}
       </header>
-      <div className="team-meter-row">
-        <p>
-          <strong>{money(collected)}</strong> recaudado de {money(goal)}
-        </p>
-      </div>
-      <Progress value={goal ? Math.min(1, collected / goal) : 0} tone={collected >= goal && goal > 0 ? 'success' : 'brand'} />
+      <p className="cuota-total">
+        Recaudado <strong>{money(collected)}</strong>
+      </p>
       {unnamed.length > 0 ? (
         <p className="notice-inline cuota-unnamed">
           {unnamed.length === 1 ? 'Hay 1 cuota' : `Hay ${unnamed.length} cuotas`} sin nombre de quién pagó ({money(unnamed.reduce((acc, item) => acc + item.amount, 0))}).{' '}

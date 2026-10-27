@@ -3084,8 +3084,18 @@ select {
 
 /* ---------- cuotas: ¿quién ya pagó? ---------- */
 
-.cuotas .progress {
-  margin: 6px 0 14px;
+.cuota-total {
+  margin: 2px 0 14px;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+
+.cuota-total strong {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
 }
 
 .cuota-list {
