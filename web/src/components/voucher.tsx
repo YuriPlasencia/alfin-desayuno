@@ -330,7 +330,7 @@ export function ValidateButton({ item }: { item: BudgetItem }) {
 
 /** Ver la constancia de un movimiento y validarla. */
 export function ReceiptViewer({ item, onClose }: { item: BudgetItem; onClose: () => void }) {
-  const { actor, mutate } = useStore()
+  const { data, actor, setActor, mutate } = useStore()
   const [image, setImage] = useState<string | null>(item.receipt_url || null)
   const [failed, setFailed] = useState(false)
 
@@ -366,7 +366,21 @@ export function ReceiptViewer({ item, onClose }: { item: BudgetItem; onClose: ()
           ) : actor ? (
             <Badge tone="warning">Por validar</Badge>
           ) : (
-            <span className="field-error">Elige tu imán arriba para poder validar</span>
+            <label className="validate-as">
+              <span>Validar como</span>
+              <select
+                className="input select"
+                value=""
+                onChange={(event) => setActor(data?.members.find((m) => m.id === Number(event.target.value)) || null)}
+              >
+                <option value="">Elige tu nombre…</option>
+                {data?.members.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
           <span className="spacer" />
           <Button variant="outline" onClick={onClose}>

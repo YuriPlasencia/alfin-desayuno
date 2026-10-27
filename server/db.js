@@ -157,12 +157,19 @@ try {
 function addColumn(table, column, definition) {
   const exists = db.prepare(`PRAGMA table_info(${table})`).all().some((col) => col.name === column)
   if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`)
+  return !exists
 }
 
 addColumn('members', 'photo_url', "TEXT NOT NULL DEFAULT ''")
 addColumn('budget_items', 'category', "TEXT NOT NULL DEFAULT ''")
 addColumn('budget_items', 'validated_by', 'INTEGER REFERENCES members(id) ON DELETE SET NULL')
 addColumn('budget_items', 'validated_at', 'TEXT')
+// Presupuesto inicial ('plan') vs ejecución ('real'). Al crear la columna, lo pendiente y
+// sin constancia se toma como partida del presupuesto inicial; lo demás, como ejecución.
+if (addColumn('budget_items', 'stage', "TEXT NOT NULL DEFAULT 'real'")) {
+  db.exec("UPDATE budget_items SET stage = 'plan' WHERE status = 'pendiente' AND receipt_url = '' AND category = ''")
+}
+addColumn('budget_items', 'plan_id', 'INTEGER REFERENCES budget_items(id) ON DELETE SET NULL')
 
 
 export const nowIso = () => new Date().toISOString()
@@ -302,7 +309,7 @@ export function listBudget({ full = false } = {}) {
   return db
     .prepare(
       `SELECT b.id, b.kind, b.concept, b.amount, b.status, b.owner_id, b.due_date, b.note, b.category,
-              b.validated_by, b.validated_at, b.created_at,
+              b.validated_by, b.validated_at, b.stage, b.plan_id, b.created_at,
               ${full ? 'b.receipt_url,' : ''}
               CASE WHEN b.receipt_url <> '' THEN 1 ELSE 0 END AS has_receipt,
               m.name AS owner_name, v.name AS validated_by_name

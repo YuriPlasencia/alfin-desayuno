@@ -200,6 +200,14 @@ const PRIORITY = ['alta', 'media', 'baja']
 const AGREEMENT_STATUS = ['propuesto', 'acordado', 'cumplido']
 const BUDGET_STATUS = ['pendiente', 'hecho']
 const BUDGET_CATEGORY = ['', 'cuota']
+const BUDGET_STAGE = ['plan', 'real']
+
+function planOrNull(value) {
+  const id = Number(value)
+  if (!id) return null
+  const found = db.prepare("SELECT id FROM budget_items WHERE id = ? AND stage = 'plan'").get(id)
+  return found ? found.id : null
+}
 const AREAS = ['Coordinación', 'Finanzas', 'Compras', 'Cocina', 'Logística', 'Ambientación', 'Servicio', 'Comunicación', 'Regalos', 'Dinámicas']
 
 function taskDetail(id) {
@@ -696,8 +704,8 @@ app.post('/api/budget', (req, res) => {
   if (!concept) return res.status(400).json({ error: 'Escribe el concepto del movimiento' })
   const result = db
     .prepare(
-      `INSERT INTO budget_items (kind, concept, amount, status, owner_id, due_date, note, receipt_url, category, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO budget_items (kind, concept, amount, status, owner_id, due_date, note, receipt_url, category, stage, plan_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       oneOf(body.kind, ['ingreso', 'gasto'], 'gasto'),
@@ -709,6 +717,8 @@ app.post('/api/budget', (req, res) => {
       text(body.note),
       imageData(body.receipt_url),
       oneOf(body.category, BUDGET_CATEGORY, ''),
+      oneOf(body.stage, BUDGET_STAGE, 'real'),
+      oneOf(body.stage, BUDGET_STAGE, 'real') === 'real' ? planOrNull(body.plan_id) : null,
       nowIso(),
     )
   const id = Number(result.lastInsertRowid)
@@ -741,12 +751,28 @@ app.patch('/api/budget/:id', (req, res) => {
     note: body.note === undefined ? current.note : text(body.note),
     receipt_url: imageData(body.receipt_url, current.receipt_url || ''),
     category: body.category === undefined ? current.category || '' : oneOf(body.category, BUDGET_CATEGORY, ''),
+    stage: oneOf(body.stage, BUDGET_STAGE, current.stage || 'real'),
+    plan_id: body.plan_id === undefined ? current.plan_id : planOrNull(body.plan_id),
   }
+  if (next.stage === 'plan' || next.plan_id === id) next.plan_id = null
   // Si cambia el monto o la foto, la validación anterior ya no aplica.
   const revalidate = next.amount !== current.amount || next.receipt_url !== (current.receipt_url || '')
   db.prepare(
-    'UPDATE budget_items SET kind=?, concept=?, amount=?, status=?, owner_id=?, due_date=?, note=?, receipt_url=?, category=? WHERE id=?',
-  ).run(next.kind, next.concept, next.amount, next.status, next.owner_id, next.due_date, next.note, next.receipt_url, next.category, id)
+    'UPDATE budget_items SET kind=?, concept=?, amount=?, status=?, owner_id=?, due_date=?, note=?, receipt_url=?, category=?, stage=?, plan_id=? WHERE id=?',
+  ).run(
+    next.kind,
+    next.concept,
+    next.amount,
+    next.status,
+    next.owner_id,
+    next.due_date,
+    next.note,
+    next.receipt_url,
+    next.category,
+    next.stage,
+    next.plan_id,
+    id,
+  )
   if (revalidate) db.prepare('UPDATE budget_items SET validated_by=NULL, validated_at=NULL WHERE id=?').run(id)
   note(req, 'budget', id, 'update', `Actualizó “${next.concept}” en el presupuesto`)
   broadcast()
@@ -1006,8 +1032,8 @@ app.post('/api/import', (req, res) => {
       )
     })
     const insertBudget = db.prepare(
-      `INSERT INTO budget_items (id, kind, concept, amount, status, owner_id, due_date, note, receipt_url, category, validated_by, validated_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO budget_items (id, kind, concept, amount, status, owner_id, due_date, note, receipt_url, category, validated_by, validated_at, stage, plan_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     ;(data.budget || []).forEach((item, index) => {
       insertBudget.run(
@@ -1023,6 +1049,9 @@ app.post('/api/import', (req, res) => {
         oneOf(item.category, BUDGET_CATEGORY, ''),
         item.validated_by ? Number(item.validated_by) : null,
         item.validated_at ? text(item.validated_at) : null,
+        // Respaldos antiguos sin etapa: lo pendiente y sin constancia es presupuesto inicial.
+        oneOf(item.stage, BUDGET_STAGE, item.status !== 'hecho' && !item.receipt_url && !item.category ? 'plan' : 'real'),
+        item.plan_id ? Number(item.plan_id) : null,
         item.created_at ? text(item.created_at) : nowIso(),
       )
     })

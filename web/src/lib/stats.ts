@@ -34,14 +34,20 @@ export interface Summary {
   areas: AreaSummary[]
   agreements: { propuesto: number; acordado: number; cumplido: number; total: number; pendientes: number }
   budget: {
+    /** Presupuesto inicial: ingresos previstos (incluye las cuotas de todo el equipo). */
     ingresos: number
+    /** Presupuesto inicial: gastos previstos. */
     gastos: number
-    saldo: number
+    saldoPlan: number
+    /** Línea automática de cuotas: CUOTA × integrantes. */
+    cuotasPlan: number
+    /** Ejecución: lo cobrado y lo pagado de verdad. */
     cobrado: number
     pagado: number
+    /** Saldo en caja (cobrado − pagado). */
+    saldo: number
     avanceCobro: number
-    /** Cuotas de integrantes que aún no registran su pago (ya sumadas en ingresos). */
-    cuotasPorCobrar: number
+    avanceGasto: number
   }
   upcoming: Task[]
   workload: Record<number, MemberWorkload>
@@ -78,18 +84,13 @@ export function summarize(data: Bootstrap): Summary {
     pendientes: data.agreements.filter((a) => a.status !== 'cumplido').length,
   }
 
-  const registrados = data.budget.filter((b) => b.kind === 'ingreso').reduce((acc, b) => acc + b.amount, 0)
-  // Lo previsto incluye la cuota de quien todavía no paga: si no, el saldo previsto saldría muy negativo.
-  const conCuota = new Set(data.budget.filter((b) => b.kind === 'ingreso' && b.category === 'cuota').map((b) => b.owner_id))
-  const cuotasPorCobrar = CUOTA * data.members.filter((member) => !conCuota.has(member.id)).length
-  const ingresos = registrados + cuotasPorCobrar
-  const gastos = data.budget.filter((b) => b.kind === 'gasto').reduce((acc, b) => acc + b.amount, 0)
-  const cobrado = data.budget
-    .filter((b) => b.kind === 'ingreso' && b.status === 'hecho')
-    .reduce((acc, b) => acc + b.amount, 0)
-  const pagado = data.budget
-    .filter((b) => b.kind === 'gasto' && b.status === 'hecho')
-    .reduce((acc, b) => acc + b.amount, 0)
+  const plan = data.budget.filter((b) => b.stage === 'plan')
+  const real = data.budget.filter((b) => b.stage !== 'plan')
+  const cuotasPlan = CUOTA * data.members.length
+  const ingresos = cuotasPlan + plan.filter((b) => b.kind === 'ingreso').reduce((acc, b) => acc + b.amount, 0)
+  const gastos = plan.filter((b) => b.kind === 'gasto').reduce((acc, b) => acc + b.amount, 0)
+  const cobrado = real.filter((b) => b.kind === 'ingreso' && b.status === 'hecho').reduce((acc, b) => acc + b.amount, 0)
+  const pagado = real.filter((b) => b.kind === 'gasto' && b.status === 'hecho').reduce((acc, b) => acc + b.amount, 0)
 
   const upcoming = tasks
     .filter((task) => task.status !== 'hecha' && task.due_date)
@@ -121,11 +122,13 @@ export function summarize(data: Bootstrap): Summary {
     budget: {
       ingresos,
       gastos,
-      saldo: ingresos - gastos,
+      saldoPlan: ingresos - gastos,
+      cuotasPlan,
       cobrado,
       pagado,
+      saldo: cobrado - pagado,
       avanceCobro: ingresos === 0 ? 0 : cobrado / ingresos,
-      cuotasPorCobrar,
+      avanceGasto: gastos === 0 ? 0 : pagado / gastos,
     },
     upcoming,
     workload,

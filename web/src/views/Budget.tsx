@@ -17,20 +17,34 @@ import {
   TextArea,
 } from '../components/ui'
 import { summarize } from '../lib/stats'
-import { CuotaModal, CuotasPanel, FlowView, ReceiptViewer, ValidateButton, findPayer, scanVoucher } from '../components/voucher'
+import { CUOTA, CuotaModal, CuotasPanel, FlowView, ReceiptViewer, ValidateButton, findPayer, scanVoucher } from '../components/voucher'
 import { takeSharedFile } from '../lib/shared'
 import { formatDate, getTreasurer, money } from '../lib/format'
 import type { BudgetItem, BudgetKind, BudgetStatus, Member, TaskOption } from '../types'
 
+type MainTab = 'inicial' | 'ejecucion' | 'tesorero'
+
+type EditorPreset = {
+  kind: BudgetKind
+  status: BudgetStatus
+  stage: 'plan' | 'real'
+  ownerId: number | null
+  pick: boolean
+  concept?: string
+  amount?: number
+  planId?: number | null
+}
+
+type EditorState = { item: BudgetItem | null; preset?: EditorPreset; file?: File | null } | null
+
 export function Budget() {
   const { data, actor, mutate, toast } = useStore()
-  const [mainTab, setMainTab] = useState<'movimientos' | 'tesorero'>('movimientos')
+  const [mainTab, setMainTab] = useState<MainTab>('ejecucion')
   const [filter, setFilter] = useState<'todos' | BudgetKind | 'flujo'>('todos')
-  const [editing, setEditing] = useState<BudgetItem | 'nuevo' | 'gasto' | null>(null)
+  const [editing, setEditing] = useState<EditorState>(null)
   const [cuota, setCuota] = useState<{ file: File | null } | null>(null)
   const [viewing, setViewing] = useState<BudgetItem | null>(null)
   const [shared, setShared] = useState<File | null>(null)
-  const [sharedChoice, setSharedChoice] = useState<File | null>(null)
 
   // Constancia compartida desde Yape, Plin o la galería (menú Compartir del celular).
   useEffect(() => {
@@ -63,12 +77,26 @@ export function Budget() {
   if (!data || !summary) return null
 
   const treasurer = getTreasurer(data.settings, data.members)
-  const rows = data.budget.filter((item) => (filter === 'todos' || filter === 'flujo' ? true : item.kind === filter))
+  const plan = data.budget.filter((item) => item.stage === 'plan')
+  const real = data.budget.filter((item) => item.stage !== 'plan')
+  const rows = real.filter((item) => (filter === 'todos' || filter === 'flujo' ? true : item.kind === filter))
   // Al abrir una constancia se muestra la versión al día del movimiento.
   const viewingNow = viewing ? data.budget.find((item) => item.id === viewing.id) || null : null
-  const ingresos = data.budget.filter((item) => item.kind === 'ingreso')
-  const gastos = data.budget.filter((item) => item.kind === 'gasto')
 
+  const realExpense = (file: File | null = null, from?: BudgetItem): EditorState => ({
+    item: null,
+    file,
+    preset: {
+      kind: 'gasto',
+      status: 'hecho',
+      stage: 'real',
+      ownerId: from?.owner_id ?? actor?.id ?? null,
+      pick: !file,
+      concept: from?.concept,
+      amount: from ? Math.max(0, from.amount - executedFor(real, from.id)) || undefined : undefined,
+      planId: from?.id ?? null,
+    },
+  })
 
   const toggle = (item: BudgetItem) =>
     mutate(
@@ -77,8 +105,9 @@ export function Budget() {
     )
 
   const remove = async (item: BudgetItem) => {
-    if (!window.confirm(`¿Eliminar “${item.concept}” del presupuesto?`)) return
-    await mutate(() => api.deleteBudget(item.id), 'Movimiento eliminado')
+    const label = item.stage === 'plan' ? 'la partida' : ''
+    if (!window.confirm(`¿Eliminar ${label} “${item.concept}”?`.replace('  ', ' '))) return
+    await mutate(() => api.deleteBudget(item.id), item.stage === 'plan' ? 'Partida eliminada' : 'Movimiento eliminado')
   }
 
   const copyWhatsAppReport = async () => {
@@ -90,12 +119,12 @@ export function Budget() {
 📍 *Lugar:* ${data.settings.location || 'Por definir'}
 ------------------------------------
 💰 *Saldo en caja:* ${money(summary.budget.saldo)}
-📥 *Ingresos cobrados:* ${money(summary.budget.cobrado)} de ${money(summary.budget.ingresos)} (${Math.round(summary.budget.avanceCobro * 100)}%)
-📤 *Gastos pagados:* ${money(summary.budget.pagado)} de ${money(summary.budget.gastos)}
+📥 *Ingresos cobrados:* ${money(summary.budget.cobrado)} de ${money(summary.budget.ingresos)} presupuestados (${Math.round(summary.budget.avanceCobro * 100)}%)
+📤 *Gastos pagados:* ${money(summary.budget.pagado)} de ${money(summary.budget.gastos)} presupuestados
 
-📲 *Para cuotas individuales (S/ 100.00):*
+📲 *Para cuotas individuales (${money(CUOTA)}):*
 Yape / Plin a: ${tName}${tPhone}
-(Al yapear, envía tu constancia o regístrala en la app)`
+(Al yapear, sube tu constancia en la app: Presupuesto → Subir cuota)`
 
     try {
       await navigator.clipboard.writeText(text)
@@ -109,69 +138,161 @@ Yape / Plin a: ${tName}${tPhone}
     <div className="stack">
       <PageHeader
         title="Presupuesto y Tesorería"
-        subtitle="Aportes del equipo, cobranza por Yape/Plin y saldo disponible"
+        subtitle="Lo planificado, lo que ya se cobró y pagó, y el saldo en caja"
         action={
           <div className="btn-group">
             <Button icon="camera" onClick={() => setCuota({ file: null })}>
               Subir cuota
             </Button>
-            <Button variant="soft" icon="camera" onClick={() => setEditing('gasto')}>
+            <Button variant="soft" icon="camera" onClick={() => setEditing(realExpense())}>
               Subir gasto
             </Button>
             <Button variant="outline" icon="share" onClick={() => void copyWhatsAppReport()}>
               WhatsApp
             </Button>
-            {mainTab === 'movimientos' ? (
-              <Button variant="outline" icon="plus" onClick={() => setEditing('nuevo')}>
-                Movimiento
-              </Button>
-            ) : null}
           </div>
         }
       />
 
-      <div className="segmented">
-        <button className={mainTab === 'movimientos' ? 'is-active' : ''} onClick={() => setMainTab('movimientos')}>
-          Movimientos y Caja <span className="seg-count">{data.budget.length}</span>
+      <div className="segmented budget-tabs" role="tablist" aria-label="Secciones de presupuesto">
+        <button role="tab" aria-selected={mainTab === 'inicial'} className={mainTab === 'inicial' ? 'is-active' : ''} onClick={() => setMainTab('inicial')}>
+          Presupuesto inicial <span className="seg-count">{plan.length + 1}</span>
         </button>
-        <button className={mainTab === 'tesorero' ? 'is-active' : ''} onClick={() => setMainTab('tesorero')}>
-          Elección de Tesorero(a) <span className="seg-count">{treasurer ? '✓' : '—'}</span>
+        <button role="tab" aria-selected={mainTab === 'ejecucion'} className={mainTab === 'ejecucion' ? 'is-active' : ''} onClick={() => setMainTab('ejecucion')}>
+          Ejecución <span className="seg-count">{real.length}</span>
+        </button>
+        <button role="tab" aria-selected={mainTab === 'tesorero'} className={mainTab === 'tesorero' ? 'is-active' : ''} onClick={() => setMainTab('tesorero')}>
+          Tesorero(a) <span className="seg-count">{treasurer ? '✓' : '—'}</span>
         </button>
       </div>
 
       {mainTab === 'tesorero' ? (
-        <TreasurerManager
-          settings={data.settings}
-          members={data.members}
-          currentTreasurer={treasurer}
-        />
-      ) : (
+        <TreasurerManager settings={data.settings} members={data.members} currentTreasurer={treasurer} />
+      ) : mainTab === 'inicial' ? (
         <>
-          <section className="board ledger" aria-label="Caja del desayuno">
+          <section className="board ledger" aria-label="Presupuesto inicial">
             <div className="ledger-figures">
               <div className="ledger-figure income">
                 <span className="budget-label">
-                  <Icon name="download" size={16} /> Ingresos previstos
+                  <Icon name="download" size={16} /> Ingresos presupuestados
                 </span>
                 <strong>{money(summary.budget.ingresos)}</strong>
                 <span className="small">
-                  {money(summary.budget.cobrado)} ya cobrado
-                  {summary.budget.cuotasPorCobrar > 0 ? ` · incluye ${money(summary.budget.cuotasPorCobrar)} de cuotas por cobrar` : ''}
+                  {data.members.length} cuotas de {money(CUOTA)}
+                  {summary.budget.ingresos > summary.budget.cuotasPlan ? ' + otros ingresos' : ''}
                 </span>
               </div>
               <div className="ledger-figure expense">
                 <span className="budget-label">
-                  <Icon name="upload" size={16} /> Gastos planificados
+                  <Icon name="upload" size={16} /> Gastos presupuestados
                 </span>
                 <strong>{money(summary.budget.gastos)}</strong>
-                <span className="small">{money(summary.budget.pagado)} ya pagado</span>
+                <span className="small">
+                  {plan.filter((item) => item.kind === 'gasto').length} partidas
+                </span>
+              </div>
+              <div className={`ledger-figure balance ${summary.budget.saldoPlan < 0 ? 'is-negative' : ''}`}>
+                <span className="budget-label">
+                  <Icon name="wallet" size={16} /> Saldo previsto
+                </span>
+                <strong className={summary.budget.saldoPlan < 0 ? 'danger-text' : ''}>{money(summary.budget.saldoPlan)}</strong>
+                <span className="small">{summary.budget.saldoPlan >= 0 ? 'alcanza con lo previsto' : 'faltaría cubrir esta diferencia'}</span>
+              </div>
+            </div>
+            <div className="ledger-meter">
+              <div className="team-meter-row">
+                <p>
+                  <strong>{Math.round(summary.budget.avanceGasto * 100)}%</strong> ejecutado · {money(summary.budget.pagado)} pagado de{' '}
+                  {money(summary.budget.gastos)}
+                </p>
+              </div>
+              <Progress value={Math.min(1, summary.budget.avanceGasto)} tone={summary.budget.avanceGasto > 1 ? 'danger' : 'brand'} />
+            </div>
+          </section>
+
+          {winningOptions.length > 0 ? (
+            <div className="budget-quote-import-banner">
+              <div className="quote-import-info">
+                <span className="quote-import-icon">🏆</span>
+                <div>
+                  <strong>Hay {winningOptions.length} cotización(es) ganadora(s) de actividades lista(s) para el presupuesto</strong>
+                  <p className="tiny muted">{winningOptions.map((w) => `${w.option.title} (${money(w.option.price)})`).join(' · ')}</p>
+                </div>
+              </div>
+              <Button
+                variant="soft"
+                size="sm"
+                icon="plus"
+                onClick={async () => {
+                  for (const item of winningOptions) {
+                    await api.createBudget({
+                      kind: 'gasto',
+                      stage: 'plan',
+                      concept: `${item.option.title} (${item.taskTitle})`,
+                      amount: item.option.price,
+                      status: 'pendiente',
+                      note: `Cotización ganadora de actividad: ${item.taskTitle}`,
+                      receipt_url: item.option.image_url || '',
+                    })
+                  }
+                  await mutate(async () => {}, 'Cotizaciones agregadas como partidas')
+                }}
+              >
+                Agregar como partidas
+              </Button>
+            </div>
+          ) : null}
+
+          <PlanTable
+            title="Ingresos presupuestados"
+            kind="ingreso"
+            members={data.members}
+            plan={plan}
+            real={real}
+            onAdd={() => setEditing({ item: null, preset: { kind: 'ingreso', status: 'pendiente', stage: 'plan', ownerId: null, pick: false } })}
+            onEdit={(item) => setEditing({ item })}
+            onRemove={(item) => void remove(item)}
+          />
+          <PlanTable
+            title="Gastos presupuestados"
+            kind="gasto"
+            members={data.members}
+            plan={plan}
+            real={real}
+            onAdd={() => setEditing({ item: null, preset: { kind: 'gasto', status: 'pendiente', stage: 'plan', ownerId: null, pick: false } })}
+            onEdit={(item) => setEditing({ item })}
+            onRemove={(item) => void remove(item)}
+            onRegister={(item) => setEditing(realExpense(null, item))}
+            onOpenUnplanned={() => {
+              setMainTab('ejecucion')
+              setFilter('gasto')
+            }}
+          />
+        </>
+      ) : (
+        <>
+          <section className="board ledger" aria-label="Caja real">
+            <div className="ledger-figures">
+              <div className="ledger-figure income">
+                <span className="budget-label">
+                  <Icon name="download" size={16} /> Ingresos cobrados
+                </span>
+                <strong>{money(summary.budget.cobrado)}</strong>
+                <span className="small">de {money(summary.budget.ingresos)} presupuestados</span>
+              </div>
+              <div className="ledger-figure expense">
+                <span className="budget-label">
+                  <Icon name="upload" size={16} /> Gastos pagados
+                </span>
+                <strong>{money(summary.budget.pagado)}</strong>
+                <span className="small">de {money(summary.budget.gastos)} presupuestados</span>
               </div>
               <div className={`ledger-figure balance ${summary.budget.saldo < 0 ? 'is-negative' : ''}`}>
                 <span className="budget-label">
-                  <Icon name="wallet" size={16} /> Saldo
+                  <Icon name="wallet" size={16} /> Saldo en caja
                 </span>
                 <strong className={summary.budget.saldo < 0 ? 'danger-text' : ''}>{money(summary.budget.saldo)}</strong>
-                <span className="small">{summary.budget.saldo >= 0 ? 'dentro de lo previsto' : 'revisar gastos'}</span>
+                <span className="small">lo cobrado menos lo pagado</span>
               </div>
             </div>
             <div className="ledger-meter">
@@ -180,165 +301,126 @@ Yape / Plin a: ${tName}${tPhone}
                   <strong>{Math.round(summary.budget.avanceCobro * 100)}%</strong> cobrado · {money(summary.budget.cobrado)} de{' '}
                   {money(summary.budget.ingresos)}
                 </p>
-                {summary.budget.avanceCobro === 1 ? <Badge tone="success">Meta completa</Badge> : null}
+                {summary.budget.avanceCobro >= 1 ? <Badge tone="success">Meta completa</Badge> : null}
               </div>
-              <Progress value={summary.budget.avanceCobro} tone={summary.budget.avanceCobro === 1 ? 'success' : 'brand'} />
+              <Progress value={Math.min(1, summary.budget.avanceCobro)} tone={summary.budget.avanceCobro >= 1 ? 'success' : 'brand'} />
             </div>
           </section>
 
-          <CuotasPanel members={data.members} budget={data.budget} onOpen={setViewing} onPay={() => setCuota({ file: null })} />
+          <CuotasPanel members={data.members} budget={real} onOpen={setViewing} onPay={() => setCuota({ file: null })} />
 
-          <div className="segmented">
-            <button className={filter === 'todos' ? 'is-active' : ''} onClick={() => setFilter('todos')}>
-              Todos <span className="seg-count">{data.budget.length}</span>
-            </button>
-            <button className={filter === 'ingreso' ? 'is-active' : ''} onClick={() => setFilter('ingreso')}>
-              Ingresos <span className="seg-count">{ingresos.length}</span>
-            </button>
-            <button className={filter === 'gasto' ? 'is-active' : ''} onClick={() => setFilter('gasto')}>
-              Gastos <span className="seg-count">{gastos.length}</span>
-            </button>
-            <button className={filter === 'flujo' ? 'is-active' : ''} onClick={() => setFilter('flujo')}>
-              <Icon name="chart" size={15} /> Flujo
-            </button>
-          </div>
-
-      {winningOptions.length > 0 ? (
-        <div className="budget-quote-import-banner">
-          <div className="quote-import-info">
-            <span className="quote-import-icon">🏆</span>
-            <div>
-              <strong>Hay {winningOptions.length} cotización(es) ganadora(s) de actividades lista(s) para registrar en presupuesto</strong>
-              <p className="tiny muted">
-                {winningOptions.map((w) => `${w.option.title} (${money(w.option.price)})`).join(' · ')}
-              </p>
+          <div className="toolbar-row">
+            <div className="segmented">
+              <button className={filter === 'todos' ? 'is-active' : ''} onClick={() => setFilter('todos')}>
+                Todos <span className="seg-count">{real.length}</span>
+              </button>
+              <button className={filter === 'ingreso' ? 'is-active' : ''} onClick={() => setFilter('ingreso')}>
+                Ingresos <span className="seg-count">{real.filter((item) => item.kind === 'ingreso').length}</span>
+              </button>
+              <button className={filter === 'gasto' ? 'is-active' : ''} onClick={() => setFilter('gasto')}>
+                Gastos <span className="seg-count">{real.filter((item) => item.kind === 'gasto').length}</span>
+              </button>
+              <button className={filter === 'flujo' ? 'is-active' : ''} onClick={() => setFilter('flujo')}>
+                <Icon name="chart" size={15} /> Flujo
+              </button>
             </div>
+            <span className="spacer" />
+            <Button
+              variant="outline"
+              size="sm"
+              icon="plus"
+              onClick={() => setEditing({ item: null, preset: { kind: 'gasto', status: 'hecho', stage: 'real', ownerId: actor?.id ?? null, pick: false } })}
+            >
+              Movimiento sin foto
+            </Button>
           </div>
-          <Button
-            variant="soft"
-            size="sm"
-            icon="plus"
-            onClick={async () => {
-              for (const item of winningOptions) {
-                await api.createBudget({
-                  kind: 'gasto',
-                  concept: `${item.option.title} (${item.taskTitle})`,
-                  amount: item.option.price,
-                  status: 'pendiente',
-                  note: `Cotización ganadora de actividad: ${item.taskTitle}`,
-                  receipt_url: item.option.image_url || '',
-                })
-              }
-              await mutate(async () => {}, 'Cotizaciones agregadas al presupuesto')
-              toast('¡Cotizaciones pasadas a gastos del presupuesto!', 'ok')
-            }}
-          >
-            Pasar a gastos
-          </Button>
-        </div>
-      ) : null}
 
-      {filter === 'flujo' ? (
-        <FlowView budget={data.budget} members={data.members} onOpen={setViewing} />
-      ) : filter === 'ingreso' && rows.length > 0 ? (
-        <IncomeTable rows={rows} onOpen={setViewing} onEdit={setEditing} onRemove={(item) => void remove(item)} />
-      ) : rows.length === 0 ? (
-        <EmptyState icon="wallet" title="Sin movimientos" hint="Agrega los aportes y los gastos previstos del desayuno." />
-      ) : (
-        <div className="card table-card">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Concepto</th>
-                <th>Tipo</th>
-                <th>Responsable</th>
-                <th>Fecha</th>
-                <th className="right">Monto</th>
-                <th>Estado</th>
-                <th aria-label="Acciones" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((item) => (
-                <tr key={item.id} className={item.status === 'hecho' ? 'is-done' : ''}>
-                  <td>
-                    <div className="cell-concept-row">
-                      <span className="cell-title">{item.concept}</span>
-                      {item.has_receipt ? (
-                        <button
-                          type="button"
-                          className="receipt-chip-btn"
-                          onClick={() => setViewing(item)}
-                          title="Ver la constancia y validarla"
-                        >
-                          <Icon name="camera" size={12} />
-                          <span>{item.kind === 'ingreso' ? 'Ver constancia' : 'Ver boleta'}</span>
-                        </button>
-                      ) : null}
-                      <ValidateButton item={item} />
-                    </div>
-                    {item.note ? <span className="cell-note">{item.note}</span> : null}
-                  </td>
-
-                  <td>
-                    <Badge tone={item.kind === 'ingreso' ? 'success' : 'neutral'}>
-                      {item.kind === 'ingreso' ? 'Ingreso' : 'Gasto'}
-                    </Badge>
-                  </td>
-                  <td className="muted">{item.owner_name || '—'}</td>
-                  <td className="muted">{item.due_date ? formatDate(item.due_date) : '—'}</td>
-                  <td className={`right amount ${item.kind === 'ingreso' ? 'positive' : ''}`}>{money(item.amount)}</td>
-                  <td>
-                    <button className={`status-toggle ${item.status === 'hecho' ? 'is-on' : ''}`} onClick={() => void toggle(item)}>
-                      <span className="status-dot" />
-                      {item.status === 'hecho' ? (item.kind === 'ingreso' ? 'Cobrado' : 'Pagado') : 'Pendiente'}
-                    </button>
-                  </td>
-                  <td className="actions-cell">
-                    <IconButton icon="pencil" label="Editar movimiento" onClick={() => setEditing(item)} />
-                    <IconButton icon="trash" label="Eliminar movimiento" onClick={() => void remove(item)} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={4}>Neto de la vista</td>
-                <td className="right amount">{money(rows.reduce((acc, item) => acc + (item.kind === 'gasto' ? -item.amount : item.amount), 0))}</td>
-                <td colSpan={2} />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
-
-      {filter === 'flujo' ? null : (
-        <p className="muted tiny">
-          Los montos están en soles (S/). Este saldo usa todo lo previsto; en Flujo ves solo lo cobrado y pagado.
-        </p>
-      )}
+          {filter === 'flujo' ? (
+            <FlowView budget={real} members={data.members} onOpen={setViewing} />
+          ) : filter === 'ingreso' && rows.length > 0 ? (
+            <IncomeTable rows={rows} onOpen={setViewing} onEdit={(item) => setEditing({ item })} onRemove={(item) => void remove(item)} />
+          ) : rows.length === 0 ? (
+            <EmptyState
+              icon="wallet"
+              title="Todavía no hay movimientos"
+              hint="Usa “Subir cuota” para los aportes y “Subir gasto” para cada compra con su boleta."
+            />
+          ) : (
+            <div className="card table-card">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Concepto</th>
+                    <th>Tipo</th>
+                    <th>Quién</th>
+                    <th>Fecha</th>
+                    <th className="right">Monto</th>
+                    <th>Estado</th>
+                    <th aria-label="Acciones" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((item) => {
+                    const partida = item.plan_id ? plan.find((p) => p.id === item.plan_id) : null
+                    return (
+                      <tr key={item.id} className={item.status === 'hecho' ? 'is-done' : ''}>
+                        <td>
+                          <div className="cell-concept-row">
+                            <span className="cell-title">{item.concept}</span>
+                            {item.has_receipt ? (
+                              <button type="button" className="receipt-chip-btn" onClick={() => setViewing(item)} title="Ver la constancia y validarla">
+                                <Icon name="camera" size={12} />
+                                <span>{item.kind === 'ingreso' ? 'Ver constancia' : 'Ver boleta'}</span>
+                              </button>
+                            ) : null}
+                            <ValidateButton item={item} />
+                          </div>
+                          {item.note || partida ? (
+                            <span className="cell-note">
+                              {partida ? `Partida: ${partida.concept}` : ''}
+                              {partida && item.note ? ' · ' : ''}
+                              {item.note}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td>
+                          <Badge tone={item.kind === 'ingreso' ? 'success' : 'neutral'}>{item.kind === 'ingreso' ? 'Ingreso' : 'Gasto'}</Badge>
+                        </td>
+                        <td className="muted">{item.owner_name || '—'}</td>
+                        <td className="muted">{item.due_date ? formatDate(item.due_date) : '—'}</td>
+                        <td className={`right amount ${item.kind === 'ingreso' ? 'positive' : ''}`}>{money(item.amount)}</td>
+                        <td>
+                          <button className={`status-toggle ${item.status === 'hecho' ? 'is-on' : ''}`} onClick={() => void toggle(item)}>
+                            <span className="status-dot" />
+                            {item.status === 'hecho' ? (item.kind === 'ingreso' ? 'Cobrado' : 'Pagado') : 'Pendiente'}
+                          </button>
+                        </td>
+                        <td className="actions-cell">
+                          <IconButton icon="pencil" label="Editar movimiento" onClick={() => setEditing({ item })} />
+                          <IconButton icon="trash" label="Eliminar movimiento" onClick={() => void remove(item)} />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={4}>Neto de la vista</td>
+                    <td className="right amount">{money(rows.reduce((acc, item) => acc + (item.kind === 'gasto' ? -item.amount : item.amount), 0))}</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
         </>
       )}
 
       {editing ? (
-        <BudgetEditor
-          item={editing === 'nuevo' || editing === 'gasto' ? null : editing}
-          preset={editing === 'gasto' ? { kind: 'gasto', status: 'hecho', ownerId: actor?.id ?? null, pick: !sharedChoice } : undefined}
-          initialFile={editing === 'gasto' ? sharedChoice : null}
-          onClose={() => {
-            setEditing(null)
-            setSharedChoice(null)
-          }}
-        />
+        <BudgetEditor item={editing.item} preset={editing.preset} initialFile={editing.file ?? null} plan={plan} onClose={() => setEditing(null)} />
       ) : null}
       {cuota ? (
-        <CuotaModal
-          members={data.members}
-          budget={data.budget}
-          treasurer={treasurer}
-          initialFile={cuota.file}
-          onClose={() => setCuota(null)}
-        />
+        <CuotaModal members={data.members} budget={real} treasurer={treasurer} initialFile={cuota.file} onClose={() => setCuota(null)} />
       ) : null}
       {viewingNow ? <ReceiptViewer item={viewingNow} onClose={() => setViewing(null)} /> : null}
       {shared ? (
@@ -350,13 +432,158 @@ Yape / Plin a: ${tName}${tPhone}
             setShared(null)
           }}
           onGasto={() => {
-            setSharedChoice(shared)
-            setEditing('gasto')
+            setEditing(realExpense(shared))
             setShared(null)
           }}
         />
       ) : null}
     </div>
+  )
+}
+
+/** Lo ejecutado (cobrado o pagado) que corresponde a una partida del presupuesto inicial. */
+function executedFor(real: BudgetItem[], planId: number) {
+  return real.filter((item) => item.plan_id === planId && item.status === 'hecho').reduce((acc, item) => acc + item.amount, 0)
+}
+
+/** Partidas del presupuesto inicial: presupuestado, ejecutado y diferencia. */
+function PlanTable({
+  title,
+  kind,
+  members,
+  plan,
+  real,
+  onAdd,
+  onEdit,
+  onRemove,
+  onRegister,
+  onOpenUnplanned,
+}: {
+  title: string
+  kind: BudgetKind
+  members: Member[]
+  plan: BudgetItem[]
+  real: BudgetItem[]
+  onAdd: () => void
+  onEdit: (item: BudgetItem) => void
+  onRemove: (item: BudgetItem) => void
+  onRegister?: (item: BudgetItem) => void
+  onOpenUnplanned?: () => void
+}) {
+  const items = plan.filter((item) => item.kind === kind)
+  const cuotasCobradas = real
+    .filter((item) => item.kind === 'ingreso' && item.category === 'cuota' && item.status === 'hecho')
+    .reduce((acc, item) => acc + item.amount, 0)
+  const rows = [
+    ...(kind === 'ingreso'
+      ? [{ key: 'cuotas', concept: 'Cuotas del equipo', note: `${members.length} × ${money(CUOTA)}`, owner: '', planned: CUOTA * members.length, executed: cuotasCobradas, item: null as BudgetItem | null }]
+      : []),
+    ...items.map((item) => ({
+      key: String(item.id),
+      concept: item.concept,
+      note: item.note,
+      owner: item.owner_name || '',
+      planned: item.amount,
+      executed: executedFor(real, item.id),
+      item: item as BudgetItem | null,
+    })),
+  ]
+  const totalPlanned = rows.reduce((acc, row) => acc + row.planned, 0)
+  const totalExecuted = rows.reduce((acc, row) => acc + row.executed, 0)
+  const unplanned = real
+    .filter((item) => item.kind === kind && item.status === 'hecho' && !item.plan_id && !(kind === 'ingreso' && item.category === 'cuota'))
+    .reduce((acc, item) => acc + item.amount, 0)
+
+  return (
+    <section className="card plan-card" aria-label={title}>
+      <header className="card-head">
+        <h2>{title}</h2>
+        <Button variant="ghost" size="sm" icon="plus" onClick={onAdd}>
+          Agregar partida
+        </Button>
+      </header>
+      <div className="table-scroll">
+        <table className="data-table plan-table">
+          <thead>
+            <tr>
+              <th>Partida</th>
+              <th className="right">Presupuestado</th>
+              <th className="right">{kind === 'ingreso' ? 'Cobrado' : 'Pagado'}</th>
+              <th className="right">{kind === 'ingreso' ? 'Falta cobrar' : 'Disponible'}</th>
+              <th aria-label="Acciones" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const diff = row.planned - row.executed
+              const over = kind === 'gasto' && diff < 0
+              return (
+                <tr key={row.key}>
+                  <td>
+                    <span className="cell-title">{row.concept}</span>
+                    <span className="cell-note">
+                      {row.owner}
+                      {row.owner && row.note ? ' · ' : ''}
+                      {row.note}
+                    </span>
+                  </td>
+                  <td className="right amount" data-label="Presupuestado">{money(row.planned)}</td>
+                  <td
+                    className={`right amount ${row.executed > 0 ? (kind === 'ingreso' ? 'positive' : '') : 'muted'}`}
+                    data-label={kind === 'ingreso' ? 'Cobrado' : 'Pagado'}
+                  >
+                    {money(row.executed)}
+                  </td>
+                  <td
+                    className={`right amount ${over ? 'danger-text' : diff === 0 ? 'positive' : ''}`}
+                    data-label={kind === 'ingreso' ? 'Falta cobrar' : 'Disponible'}
+                  >
+                    {over ? `Excedido ${money(-diff)}` : diff === 0 ? 'Completo' : money(diff)}
+                  </td>
+                  <td className="actions-cell">
+                    {row.item && onRegister ? (
+                      <Button size="sm" variant="soft" icon="camera" onClick={() => onRegister(row.item!)}>
+                        Registrar gasto
+                      </Button>
+                    ) : null}
+                    {row.item ? (
+                      <>
+                        <IconButton icon="pencil" label="Editar partida" onClick={() => onEdit(row.item!)} />
+                        <IconButton icon="trash" label="Eliminar partida" onClick={() => onRemove(row.item!)} />
+                      </>
+                    ) : null}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>Total</td>
+              <td className="right amount" data-label="Presupuestado">{money(totalPlanned)}</td>
+              <td className="right amount" data-label={kind === 'ingreso' ? 'Cobrado' : 'Pagado'}>{money(totalExecuted)}</td>
+              <td
+                className={`right amount ${kind === 'gasto' && totalPlanned - totalExecuted < 0 ? 'danger-text' : ''}`}
+                data-label={kind === 'ingreso' ? 'Falta cobrar' : 'Disponible'}
+              >
+                {money(totalPlanned - totalExecuted)}
+              </td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {unplanned > 0 ? (
+        <p className="plan-unplanned">
+          Además hay {money(unplanned)} {kind === 'ingreso' ? 'cobrados' : 'pagados'} que no están asignados a una partida.
+          {onOpenUnplanned ? (
+            <button type="button" className="link-btn" onClick={onOpenUnplanned}>
+              Verlos en Ejecución
+            </button>
+          ) : null}
+        </p>
+      ) : null}
+    </section>
   )
 }
 
@@ -604,17 +831,22 @@ function BudgetEditor({
   item,
   preset,
   initialFile,
+  plan,
   onClose,
 }: {
   item: BudgetItem | null
-  preset?: { kind: BudgetKind; status: BudgetStatus; ownerId: number | null; pick: boolean }
+  preset?: EditorPreset
   initialFile?: File | null
+  plan: BudgetItem[]
   onClose: () => void
 }) {
+  const stage = item?.stage ?? preset?.stage ?? 'real'
+  const isPlan = stage === 'plan'
+  const [planId, setPlanId] = useState(String(item?.plan_id ?? preset?.planId ?? ''))
   const { data, mutate } = useStore()
   const [kind, setKind] = useState<BudgetKind>(item?.kind ?? preset?.kind ?? 'gasto')
-  const [concept, setConcept] = useState(item?.concept ?? '')
-  const [amount, setAmount] = useState(String(item?.amount ?? ''))
+  const [concept, setConcept] = useState(item?.concept ?? preset?.concept ?? '')
+  const [amount, setAmount] = useState(String(item?.amount ?? preset?.amount ?? ''))
   const [status, setStatus] = useState<BudgetStatus>(item?.status ?? preset?.status ?? 'pendiente')
   const [ownerId, setOwnerId] = useState(String(item?.owner_id ?? preset?.ownerId ?? ''))
   const [dueDate, setDueDate] = useState(item?.due_date ?? '')
@@ -717,6 +949,8 @@ function BudgetEditor({
       note,
       ...(receiptChanged || !item ? { receipt_url: receiptUrl } : {}),
       ...(kind === 'ingreso' && isCuota ? { category: 'cuota' } : kind === 'gasto' ? { category: '' } : {}),
+      stage,
+      ...(isPlan ? { status: 'pendiente' } : { plan_id: planId ? Number(planId) : null }),
     }
     const ok = await mutate(
       () => (item ? api.updateBudget(item.id, payload) : api.createBudget(payload)),
@@ -730,8 +964,12 @@ function BudgetEditor({
     <Modal
       open
       onClose={onClose}
-      title={item ? 'Editar movimiento' : 'Nuevo movimiento'}
-      description="Registra aportes, cotizaciones con foto o gastos del desayuno."
+      title={isPlan ? (item ? 'Editar partida' : 'Nueva partida') : item ? 'Editar movimiento' : kind === 'gasto' ? 'Registrar gasto' : 'Registrar ingreso'}
+      description={
+        isPlan
+          ? 'Partida del presupuesto inicial: lo que se planea cobrar o gastar.'
+          : 'Ingreso o gasto real. Sube la foto de la boleta o constancia y se lee el monto.'
+      }
       footer={
         <>
           <span className="spacer" />
@@ -840,13 +1078,29 @@ function BudgetEditor({
           <Field label="Fecha">
             <Input type="date" value={dueDate ?? ''} onChange={(event) => setDueDate(event.target.value)} />
           </Field>
-          <Field label="Estado">
-            <Select value={status} onChange={(event) => setStatus(event.target.value as BudgetStatus)}>
-              <option value="pendiente">Pendiente</option>
-              <option value="hecho">{kind === 'ingreso' ? 'Cobrado' : 'Pagado'}</option>
+          {isPlan ? null : (
+            <Field label="Estado">
+              <Select value={status} onChange={(event) => setStatus(event.target.value as BudgetStatus)}>
+                <option value="pendiente">Pendiente</option>
+                <option value="hecho">{kind === 'ingreso' ? 'Cobrado' : 'Pagado'}</option>
+              </Select>
+            </Field>
+          )}
+        </div>
+        {isPlan ? null : (
+          <Field label="Partida del presupuesto" hint="Así se descuenta de lo presupuestado">
+            <Select value={planId} onChange={(event) => setPlanId(event.target.value)}>
+              <option value="">Fuera del presupuesto</option>
+              {plan
+                .filter((partida) => partida.kind === kind)
+                .map((partida) => (
+                  <option key={partida.id} value={partida.id}>
+                    {partida.concept} · {money(partida.amount)}
+                  </option>
+                ))}
             </Select>
           </Field>
-        </div>
+        )}
         <Field label="Nota">
           <TextArea rows={2} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Detalle opcional" />
         </Field>

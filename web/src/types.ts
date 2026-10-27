@@ -93,6 +93,10 @@ export interface BudgetItem {
   validated_by?: number | null
   validated_by_name?: string | null
   validated_at?: string | null
+  /** 'plan' = partida del presupuesto inicial; 'real' = ingreso o gasto ejecutado. */
+  stage?: 'plan' | 'real'
+  /** Partida del presupuesto inicial a la que corresponde un gasto real. */
+  plan_id?: number | null
   created_at: string
 }
 
