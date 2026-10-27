@@ -14,7 +14,7 @@ import {
 } from '../components/ui'
 import { TrafficMonitor } from '../components/TrafficMonitor'
 import { PhotoField } from '../components/photo'
-import { AREAS, AREA_COLORS, type Member } from '../types'
+import { AREAS, AREA_COLORS, type Bootstrap, type Member } from '../types'
 import { summarize } from '../lib/stats'
 
 const COLOR_OPTIONS = ['#E4572E', '#D98E04', '#2F8F5B', '#3B6EA5', '#8B5CF6', '#C2412D', '#0E7490', '#A16207', '#DB2777', '#475569']
@@ -31,10 +31,7 @@ export function Team() {
 
   const sinTareas = data.members.filter((member) => (summary.workload[member.id]?.total ?? 0) === 0)
 
-  const remove = async (member: Member) => {
-    if (!window.confirm(`¿Retirar a ${member.name} del equipo? Sus actividades quedarán sin responsable.`)) return
-    await mutate(() => api.deleteMember(member.id), 'Integrante retirado')
-  }
+  const remove = (member: Member) => retireMember(member, data, mutate)
 
   const copyRsvpInvite = async () => {
     const text = `🥐 *¡LLEGA EL DESAYUNO DE INTEGRACIÓN ALFIN!*
@@ -312,8 +309,23 @@ Contamos con opciones vegetarianas y sin gluten/lactosa. Por favor avisa a Ana T
   )
 }
 
+/** Retira a un integrante avisando qué pierde (actividades, cuotas, tesorería). */
+async function retireMember(member: Member, data: Bootstrap, mutate: ReturnType<typeof useStore>['mutate']) {
+  const tasks = data.tasks.filter((task) => task.assignees.includes(member.id) && task.status !== 'hecha').length
+  const payments = data.budget.filter((item) => item.owner_id === member.id && item.stage !== 'plan').length
+  const isTreasurer = data.settings.treasurer_id === member.id
+  const lines = [
+    `¿Retirar a ${member.name} del equipo?`,
+    tasks ? `• ${tasks === 1 ? '1 actividad quedará' : `${tasks} actividades quedarán`} sin este responsable.` : '',
+    payments ? `• ${payments === 1 ? 'Su pago registrado se conserva' : `Sus ${payments} pagos registrados se conservan`}, pero sin su nombre.` : '',
+    isTreasurer ? '• Es quien recibe los pagos: habrá que elegir otro tesorero(a).' : '',
+  ].filter(Boolean)
+  if (!window.confirm(lines.join('\n'))) return false
+  return mutate(() => api.deleteMember(member.id), `${member.name.split(' ')[0]} ya no está en el equipo`)
+}
+
 function MemberEditor({ member, onClose }: { member: Member | null; onClose: () => void }) {
-  const { mutate } = useStore()
+  const { data, mutate } = useStore()
   const [name, setName] = useState(member?.name ?? '')
   const [role, setRole] = useState(member?.role ?? '')
   const [area, setArea] = useState(member?.area ?? AREAS[0])
@@ -344,6 +356,17 @@ function MemberEditor({ member, onClose }: { member: Member | null; onClose: () 
       description="Un rol claro evita que dos personas hagan lo mismo o que algo quede sin dueño."
       footer={
         <>
+          {member && data ? (
+            <Button
+              variant="danger"
+              icon="trash"
+              onClick={async () => {
+                if (await retireMember(member, data, mutate)) onClose()
+              }}
+            >
+              Retirar del equipo
+            </Button>
+          ) : null}
           <span className="spacer" />
           <Button variant="outline" onClick={onClose}>
             Cancelar

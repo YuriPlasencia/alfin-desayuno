@@ -20,7 +20,7 @@ import { isCuota, summarize } from '../lib/stats'
 import { CUOTA, CuotaModal, CuotasPanel, FlowView, ReceiptViewer, ValidateButton, findPayer, scanVoucher } from '../components/voucher'
 import { takeSharedFile } from '../lib/shared'
 import { formatDate, getTreasurer, money, plural } from '../lib/format'
-import type { BudgetItem, BudgetKind, BudgetStatus, Member, TaskOption } from '../types'
+import type { BudgetItem, BudgetKind, BudgetStatus, Member, Task, TaskOption } from '../types'
 
 type MainTab = 'inicial' | 'ejecucion' | 'tesorero'
 
@@ -33,6 +33,7 @@ type EditorPreset = {
   concept?: string
   amount?: number
   planId?: number | null
+  optionId?: number | null
 }
 
 type EditorState = { item: BudgetItem | null; preset?: EditorPreset; file?: File | null } | null
@@ -86,7 +87,9 @@ export function Budget() {
   // Al abrir una constancia se muestra la versión al día del movimiento.
   const viewingNow = viewing ? data.budget.find((item) => item.id === viewing.id) || null : null
 
-  const realExpense = (file: File | null = null, from?: BudgetItem): EditorState => ({
+  const photos = activityPhotos(data.tasks, data.budget)
+
+  const realExpense = (file: File | null = null, from?: BudgetItem, optionId?: number): EditorState => ({
     item: null,
     file,
     preset: {
@@ -94,7 +97,9 @@ export function Budget() {
       status: 'hecho',
       stage: 'real',
       ownerId: from?.owner_id ?? actor?.id ?? null,
-      pick: !file,
+      // Si hay fotos en las actividades, primero se muestran (no se abre la galería de golpe).
+      pick: !file && !optionId && photos.length === 0,
+      optionId: optionId ?? null,
       concept: from?.concept,
       amount: from ? Math.max(0, from.amount - executedFor(real, from.id)) || undefined : undefined,
       planId: from?.id ?? null,
@@ -328,6 +333,16 @@ Yape / Plin a: ${tName}${tPhone}
             </Button>
           </div>
 
+          {filter !== 'ingreso' && photos.length > 0 ? (
+            <div className="card">
+              <ActivityPhotoStrip
+                photos={photos}
+                title={`${photos.length === 1 ? 'Hay 1 foto' : `Hay ${photos.length} fotos`} en las actividades sin registrar como gasto. Toca una para registrarla:`}
+                onPick={(photo) => setEditing(realExpense(null, undefined, photo.option.id))}
+              />
+            </div>
+          ) : null}
+
           {filter === 'flujo' ? (
             <FlowView budget={real} members={data.members} onOpen={setViewing} />
           ) : filter === 'ingreso' && rows.length > 0 ? (
@@ -430,6 +445,63 @@ Yape / Plin a: ${tName}${tPhone}
           }}
         />
       ) : null}
+    </div>
+  )
+}
+
+export interface ActivityPhoto {
+  option: TaskOption
+  task: Task
+}
+
+const plainWord = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+
+/** Fotos subidas en las actividades (cotizaciones) que aún no se registraron como gasto. */
+function activityPhotos(tasks: Task[], budget: BudgetItem[]): ActivityPhoto[] {
+  const used = new Set(budget.map((item) => item.option_id).filter(Boolean))
+  return tasks.flatMap((task) =>
+    (task.options || [])
+      .filter((option) => option.image_url.startsWith('data:image/') && !used.has(option.id))
+      .sort((a, b) => b.is_winner - a.is_winner || b.vote_count - a.vote_count)
+      .map((option) => ({ option, task })),
+  )
+}
+
+/** Partida del presupuesto que corresponde a una actividad (p. ej. "Chicharrón"). */
+function matchPlan(plan: BudgetItem[], ...names: string[]): BudgetItem | null {
+  const wanted = names.map(plainWord).filter(Boolean)
+  return (
+    plan.find((partida) => {
+      if (partida.kind !== 'gasto') return false
+      const concept = plainWord(partida.concept)
+      return wanted.some((name) => concept === name || concept.includes(name) || name.includes(concept))
+    }) ?? null
+  )
+}
+
+/** Tira de fotos de actividades para registrar el gasto con un toque. */
+function ActivityPhotoStrip({ photos, onPick, title }: { photos: ActivityPhoto[]; onPick: (photo: ActivityPhoto) => void; title: string }) {
+  if (photos.length === 0) return null
+  return (
+    <div className="activity-photos">
+      <p className="activity-photos-title">{title}</p>
+      <div className="activity-photos-row">
+        {photos.map((photo) => (
+          <button key={photo.option.id} type="button" className="activity-photo" onClick={() => onPick(photo)}>
+            <img src={photo.option.image_url} alt="" />
+            <span className="activity-photo-task">{photo.task.title}</span>
+            <span className="activity-photo-meta">
+              {photo.option.price > 0 ? money(photo.option.price) : 'sin precio'}
+              {photo.option.is_winner ? ' · elegida' : ''}
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
@@ -848,6 +920,37 @@ function BudgetEditor({
   // La foto guardada no viene en el refresco: se pide al abrir. Solo se envía si cambió.
   const [receiptChanged, setReceiptChanged] = useState(false)
   const [markedCuota, setMarkedCuota] = useState(item?.category === 'cuota')
+  const [optionId, setOptionId] = useState<number | null>(item?.option_id ?? null)
+  const photos = data && !item && !isPlan && kind === 'gasto' ? activityPhotos(data.tasks, data.budget) : []
+
+  /** Toma la foto de una actividad como constancia y completa el gasto. */
+  const applyPhoto = async ({ option, task }: ActivityPhoto) => {
+    setOptionId(option.id)
+    setReceiptUrl(option.image_url)
+    setReceiptChanged(true)
+    const title = option.title.trim()
+    setConcept(!title || plainWord(title).includes(plainWord(task.title)) ? title || task.title : `${task.title}: ${title}`)
+    if (option.created_by) setOwnerId(String(option.created_by))
+    setStatus('hecho')
+    const partida = matchPlan(plan, task.title, option.title)
+    if (partida) setPlanId(String(partida.id))
+    setScrapedInfo(null)
+    if (option.price > 0) {
+      setAmount(String(option.price))
+      return
+    }
+    // Sin precio en la actividad: se lee de la foto.
+    setScanning(true)
+    try {
+      const scraped = await api.scrapeQuoteImage(option.image_url)
+      if (scraped.ok && scraped.detectedAmount) {
+        setAmount(String(scraped.detectedAmount))
+        setScrapedInfo({ amount: scraped.detectedAmount, concept: scraped.detectedConcept, allPrices: scraped.allPrices || [] })
+      }
+    } finally {
+      setScanning(false)
+    }
+  }
   const [compressing, setCompressing] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [scrapedInfo, setScrapedInfo] = useState<{ amount: number | null; concept: string; allPrices: number[] } | null>(null)
@@ -868,7 +971,9 @@ function BudgetEditor({
   useEffect(() => {
     if (started.current) return
     started.current = true
-    if (initialFile) void processFile(initialFile)
+    const fromOption = preset?.optionId && data ? activityPhotos(data.tasks, data.budget).find((p) => p.option.id === preset.optionId) : null
+    if (fromOption) void applyPhoto(fromOption)
+    else if (initialFile) void processFile(initialFile)
     else if (preset?.pick) fileInputRef.current?.click()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -945,6 +1050,7 @@ function BudgetEditor({
       ...(kind === 'ingreso' && (markedCuota || /\bcuota/i.test(concept)) ? { category: 'cuota' } : kind === 'gasto' ? { category: '' } : {}),
       stage,
       ...(isPlan ? { status: 'pendiente' } : { plan_id: planId ? Number(planId) : null }),
+      ...(optionId && !item ? { option_id: optionId } : {}),
     }
     const ok = await mutate(
       () => (item ? api.updateBudget(item.id, payload) : api.createBudget(payload)),
@@ -978,6 +1084,9 @@ function BudgetEditor({
     >
       <div className="form-grid">
         {/* Subida y escaneo de foto de cotización / boleta */}
+        {receiptUrl ? null : (
+          <ActivityPhotoStrip photos={photos} title="¿Ya hay una foto en las actividades? Úsala:" onPick={(photo) => void applyPhoto(photo)} />
+        )}
         <div className="budget-photo-section">
           {receiptUrl ? (
             <div className="budget-receipt-preview">

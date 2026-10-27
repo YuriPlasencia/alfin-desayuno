@@ -211,6 +211,13 @@ function categoryFor(body, fallback = '') {
   return category
 }
 
+function optionOrNull(value) {
+  const id = Number(value)
+  if (!id) return null
+  const found = db.prepare('SELECT id FROM task_options WHERE id = ?').get(id)
+  return found ? found.id : null
+}
+
 function planOrNull(value) {
   const id = Number(value)
   if (!id) return null
@@ -379,6 +386,8 @@ app.delete('/api/members/:id', (req, res) => {
   const id = Number(req.params.id)
   const current = db.prepare('SELECT * FROM members WHERE id = ?').get(id)
   if (!current) return res.status(404).json({ error: 'Integrante no encontrado' })
+  // Si era quien recibe los pagos, se quita la designación (si no, el borrado se rechaza).
+  db.prepare('UPDATE settings SET treasurer_id = NULL WHERE treasurer_id = ?').run(id)
   db.prepare('DELETE FROM members WHERE id = ?').run(id)
   note(req, 'member', id, 'delete', `Retiró a ${current.name} del equipo`)
   broadcast()
@@ -713,8 +722,8 @@ app.post('/api/budget', (req, res) => {
   if (!concept) return res.status(400).json({ error: 'Escribe el concepto del movimiento' })
   const result = db
     .prepare(
-      `INSERT INTO budget_items (kind, concept, amount, status, owner_id, due_date, note, receipt_url, category, stage, plan_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO budget_items (kind, concept, amount, status, owner_id, due_date, note, receipt_url, category, stage, plan_id, option_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       oneOf(body.kind, ['ingreso', 'gasto'], 'gasto'),
@@ -728,6 +737,7 @@ app.post('/api/budget', (req, res) => {
       categoryFor(body),
       oneOf(body.stage, BUDGET_STAGE, 'real'),
       oneOf(body.stage, BUDGET_STAGE, 'real') === 'real' ? planOrNull(body.plan_id) : null,
+      optionOrNull(body.option_id),
       nowIso(),
     )
   const id = Number(result.lastInsertRowid)

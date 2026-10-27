@@ -97,6 +97,8 @@ export interface BudgetItem {
   stage?: 'plan' | 'real'
   /** Partida del presupuesto inicial a la que corresponde un gasto real. */
   plan_id?: number | null
+  /** Foto de actividad (cotización) usada como constancia. */
+  option_id?: number | null
   created_at: string
 }
 

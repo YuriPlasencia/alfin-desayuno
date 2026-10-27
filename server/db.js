@@ -170,6 +170,8 @@ if (addColumn('budget_items', 'stage', "TEXT NOT NULL DEFAULT 'real'")) {
   db.exec("UPDATE budget_items SET stage = 'plan' WHERE status = 'pendiente' AND receipt_url = '' AND category = ''")
 }
 addColumn('budget_items', 'plan_id', 'INTEGER REFERENCES budget_items(id) ON DELETE SET NULL')
+// Foto de actividad (cotización) usada como constancia del gasto: evita registrarla dos veces.
+addColumn('budget_items', 'option_id', 'INTEGER REFERENCES task_options(id) ON DELETE SET NULL')
 // Cuotas cargadas con "Movimiento" (concepto "Cuota…") antes de que se marcaran solas.
 db.exec(
   "UPDATE budget_items SET category = 'cuota' WHERE kind = 'ingreso' AND stage = 'real' AND category = '' AND lower(concept) LIKE '%cuota%'",
@@ -313,7 +315,7 @@ export function listBudget({ full = false } = {}) {
   return db
     .prepare(
       `SELECT b.id, b.kind, b.concept, b.amount, b.status, b.owner_id, b.due_date, b.note, b.category,
-              b.validated_by, b.validated_at, b.stage, b.plan_id, b.created_at,
+              b.validated_by, b.validated_at, b.stage, b.plan_id, b.option_id, b.created_at,
               ${full ? 'b.receipt_url,' : ''}
               CASE WHEN b.receipt_url <> '' THEN 1 ELSE 0 END AS has_receipt,
               m.name AS owner_name, v.name AS validated_by_name
