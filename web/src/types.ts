@@ -135,6 +135,8 @@ export interface Bootstrap {
   budget: BudgetItem[]
   log: LogEntry[]
   serverTime: string
+  /** Contador de cambios del servidor (para notar avisos perdidos). */
+  seq?: number
 }
 
 export const AREAS = [

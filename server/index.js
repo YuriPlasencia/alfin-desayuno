@@ -97,8 +97,13 @@ app.use('/api', (req, res, next) => {
 
 const sseClients = new Set()
 
+// Contador de cambios: viaja en cada aviso y en el latido, así un dispositivo
+// que se perdió un aviso (conexión colgada en el proxy) lo nota y recarga.
+let changeSeq = Date.now()
+
 function broadcast() {
-  const payload = `data: ${JSON.stringify({ type: 'change', at: nowIso() })}\n\n`
+  changeSeq += 1
+  const payload = `data: ${JSON.stringify({ type: 'change', seq: changeSeq, at: nowIso() })}\n\n`
   for (const client of sseClients) {
     try {
       client.write(payload)
@@ -269,7 +274,8 @@ app.get('/api/health', (_req, res) => {
 })
 
 app.get('/api/bootstrap', (_req, res) => {
-  res.json(getBootstrap())
+  res.setHeader('Cache-Control', 'no-store')
+  res.json({ ...getBootstrap(), seq: changeSeq })
 })
 
 app.get('/api/stream', (req, res) => {
@@ -280,11 +286,12 @@ app.get('/api/stream', (req, res) => {
     'X-Accel-Buffering': 'no',
   })
   res.write('retry: 3000\n\n')
-  res.write(`data: ${JSON.stringify({ type: 'hello', at: nowIso() })}\n\n`)
+  res.write(`data: ${JSON.stringify({ type: 'hello', seq: changeSeq, at: nowIso() })}\n\n`)
   sseClients.add(res)
+  // Latido con datos (no un comentario) para que la app sepa que la conexión vive.
   const heartbeat = setInterval(() => {
     try {
-      res.write(': ping\n\n')
+      res.write(`data: ${JSON.stringify({ type: 'ping', seq: changeSeq })}\n\n`)
     } catch {
       /* se limpia al cerrar */
     }

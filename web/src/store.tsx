@@ -65,6 +65,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [actorId, setActorId] = useState<number | null>(() => api.getActorId())
   const [toasts, setToasts] = useState<Toast[]>([])
   const pending = useRef<number | null>(null)
+  // Último contador de cambios visto: si el servidor va por otro, faltan cambios.
+  const seenSeq = useRef<number | null>(null)
   const [lastVisit] = useState<string | null>(() => {
     try {
       return localStorage.getItem(VISIT_KEY)
@@ -110,6 +112,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       const next = await api.bootstrap()
+      if (typeof next.seq === 'number') seenSeq.current = next.seq
       setData(next)
       setOffline(false)
       setError(null)
@@ -160,6 +163,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let attempt = 0
     let opened = false
     let disposed = false
+    let lastMessage = Date.now()
 
     const connect = () => {
       if (disposed) return
@@ -183,14 +187,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       })
       current.addEventListener('message', (event) => {
+        lastMessage = Date.now()
+        let payload: { type?: string; seq?: number } = {}
         try {
-          const payload = JSON.parse((event as MessageEvent).data) as { type: string }
-          if (payload.type === 'hello') {
-            setLive(true)
-            return
-          }
+          payload = JSON.parse((event as MessageEvent).data)
         } catch {
           /* mensaje no JSON */
+        }
+        if (payload.type === 'hello' || payload.type === 'ping') {
+          setLive(true)
+          // Latido con un contador distinto: hubo cambios que no llegaron.
+          if (typeof payload.seq !== 'number' || payload.seq === seenSeq.current) return
         }
         if (pending.current) window.clearTimeout(pending.current)
         pending.current = window.setTimeout(() => {
@@ -209,15 +216,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    // Un proxy puede dejar la conexión abierta pero muda: si no llega ni el latido
+    // (cada 25 s) en más de un minuto, se reconecta y se recarga.
+    const watchdog = window.setInterval(() => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastMessage < 65000) return
+      lastMessage = Date.now()
+      setLive(false)
+      attempt = 0
+      window.clearTimeout(retry)
+      connect()
+      void refresh()
+    }, 15000)
+
     connect()
     document.addEventListener('visibilitychange', wake)
     window.addEventListener('online', wake)
+    window.addEventListener('focus', wake)
     return () => {
       disposed = true
       window.clearTimeout(retry)
+      window.clearInterval(watchdog)
       if (pending.current) window.clearTimeout(pending.current)
       document.removeEventListener('visibilitychange', wake)
       window.removeEventListener('online', wake)
+      window.removeEventListener('focus', wake)
       source?.close()
     }
   }, [refresh, locked])
