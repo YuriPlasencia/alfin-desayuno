@@ -172,6 +172,35 @@ if (addColumn('budget_items', 'stage', "TEXT NOT NULL DEFAULT 'real'")) {
 addColumn('budget_items', 'plan_id', 'INTEGER REFERENCES budget_items(id) ON DELETE SET NULL')
 // Foto de actividad (cotización) usada como constancia del gasto: evita registrarla dos veces.
 addColumn('budget_items', 'option_id', 'INTEGER REFERENCES task_options(id) ON DELETE SET NULL')
+
+/**
+ * Vincula cada gasto con la foto de actividad que usa como constancia, aunque se haya
+ * cargado por otro camino (misma imagen). Las constancias que el servidor cortaba a
+ * 2000 caracteres (antes de corregirlo) coinciden con el inicio de la foto: se reparan
+ * con la imagen completa.
+ */
+export function linkReceiptsToPhotos() {
+  db.exec(`
+    UPDATE budget_items
+    SET option_id = (
+      SELECT o.id FROM task_options o
+      WHERE o.image_url LIKE 'data:image/%'
+        AND (o.image_url = budget_items.receipt_url
+             OR (length(budget_items.receipt_url) >= 1000
+                 AND substr(o.image_url, 1, length(budget_items.receipt_url)) = budget_items.receipt_url))
+      ORDER BY o.id LIMIT 1
+    )
+    WHERE kind = 'gasto' AND option_id IS NULL AND receipt_url LIKE 'data:image/%';
+
+    UPDATE budget_items
+    SET receipt_url = (SELECT o.image_url FROM task_options o WHERE o.id = budget_items.option_id)
+    WHERE option_id IS NOT NULL
+      AND receipt_url <> (SELECT o.image_url FROM task_options o WHERE o.id = budget_items.option_id)
+      AND length(receipt_url) < (SELECT length(o.image_url) FROM task_options o WHERE o.id = budget_items.option_id)
+      AND receipt_url = substr((SELECT o.image_url FROM task_options o WHERE o.id = budget_items.option_id), 1, length(receipt_url));
+  `)
+}
+linkReceiptsToPhotos()
 // Cuotas cargadas con "Movimiento" (concepto "Cuota…") antes de que se marcaran solas.
 db.exec(
   "UPDATE budget_items SET category = 'cuota' WHERE kind = 'ingreso' AND stage = 'real' AND category = '' AND lower(concept) LIKE '%cuota%'",

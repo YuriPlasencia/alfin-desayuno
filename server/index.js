@@ -7,6 +7,7 @@ import {
   db,
   getBootstrap,
   getSettings,
+  linkReceiptsToPhotos,
   listBudget,
   listMembers,
   listTasks,
@@ -568,6 +569,7 @@ app.post('/api/tasks/:id/options', (req, res) => {
 
   const optId = Number(result.lastInsertRowid)
   note(req, 'task', taskId, 'option', `Subió la opción “${title}” ${imageUrl ? 'con foto ' : ''}para “${task.title}”`)
+  linkReceiptsToPhotos()
   broadcast()
   res.status(201).json({ option: optionDetail(optId) })
 })
@@ -759,6 +761,7 @@ app.post('/api/budget', (req, res) => {
       : `Registró “${concept}” en el presupuesto (${amountText})`,
   )
   broadcast()
+  linkReceiptsToPhotos()
   res.status(201).json({ item: plain(db.prepare('SELECT * FROM budget_items WHERE id = ?').get(id)) })
 })
 
@@ -805,6 +808,7 @@ app.patch('/api/budget/:id', (req, res) => {
   if (revalidate) db.prepare('UPDATE budget_items SET validated_by=NULL, validated_at=NULL WHERE id=?').run(id)
   note(req, 'budget', id, 'update', `Actualizó “${next.concept}” en el presupuesto`)
   broadcast()
+  linkReceiptsToPhotos()
   res.json({ item: plain(db.prepare('SELECT * FROM budget_items WHERE id = ?').get(id)) })
 })
 
