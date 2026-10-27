@@ -156,10 +156,10 @@ Yape / Plin a: ${tName}${tPhone}
 
       <div className="segmented budget-tabs" role="tablist" aria-label="Secciones de presupuesto">
         <button role="tab" aria-selected={mainTab === 'inicial'} className={mainTab === 'inicial' ? 'is-active' : ''} onClick={() => setMainTab('inicial')}>
-          Presupuesto inicial <span className="seg-count">{plan.length + 1}</span>
+          Presupuestado <span className="seg-count">{plan.length + 1}</span>
         </button>
         <button role="tab" aria-selected={mainTab === 'ejecucion'} className={mainTab === 'ejecucion' ? 'is-active' : ''} onClick={() => setMainTab('ejecucion')}>
-          Ejecución <span className="seg-count">{real.length}</span>
+          Presupuesto en ejecución <span className="seg-count">{real.length}</span>
         </button>
         <button role="tab" aria-selected={mainTab === 'tesorero'} className={mainTab === 'tesorero' ? 'is-active' : ''} onClick={() => setMainTab('tesorero')}>
           Tesorero(a) <span className="seg-count">{treasurer ? '✓' : '—'}</span>
@@ -170,7 +170,7 @@ Yape / Plin a: ${tName}${tPhone}
         <TreasurerManager settings={data.settings} members={data.members} currentTreasurer={treasurer} />
       ) : mainTab === 'inicial' ? (
         <>
-          <section className="board ledger" aria-label="Presupuesto inicial">
+          <section className="board ledger" aria-label="Presupuestado">
             <div className="ledger-figures">
               <div className="ledger-figure income">
                 <span className="budget-label">
@@ -578,7 +578,7 @@ function PlanTable({
           Además hay {money(unplanned)} {kind === 'ingreso' ? 'cobrados' : 'pagados'} que no están asignados a una partida.
           {onOpenUnplanned ? (
             <button type="button" className="link-btn" onClick={onOpenUnplanned}>
-              Verlos en Ejecución
+              Verlos en Presupuesto en ejecución
             </button>
           ) : null}
         </p>
