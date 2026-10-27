@@ -297,6 +297,37 @@ export function CuotaModal({
   )
 }
 
+/**
+ * Estado de validación de una constancia: si falta validar, es un botón de un clic.
+ * Sin imán elegido no se puede firmar la validación, así que se avisa.
+ */
+export function ValidateButton({ item }: { item: BudgetItem }) {
+  const { actor, mutate, toast } = useStore()
+  const [busy, setBusy] = useState(false)
+  if (!item.has_receipt) return null
+  if (item.validated_by) {
+    return (
+      <span className="tag-ok" title={`Validado por ${item.validated_by_name || ''}`}>
+        <Icon name="check" size={12} /> validado{item.validated_by_name ? ` · ${item.validated_by_name.split(' ')[0]}` : ''}
+      </span>
+    )
+  }
+  const validate = async () => {
+    if (!actor) {
+      toast('Primero elige tu imán (arriba a la derecha) para firmar la validación', 'error')
+      return
+    }
+    setBusy(true)
+    await mutate(() => api.validateBudget(item.id, true), `Validaste “${item.concept}”`)
+    setBusy(false)
+  }
+  return (
+    <button type="button" className="validate-btn" disabled={busy} onClick={() => void validate()} title="Marcar la constancia como revisada">
+      <Icon name="check" size={13} /> {busy ? 'Validando…' : 'Validar'}
+    </button>
+  )
+}
+
 /** Ver la constancia de un movimiento y validarla. */
 export function ReceiptViewer({ item, onClose }: { item: BudgetItem; onClose: () => void }) {
   const { actor, mutate } = useStore()
@@ -332,8 +363,10 @@ export function ReceiptViewer({ item, onClose }: { item: BudgetItem; onClose: ()
         <>
           {validated ? (
             <Badge tone="success">Validado por {item.validated_by_name?.split(' ')[0] || 'alguien'}</Badge>
-          ) : (
+          ) : actor ? (
             <Badge tone="warning">Por validar</Badge>
+          ) : (
+            <span className="field-error">Elige tu imán arriba para poder validar</span>
           )}
           <span className="spacer" />
           <Button variant="outline" onClick={onClose}>
@@ -505,7 +538,18 @@ export function FlowView({ budget, members, onOpen }: { budget: BudgetItem[]; me
             const owner = members.find((member) => member.id === item.owner_id)
             return (
               <li key={item.id} className={item.kind}>
-                <button type="button" onClick={() => onOpen(item)}>
+                <div
+                  className="flow-row"
+                  role="button"
+                  tabIndex={0}
+                  onClick={(event) => {
+                    if ((event.target as HTMLElement).closest('.validate-btn')) return
+                    onOpen(item)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && event.target === event.currentTarget) onOpen(item)
+                  }}
+                >
                   <span className="flow-date">{formatDate(date)}</span>
                   <span className="flow-main">
                     <span className="flow-concept">
@@ -514,20 +558,14 @@ export function FlowView({ budget, members, onOpen }: { budget: BudgetItem[]; me
                     </span>
                     <span className="flow-meta">
                       {owner ? <Magnet member={owner} /> : null}
-                      {item.has_receipt ? (
-                        item.validated_by ? (
-                          <span className="tag-ok">validado</span>
-                        ) : (
-                          <span className="tag-wait">por validar</span>
-                        )
-                      ) : null}
+                      <ValidateButton item={item} />
                     </span>
                   </span>
                   <span className={`flow-amount ${item.kind}`}>
                     {item.kind === 'ingreso' ? '+' : '−'} {money(item.amount)}
                   </span>
                   <span className={`flow-balance ${balance < 0 ? 'is-negative' : ''}`}>{money(balance)}</span>
-                </button>
+                </div>
               </li>
             )
           })}

@@ -17,7 +17,7 @@ import {
   TextArea,
 } from '../components/ui'
 import { summarize } from '../lib/stats'
-import { CuotaModal, CuotasPanel, FlowView, ReceiptViewer, findPayer, scanVoucher } from '../components/voucher'
+import { CuotaModal, CuotasPanel, FlowView, ReceiptViewer, ValidateButton, findPayer, scanVoucher } from '../components/voucher'
 import { takeSharedFile } from '../lib/shared'
 import { formatDate, getTreasurer, money } from '../lib/format'
 import type { BudgetItem, BudgetKind, BudgetStatus, Member, TaskOption } from '../types'
@@ -275,15 +275,7 @@ Yape / Plin a: ${tName}${tPhone}
                           <span>{item.kind === 'ingreso' ? 'Ver constancia' : 'Ver boleta'}</span>
                         </button>
                       ) : null}
-                      {item.has_receipt ? (
-                        item.validated_by ? (
-                          <span className="tag-ok" title={`Validado por ${item.validated_by_name || ''}`}>
-                            validado
-                          </span>
-                        ) : (
-                          <span className="tag-wait">por validar</span>
-                        )
-                      ) : null}
+                      <ValidateButton item={item} />
                     </div>
                     {item.note ? <span className="cell-note">{item.note}</span> : null}
                   </td>
@@ -562,13 +554,7 @@ function IncomeTable({
                     <button type="button" className="link-btn" onClick={() => onOpen(item)}>
                       <Icon name="camera" size={14} /> Ver foto
                     </button>
-                    {item.validated_by ? (
-                      <span className="tag-ok" title={`Validado por ${item.validated_by_name || ''}`}>
-                        validado
-                      </span>
-                    ) : (
-                      <span className="tag-wait">por validar</span>
-                    )}
+                    <ValidateButton item={item} />
                   </span>
                 ) : (
                   <span className="muted small">Sin foto</span>
