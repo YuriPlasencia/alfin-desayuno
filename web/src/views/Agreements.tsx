@@ -2,8 +2,24 @@ import { useMemo, useState } from 'react'
 import { useStore } from '../store'
 import { api } from '../api'
 import { Button, EmptyState, Field, Icon, IconButton, Input, Modal, PageHeader, Select, TextArea } from '../components/ui'
+import { ShareButton } from '../components/share'
 import type { Agreement, AgreementStatus } from '../types'
-import { AGREEMENT_STATUS_META, deadlineLabel, formatDate } from '../lib/format'
+import { AGREEMENT_STATUS_META, deadlineLabel, formatDate, formatLongDate } from '../lib/format'
+
+const STATUS_EMOJI: Record<AgreementStatus, string> = { propuesto: '🟡', acordado: '🤝', cumplido: '✅' }
+
+/** Un acuerdo listo para mandar por chat (los * son negritas en WhatsApp y Telegram). */
+function agreementText(agreement: Agreement): string {
+  return [
+    `${STATUS_EMOJI[agreement.status]} *${agreement.title}*`,
+    agreement.detail,
+    `Estado: ${AGREEMENT_STATUS_META[agreement.status].label}`,
+    agreement.owner_name ? `Responsable: ${agreement.owner_name}` : '',
+    agreement.due_date ? `Fecha: ${formatDate(agreement.due_date)}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
 
 const ORDER: AgreementStatus[] = ['propuesto', 'acordado', 'cumplido']
 
@@ -40,9 +56,34 @@ export function Agreements() {
         title="Acuerdos"
         subtitle="Lo que el equipo decidió y cómo se va cumpliendo"
         action={
-          <Button icon="plus" onClick={() => setEditing('nuevo')}>
-            Nuevo acuerdo
-          </Button>
+          <div className="btn-group">
+            {data.agreements.length > 0 ? (
+              <ShareButton
+                title="Acuerdos del desayuno"
+                label="Compartir acuerdos"
+                text={() => {
+                  const groups = ORDER.map((status) => {
+                    const items = data.agreements.filter((item) => item.status === status)
+                    if (items.length === 0) return ''
+                    const lines = items.map(
+                      (item) =>
+                        `• ${item.title}${item.owner_name ? ` (${item.owner_name.split(' ')[0]})` : ''}${item.due_date ? ` · ${formatDate(item.due_date)}` : ''}`,
+                    )
+                    return [`${STATUS_EMOJI[status]} *${AGREEMENT_STATUS_META[status].label}s*`, ...lines].join('\n')
+                  }).filter(Boolean)
+                  return [
+                    `🥐 *${data.settings.event_name} · Acuerdos*`,
+                    `${formatLongDate(data.settings.event_date)}${data.settings.event_time ? ` · ${data.settings.event_time}` : ''}`,
+                    '',
+                    groups.join('\n\n'),
+                  ].join('\n')
+                }}
+              />
+            ) : null}
+            <Button icon="plus" onClick={() => setEditing('nuevo')}>
+              Nuevo acuerdo
+            </Button>
+          </div>
         }
       />
 
@@ -92,6 +133,12 @@ export function Agreements() {
                         Reabrir
                       </Button>
                     )}
+                    <ShareButton
+                      compact
+                      label="Compartir este acuerdo"
+                      title={agreement.title}
+                      text={() => `🥐 *${data.settings.event_name}*\n\n${agreementText(agreement)}`}
+                    />
                     <IconButton icon="pencil" label="Editar acuerdo" onClick={() => setEditing(agreement)} />
                     <IconButton icon="trash" label="Eliminar acuerdo" onClick={() => void remove(agreement)} />
                   </div>
