@@ -30,9 +30,9 @@ export default defineConfig({
       injectRegister: 'auto',
       includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
       manifest: {
-        name: 'Al Fin Desayuno',
-        short_name: 'AlFin',
-        description: 'Organiza el desayuno del equipo: acuerdos, actividades con checklist, responsables y presupuesto.',
+        name: 'Juntada',
+        short_name: 'Juntada',
+        description: 'Arma tus eventos en equipo: actividades, acuerdos, cuotas y gastos con constancia, en una pizarra en vivo.',
         lang: 'es',
         start_url: '/',
         scope: '/',

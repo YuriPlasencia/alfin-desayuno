@@ -14,8 +14,28 @@ import {
   logActivity,
   nowIso,
   plain,
+  runInEvent,
+  currentSlug,
+  SLUG_PATTERN,
 } from './db.js'
-import { seedDemo } from './seed.js'
+import {
+  addMemberFor,
+  claimedMembers,
+  clearMemberLink,
+  createEvent,
+  eventSummary,
+  getEvent,
+  getUser,
+  joinEvent,
+  listUserEvents,
+  membership,
+  migrateLegacy,
+  sessionSecret,
+  setEventCode,
+  setMemberLink,
+  upsertGoogleUser,
+  verifyCode,
+} from './platform.js'
 import { scrapeQuoteImage } from './ocr.js'
 
 
@@ -24,20 +44,25 @@ const PORT = Number(process.env.PORT || 8787)
 const HOST = process.env.HOST || '0.0.0.0'
 const DIST = path.join(here, '..', 'dist')
 
-seedDemo()
+const legacy = migrateLegacy()
+if (legacy) {
+  console.log(`[juntada] Al Fin Desayuno pasó a ser el evento "${legacy.slug}".`)
+  if (legacy.generated) console.log(`[juntada] Código del evento (cámbialo en Ajustes): ${legacy.code}`)
+}
 
 const app = express()
 // Detrás del proxy de Railway (u otro), para saber si la conexión es https.
 app.set('trust proxy', 1)
 app.use(express.json({ limit: '15mb' }))
 
-// ---------- código de acceso del equipo ----------
-// Con TEAM_CODE definido, la API exige el código una vez por dispositivo (cookie de un año).
-// Sin TEAM_CODE (uso local), la app queda abierta como antes.
+// ---------- sesiones y cuentas (Juntada) ----------
+// Se entra con Google (GOOGLE_CLIENT_ID) o, si no está configurado, con el nombre.
+// La sesión es una cookie firmada; cada evento además pide su código una vez.
 
-const TEAM_CODE = String(process.env.TEAM_CODE || '').trim()
-const ACCESS_COOKIE = 'alfin_team'
-const ACCESS_TOKEN = TEAM_CODE ? crypto.createHmac('sha256', TEAM_CODE).update('alfin-desayuno').digest('hex') : ''
+const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '').trim()
+const NAME_LOGIN = !GOOGLE_CLIENT_ID || process.env.NAME_LOGIN === '1'
+const SESSION_COOKIE = 'juntada_session'
+const SESSION_DAYS = 120
 const MAX_ATTEMPTS = 10
 const ATTEMPT_WINDOW_MS = 15 * 60 * 1000
 const attempts = new Map()
@@ -51,65 +76,179 @@ function readCookie(req, name) {
   return ''
 }
 
+const sign = (value) => crypto.createHmac('sha256', sessionSecret()).update(value).digest('hex')
+
 function sameSecret(a, b) {
   const left = Buffer.from(String(a))
   const right = Buffer.from(String(b))
   return left.length === right.length && crypto.timingSafeEqual(left, right)
 }
 
-function hasAccess(req) {
-  return !TEAM_CODE || sameSecret(readCookie(req, ACCESS_COOKIE), ACCESS_TOKEN)
+function startSession(req, res, userId) {
+  const exp = Date.now() + SESSION_DAYS * 86400000
+  const value = `${userId}.${exp}`
+  const secure = req.secure ? '; Secure' : ''
+  res.setHeader(
+    'Set-Cookie',
+    `${SESSION_COOKIE}=${value}.${sign(value)}; Path=/; Max-Age=${SESSION_DAYS * 86400}; HttpOnly; SameSite=Lax${secure}`,
+  )
+}
+
+function sessionUser(req) {
+  const [id, exp, mac] = readCookie(req, SESSION_COOKIE).split('.')
+  if (!id || !exp || !mac || Number(exp) < Date.now() || !sameSecret(mac, sign(`${id}.${exp}`))) return null
+  return getUser(Number(id)) || null
+}
+
+/** Límite de intentos por IP (código de evento, inicio de sesión). */
+function tooManyAttempts(key) {
+  const now = Date.now()
+  const record = attempts.get(key)
+  const recent = record && now - record.first < ATTEMPT_WINDOW_MS ? record : { first: now, count: 0 }
+  attempts.set(key, recent)
+  return recent.count >= MAX_ATTEMPTS
+}
+const failAttempt = (key) => {
+  const record = attempts.get(key)
+  if (record) record.count += 1
 }
 
 const VERSION = (process.env.RENDER_GIT_COMMIT || '').slice(0, 7) || 'local'
 app.get('/api/health', (_req, res) => res.json({ ok: true, version: VERSION }))
 
-app.get('/api/auth', (req, res) => res.json({ required: Boolean(TEAM_CODE), ok: hasAccess(req) }))
+app.get('/api/config', (_req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, nameLogin: NAME_LOGIN }))
 
-app.post('/api/auth', (req, res) => {
-  if (!TEAM_CODE) return res.json({ ok: true })
-  const key = req.ip || 'desconocido'
-  const now = Date.now()
-  const record = attempts.get(key)
-  const recent = record && now - record.first < ATTEMPT_WINDOW_MS ? record : { first: now, count: 0 }
-  if (recent.count >= MAX_ATTEMPTS) {
-    return res.status(429).json({ error: 'Demasiados intentos. Espera unos minutos y vuelve a probar.' })
+app.get('/api/me', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  const user = sessionUser(req)
+  res.json({ user, events: user ? listUserEvents(user.id) : [] })
+})
+
+app.post('/api/auth/google', async (req, res) => {
+  if (!GOOGLE_CLIENT_ID) return res.status(400).json({ error: 'El ingreso con Google no está configurado' })
+  const credential = String(req.body?.credential || '')
+  try {
+    const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`)
+    const info = await response.json()
+    const validIssuer = info.iss === 'accounts.google.com' || info.iss === 'https://accounts.google.com'
+    if (!response.ok || info.aud !== GOOGLE_CLIENT_ID || !validIssuer || Number(info.exp) * 1000 < Date.now()) {
+      return res.status(401).json({ error: 'No se pudo verificar tu cuenta de Google' })
+    }
+    const userId = upsertGoogleUser({ sub: info.sub, email: info.email || '', name: info.name || info.email || 'Integrante', picture: info.picture || '' })
+    startSession(req, res, userId)
+    res.json({ user: getUser(userId) })
+  } catch {
+    res.status(502).json({ error: 'No se pudo hablar con Google. Intenta de nuevo.' })
   }
-  const code = String(req.body?.code || '').trim()
-  if (!sameSecret(code.toLowerCase(), TEAM_CODE.toLowerCase())) {
-    attempts.set(key, { first: recent.first, count: recent.count + 1 })
-    return res.status(401).json({ error: 'Ese código no es el del equipo.' })
-  }
-  attempts.delete(key)
-  const secure = req.secure ? '; Secure' : ''
-  res.setHeader(
-    'Set-Cookie',
-    `${ACCESS_COOKIE}=${ACCESS_TOKEN}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax${secure}`,
-  )
+})
+
+// Sin Google configurado: entrar con el nombre (la cuenta queda en este dispositivo).
+app.post('/api/auth/name', (req, res) => {
+  if (!NAME_LOGIN) return res.status(400).json({ error: 'Entra con tu cuenta de Google' })
+  const name = text(req.body?.name).slice(0, 60)
+  if (!name) return res.status(400).json({ error: 'Escribe tu nombre' })
+  const userId = upsertGoogleUser({ sub: `nombre:${crypto.randomUUID()}`, email: '', name, picture: '' })
+  startSession(req, res, userId)
+  res.json({ user: getUser(userId) })
+})
+
+app.post('/api/auth/logout', (req, res) => {
+  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`)
   res.json({ ok: true })
 })
 
-app.use('/api', (req, res, next) => {
-  if (hasAccess(req)) return next()
-  res.status(401).json({ error: 'Falta el código del equipo', reason: 'team-code' })
+function requireUser(req, res, next) {
+  const user = sessionUser(req)
+  if (!user) return res.status(401).json({ error: 'Inicia sesión para continuar', reason: 'login' })
+  req.user = user
+  next()
+}
+
+app.post('/api/events', requireUser, (req, res) => {
+  const body = req.body || {}
+  const name = text(body.name).slice(0, 80)
+  const code = String(body.code || '').trim()
+  if (!name) return res.status(400).json({ error: 'Ponle un nombre al evento' })
+  if (code.length < 4) return res.status(400).json({ error: 'El código debe tener al menos 4 caracteres' })
+  const slug = createEvent({
+    name,
+    date: dateOrNull(body.date) ?? '',
+    time: text(body.time).slice(0, 10),
+    location: text(body.location).slice(0, 120),
+    guests: num(body.guests, 20),
+    code,
+    user: req.user,
+  })
+  res.status(201).json({ slug })
 })
+
+// Datos públicos para la pantalla "Unirme" (sin entrar al evento).
+app.get('/api/events/:slug/public', (req, res) => {
+  const { slug } = req.params
+  if (!SLUG_PATTERN.test(slug) || !getEvent(slug)) return res.status(404).json({ error: 'Ese evento no existe' })
+  const { name, date, time, location } = eventSummary(slug)
+  res.json({ slug, name, date, time, location })
+})
+
+app.post('/api/events/:slug/join', requireUser, (req, res) => {
+  const { slug } = req.params
+  const event = SLUG_PATTERN.test(slug) ? getEvent(slug) : null
+  if (!event) return res.status(404).json({ error: 'Ese evento no existe' })
+  if (membership(slug, req.user.id)) return res.json({ ok: true })
+  const key = `${req.ip}:${slug}`
+  if (tooManyAttempts(key)) return res.status(429).json({ error: 'Demasiados intentos. Espera unos minutos y vuelve a probar.' })
+  if (!verifyCode(req.body?.code, event.code_hash)) {
+    failAttempt(key)
+    return res.status(401).json({ error: 'Ese código no es el del evento' })
+  }
+  attempts.delete(key)
+  joinEvent(slug, req.user)
+  res.json({ ok: true })
+})
+
+// Todo lo de un evento va bajo /api/e/<slug>/… y corre sobre la base de ese evento.
+const ev = express.Router({ mergeParams: true })
+
+function eventGate(req, res, next) {
+  const { slug } = req.params
+  if (!SLUG_PATTERN.test(slug) || !getEvent(slug)) return res.status(404).json({ error: 'Ese evento no existe', reason: 'no-event' })
+  const user = sessionUser(req)
+  if (!user) return res.status(401).json({ error: 'Inicia sesión para continuar', reason: 'login' })
+  const member = membership(slug, user.id)
+  if (!member) return res.status(403).json({ error: 'Necesitas el código del evento', reason: 'join' })
+  req.user = user
+  req.membership = member
+  runInEvent(slug, () => next())
+}
+
+app.use('/api/e/:slug', eventGate, ev)
 
 // ---------- helpers ----------
 
-const sseClients = new Set()
-
-// Contador de cambios: viaja en cada aviso y en el latido, así un dispositivo
-// que se perdió un aviso (conexión colgada en el proxy) lo nota y recarga.
-let changeSeq = Date.now()
+// Conexiones en vivo y contador de cambios, por evento. El contador viaja en cada
+// aviso y en el latido: un dispositivo que se perdió un aviso lo nota y recarga.
+const sseClients = new Map()
+const changeSeqs = new Map()
+const seqOf = (slug) => {
+  if (!changeSeqs.has(slug)) changeSeqs.set(slug, Date.now())
+  return changeSeqs.get(slug)
+}
+const clientsOf = (slug) => {
+  if (!sseClients.has(slug)) sseClients.set(slug, new Set())
+  return sseClients.get(slug)
+}
 
 function broadcast() {
-  changeSeq += 1
-  const payload = `data: ${JSON.stringify({ type: 'change', seq: changeSeq, at: nowIso() })}\n\n`
-  for (const client of sseClients) {
+  const slug = currentSlug()
+  if (!slug) return
+  changeSeqs.set(slug, seqOf(slug) + 1)
+  const payload = `data: ${JSON.stringify({ type: 'change', seq: seqOf(slug), at: nowIso() })}\n\n`
+  const clients = clientsOf(slug)
+  for (const client of clients) {
     try {
       client.write(payload)
     } catch {
-      sseClients.delete(client)
+      clients.delete(client)
     }
   }
 }
@@ -150,8 +289,7 @@ function touchPresence(memberId, memberName, userAgent = '', viewName = '') {
 }
 
 function actor(req) {
-  const header = req.get('x-actor-id')
-  const id = Number(header)
+  const id = Number(req.membership?.member_id)
   if (!id) return { id: null, name: 'Alguien', is_lead: 0 }
   const member = db.prepare('SELECT id, name, is_lead FROM members WHERE id = ?').get(id)
   if (member) {
@@ -270,16 +408,49 @@ function setAssignees(taskId, memberIds) {
 
 // ---------- bootstrap ----------
 
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, at: nowIso(), version: 1 })
-})
-
-app.get('/api/bootstrap', (_req, res) => {
+ev.get('/bootstrap', (req, res) => {
   res.setHeader('Cache-Control', 'no-store')
-  res.json({ ...getBootstrap(), seq: changeSeq })
+  const slug = currentSlug()
+  res.json({
+    ...getBootstrap(),
+    seq: seqOf(slug),
+    slug,
+    me: { user: req.user, role: req.membership.role, member_id: req.membership.member_id, claimed: claimedMembers(slug) },
+  })
 })
 
-app.get('/api/stream', (req, res) => {
+// La cuenta elige cuál imán es (o crea uno nuevo con su nombre de Google).
+ev.post('/claim', (req, res) => {
+  const slug = currentSlug()
+  let memberId = Number(req.body?.member_id) || null
+  if (memberId) {
+    const exists = db.prepare('SELECT id FROM members WHERE id = ?').get(memberId)
+    if (!exists) return res.status(404).json({ error: 'Ese integrante no existe' })
+    if (claimedMembers(slug).includes(memberId) && req.membership.member_id !== memberId) {
+      return res.status(409).json({ error: 'Ese imán ya es de otra cuenta' })
+    }
+  } else {
+    memberId = addMemberFor(req.user)
+  }
+  setMemberLink(slug, req.user.id, memberId)
+  req.membership = { ...req.membership, member_id: memberId }
+  note(req, 'member', memberId, 'claim', `${req.user.name} entró al evento`)
+  broadcast()
+  res.json({ member_id: memberId })
+})
+
+// Solo quien organiza puede cambiar el código del evento.
+ev.patch('/code', (req, res) => {
+  if (req.membership.role !== 'admin') return res.status(403).json({ error: 'Solo quien organiza puede cambiar el código' })
+  const code = String(req.body?.code || '').trim()
+  if (code.length < 4) return res.status(400).json({ error: 'El código debe tener al menos 4 caracteres' })
+  setEventCode(currentSlug(), code)
+  res.json({ ok: true })
+})
+
+ev.get('/stream', (req, res) => {
+  const slug = currentSlug()
+  const clients = clientsOf(slug)
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache, no-transform',
@@ -287,29 +458,29 @@ app.get('/api/stream', (req, res) => {
     'X-Accel-Buffering': 'no',
   })
   res.write('retry: 3000\n\n')
-  res.write(`data: ${JSON.stringify({ type: 'hello', seq: changeSeq, at: nowIso() })}\n\n`)
-  sseClients.add(res)
+  res.write(`data: ${JSON.stringify({ type: 'hello', seq: seqOf(slug), at: nowIso() })}\n\n`)
+  clients.add(res)
   // Latido con datos (no un comentario) para que la app sepa que la conexión vive.
   const heartbeat = setInterval(() => {
     try {
-      res.write(`data: ${JSON.stringify({ type: 'ping', seq: changeSeq })}\n\n`)
+      res.write(`data: ${JSON.stringify({ type: 'ping', seq: seqOf(slug) })}\n\n`)
     } catch {
       /* se limpia al cerrar */
     }
   }, 25000)
   req.on('close', () => {
     clearInterval(heartbeat)
-    sseClients.delete(res)
+    clients.delete(res)
   })
 })
 
 // ---------- settings ----------
 
-app.patch('/api/settings', (req, res) => {
+ev.patch('/settings', (req, res) => {
   const current = getSettings()
   const body = req.body || {}
   const next = {
-    event_name: text(body.event_name, current.event_name) || 'Al Fin Desayuno',
+    event_name: text(body.event_name, current.event_name) || current.event_name,
     event_date: dateOrNull(body.event_date) ?? current.event_date,
     event_time: text(body.event_time, current.event_time),
     location: text(body.location, current.location),
@@ -328,9 +499,9 @@ app.patch('/api/settings', (req, res) => {
 
 // ---------- members ----------
 
-app.get('/api/members', (_req, res) => res.json(listMembers()))
+ev.get('/members', (_req, res) => res.json(listMembers()))
 
-app.post('/api/members', (req, res) => {
+ev.post('/members', (req, res) => {
   const body = req.body || {}
   const name = text(body.name)
   if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' })
@@ -358,7 +529,7 @@ app.post('/api/members', (req, res) => {
   res.status(201).json({ member: plain(db.prepare('SELECT * FROM members WHERE id = ?').get(id)) })
 })
 
-app.patch('/api/members/:id', (req, res) => {
+ev.patch('/members/:id', (req, res) => {
   const id = Number(req.params.id)
   const current = db.prepare('SELECT * FROM members WHERE id = ?').get(id)
   if (!current) return res.status(404).json({ error: 'Integrante no encontrado' })
@@ -390,13 +561,14 @@ app.patch('/api/members/:id', (req, res) => {
   res.json({ member: plain(db.prepare('SELECT * FROM members WHERE id = ?').get(id)) })
 })
 
-app.delete('/api/members/:id', (req, res) => {
+ev.delete('/members/:id', (req, res) => {
   const id = Number(req.params.id)
   const current = db.prepare('SELECT * FROM members WHERE id = ?').get(id)
   if (!current) return res.status(404).json({ error: 'Integrante no encontrado' })
   // Si era quien recibe los pagos, se quita la designación (si no, el borrado se rechaza).
   db.prepare('UPDATE settings SET treasurer_id = NULL WHERE treasurer_id = ?').run(id)
   db.prepare('DELETE FROM members WHERE id = ?').run(id)
+  clearMemberLink(currentSlug(), id)
   note(req, 'member', id, 'delete', `Retiró a ${current.name} del equipo`)
   broadcast()
   res.json({ ok: true })
@@ -404,9 +576,9 @@ app.delete('/api/members/:id', (req, res) => {
 
 // ---------- tasks ----------
 
-app.get('/api/tasks', (_req, res) => res.json(listTasks()))
+ev.get('/tasks', (_req, res) => res.json(listTasks()))
 
-app.post('/api/tasks', (req, res) => {
+ev.post('/tasks', (req, res) => {
   const body = req.body || {}
   const title = text(body.title)
   if (!title) return res.status(400).json({ error: 'El título es obligatorio' })
@@ -443,7 +615,7 @@ app.post('/api/tasks', (req, res) => {
   res.status(201).json({ task: taskDetail(id) })
 })
 
-app.patch('/api/tasks/:id', (req, res) => {
+ev.patch('/tasks/:id', (req, res) => {
   const id = Number(req.params.id)
   const current = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id)
   if (!current) return res.status(404).json({ error: 'Actividad no encontrada' })
@@ -472,7 +644,7 @@ app.patch('/api/tasks/:id', (req, res) => {
   res.json({ task: taskDetail(id) })
 })
 
-app.delete('/api/tasks/:id', (req, res) => {
+ev.delete('/tasks/:id', (req, res) => {
   const id = Number(req.params.id)
   const current = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id)
   if (!current) return res.status(404).json({ error: 'Actividad no encontrada' })
@@ -482,7 +654,7 @@ app.delete('/api/tasks/:id', (req, res) => {
   res.json({ ok: true })
 })
 
-app.post('/api/tasks/:id/checklist', (req, res) => {
+ev.post('/tasks/:id/checklist', (req, res) => {
   const id = Number(req.params.id)
   const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id)
   if (!task) return res.status(404).json({ error: 'Actividad no encontrada' })
@@ -496,7 +668,7 @@ app.post('/api/tasks/:id/checklist', (req, res) => {
   res.status(201).json({ item: plain(db.prepare('SELECT * FROM checklist_items WHERE id = ?').get(Number(result.lastInsertRowid))) })
 })
 
-app.patch('/api/checklist/:id', (req, res) => {
+ev.patch('/checklist/:id', (req, res) => {
   const id = Number(req.params.id)
   const current = db.prepare('SELECT * FROM checklist_items WHERE id = ?').get(id)
   if (!current) return res.status(404).json({ error: 'Paso no encontrado' })
@@ -523,7 +695,7 @@ app.patch('/api/checklist/:id', (req, res) => {
   res.json({ item: plain(db.prepare('SELECT * FROM checklist_items WHERE id = ?').get(id)) })
 })
 
-app.delete('/api/checklist/:id', (req, res) => {
+ev.delete('/checklist/:id', (req, res) => {
   const id = Number(req.params.id)
   const current = db.prepare('SELECT * FROM checklist_items WHERE id = ?').get(id)
   if (!current) return res.status(404).json({ error: 'Paso no encontrado' })
@@ -548,7 +720,7 @@ function optionDetail(id) {
   }
 }
 
-app.post('/api/tasks/:id/options', (req, res) => {
+ev.post('/tasks/:id/options', (req, res) => {
   const taskId = Number(req.params.id)
   const task = db.prepare('SELECT id, title FROM tasks WHERE id = ?').get(taskId)
   if (!task) return res.status(404).json({ error: 'Actividad no encontrada' })
@@ -574,7 +746,7 @@ app.post('/api/tasks/:id/options', (req, res) => {
   res.status(201).json({ option: optionDetail(optId) })
 })
 
-app.post('/api/options/:id/vote', (req, res) => {
+ev.post('/options/:id/vote', (req, res) => {
   const optionId = Number(req.params.id)
   const opt = db
     .prepare('SELECT o.*, t.title AS task_title FROM task_options o JOIN tasks t ON t.id = o.task_id WHERE o.id = ?')
@@ -610,7 +782,7 @@ app.post('/api/options/:id/vote', (req, res) => {
   res.json({ ok: true, option: optionDetail(optionId) })
 })
 
-app.patch('/api/options/:id/winner', (req, res) => {
+ev.patch('/options/:id/winner', (req, res) => {
   const optionId = Number(req.params.id)
   const opt = db
     .prepare('SELECT o.*, t.title AS task_title FROM task_options o JOIN tasks t ON t.id = o.task_id WHERE o.id = ?')
@@ -636,7 +808,7 @@ app.patch('/api/options/:id/winner', (req, res) => {
   res.json({ ok: true, option: optionDetail(optionId) })
 })
 
-app.delete('/api/options/:id', (req, res) => {
+ev.delete('/options/:id', (req, res) => {
   const optionId = Number(req.params.id)
   const opt = db
     .prepare('SELECT o.*, t.title AS task_title FROM task_options o JOIN tasks t ON t.id = o.task_id WHERE o.id = ?')
@@ -650,9 +822,9 @@ app.delete('/api/options/:id', (req, res) => {
 
 // ---------- agreements ----------
 
-app.get('/api/agreements', (_req, res) => res.json(db.prepare('SELECT * FROM agreements ORDER BY id').all().map(plain)))
+ev.get('/agreements', (_req, res) => res.json(db.prepare('SELECT * FROM agreements ORDER BY id').all().map(plain)))
 
-app.post('/api/agreements', (req, res) => {
+ev.post('/agreements', (req, res) => {
   const body = req.body || {}
   const title = text(body.title)
   if (!title) return res.status(400).json({ error: 'El acuerdo necesita un título' })
@@ -676,7 +848,7 @@ app.post('/api/agreements', (req, res) => {
   res.status(201).json({ agreement: plain(db.prepare('SELECT * FROM agreements WHERE id = ?').get(id)) })
 })
 
-app.patch('/api/agreements/:id', (req, res) => {
+ev.patch('/agreements/:id', (req, res) => {
   const id = Number(req.params.id)
   const current = db.prepare('SELECT * FROM agreements WHERE id = ?').get(id)
   if (!current) return res.status(404).json({ error: 'Acuerdo no encontrado' })
@@ -711,7 +883,7 @@ app.patch('/api/agreements/:id', (req, res) => {
   res.json({ agreement: plain(db.prepare('SELECT * FROM agreements WHERE id = ?').get(id)) })
 })
 
-app.delete('/api/agreements/:id', (req, res) => {
+ev.delete('/agreements/:id', (req, res) => {
   const id = Number(req.params.id)
   const current = db.prepare('SELECT * FROM agreements WHERE id = ?').get(id)
   if (!current) return res.status(404).json({ error: 'Acuerdo no encontrado' })
@@ -723,9 +895,9 @@ app.delete('/api/agreements/:id', (req, res) => {
 
 // ---------- budget ----------
 
-app.get('/api/budget', (_req, res) => res.json(db.prepare('SELECT * FROM budget_items ORDER BY id').all().map(plain)))
+ev.get('/budget', (_req, res) => res.json(db.prepare('SELECT * FROM budget_items ORDER BY id').all().map(plain)))
 
-app.post('/api/budget', (req, res) => {
+ev.post('/budget', (req, res) => {
   const body = req.body || {}
   const concept = text(body.concept)
   if (!concept) return res.status(400).json({ error: 'Escribe el concepto del movimiento' })
@@ -765,7 +937,7 @@ app.post('/api/budget', (req, res) => {
   res.status(201).json({ item: plain(db.prepare('SELECT * FROM budget_items WHERE id = ?').get(id)) })
 })
 
-app.patch('/api/budget/:id', (req, res) => {
+ev.patch('/budget/:id', (req, res) => {
   const id = Number(req.params.id)
   const current = db.prepare('SELECT * FROM budget_items WHERE id = ?').get(id)
   if (!current) return res.status(404).json({ error: 'Movimiento no encontrado' })
@@ -812,7 +984,7 @@ app.patch('/api/budget/:id', (req, res) => {
   res.json({ item: plain(db.prepare('SELECT * FROM budget_items WHERE id = ?').get(id)) })
 })
 
-app.get('/api/budget/:id/receipt', (req, res) => {
+ev.get('/budget/:id/receipt', (req, res) => {
   const row = db.prepare('SELECT receipt_url FROM budget_items WHERE id = ?').get(Number(req.params.id))
   if (!row) return res.status(404).json({ error: 'Movimiento no encontrado' })
   res.setHeader('Cache-Control', 'private, max-age=300')
@@ -820,7 +992,7 @@ app.get('/api/budget/:id/receipt', (req, res) => {
 })
 
 // Cualquier integrante puede validar una constancia después de verla.
-app.post('/api/budget/:id/validate', (req, res) => {
+ev.post('/budget/:id/validate', (req, res) => {
   const id = Number(req.params.id)
   const current = db.prepare('SELECT * FROM budget_items WHERE id = ?').get(id)
   if (!current) return res.status(404).json({ error: 'Movimiento no encontrado' })
@@ -843,7 +1015,7 @@ app.post('/api/budget/:id/validate', (req, res) => {
   res.json({ ok: true })
 })
 
-app.delete('/api/budget/:id', (req, res) => {
+ev.delete('/budget/:id', (req, res) => {
   const id = Number(req.params.id)
   const current = db.prepare('SELECT * FROM budget_items WHERE id = ?').get(id)
   if (!current) return res.status(404).json({ error: 'Movimiento no encontrado' })
@@ -855,7 +1027,7 @@ app.delete('/api/budget/:id', (req, res) => {
 
 // ---------- OCR & quote image scraping ----------
 
-app.post('/api/ocr/scrape', async (req, res) => {
+ev.post('/ocr/scrape', async (req, res) => {
   const image = req.body?.image
   if (!image) return res.status(400).json({ error: 'Falta la imagen para escanear' })
   try {
@@ -869,7 +1041,7 @@ app.post('/api/ocr/scrape', async (req, res) => {
 
 // ---------- activity log / live alerts & kudos ----------
 
-app.post('/api/activity', (req, res) => {
+ev.post('/activity', (req, res) => {
   const body = req.body || {}
   const detail = text(body.detail)
   if (!detail) return res.status(400).json({ error: 'Detalle requerido' })
@@ -883,7 +1055,7 @@ app.post('/api/activity', (req, res) => {
 
 // ---------- presence & traffic tracking (solo coordinación) ----------
 
-app.post('/api/presence', (req, res) => {
+ev.post('/presence', (req, res) => {
   const who = actor(req)
   if (who.id) {
     const viewName = text(req.body?.view, 'Pizarra')
@@ -892,7 +1064,7 @@ app.post('/api/presence', (req, res) => {
   res.json({ ok: true })
 })
 
-app.get('/api/presence/stats', (req, res) => {
+ev.get('/presence/stats', (req, res) => {
   const members = listMembers()
   const presenceList = db.prepare('SELECT * FROM member_presence').all().map(plain)
   const presenceMap = new Map(presenceList.map((p) => [p.member_id, p]))
@@ -953,14 +1125,14 @@ app.get('/api/presence/stats', (req, res) => {
 
 // ---------- import / export ----------
 
-app.get('/api/export', (_req, res) => {
+ev.get('/export', (_req, res) => {
   // El respaldo sí incluye las fotos de constancias.
   const payload = { ...getBootstrap(), budget: listBudget({ full: true }) }
   res.setHeader('Content-Disposition', `attachment; filename="alfin-desayuno-${new Date().toISOString().slice(0, 10)}.json"`)
   res.json(payload)
 })
 
-app.post('/api/import', (req, res) => {
+ev.post('/import', (req, res) => {
   const data = req.body
   if (!data || !Array.isArray(data.members) || !Array.isArray(data.tasks)) {
     return res.status(400).json({ error: 'El archivo no tiene el formato esperado' })
@@ -1112,8 +1284,8 @@ app.post('/api/import', (req, res) => {
   res.json(getBootstrap())
 })
 
-// Si el celular comparte antes de que la app quede instalada en caché, al menos abre Presupuesto.
-app.post('/compartir', (_req, res) => res.redirect(303, '/#/presupuesto'))
+// Si el celular comparte antes de que la app quede instalada en caché, al menos abre la app.
+app.post('/compartir', (_req, res) => res.redirect(303, '/?compartido=0'))
 
 // ---------- static ----------
 
@@ -1131,6 +1303,6 @@ app.use((err, _req, res, _next) => {
 })
 
 app.listen(PORT, HOST, () => {
-  console.log(`[alfin] API y web en http://localhost:${PORT}`)
-  console.log(TEAM_CODE ? '[alfin] Acceso protegido con código del equipo' : '[alfin] Sin código de acceso (define TEAM_CODE para protegerla)')
+  console.log(`[juntada] API y web en http://localhost:${PORT}`)
+  console.log(GOOGLE_CLIENT_ID ? '[juntada] Ingreso con Google activo' : '[juntada] Sin GOOGLE_CLIENT_ID: se entra con el nombre')
 })

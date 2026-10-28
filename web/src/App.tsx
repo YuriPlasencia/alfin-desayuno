@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AppProvider, useStore } from './store'
-import { api } from './api'
-import { Icon, Toasts, type IconName } from './components/ui'
+import { api, platform } from './api'
+import { Avatar, Icon, Toasts, type IconName } from './components/ui'
+import { Brand } from './components/brand'
+import { ClaimScreen, JoinScreen, NoEventScreen } from './components/access'
 
 import { Dashboard } from './views/Dashboard'
 import { Tasks } from './views/Tasks'
@@ -9,6 +11,7 @@ import { Agreements } from './views/Agreements'
 import { Team } from './views/Team'
 import { Budget } from './views/Budget'
 import { Settings } from './views/Settings'
+import { Portal } from './views/Portal'
 import { daysUntil } from './lib/format'
 import { summarize } from './lib/stats'
 
@@ -35,73 +38,52 @@ function readTab(): string {
   return NAV.some((item) => item.id === hash) ? hash : 'inicio'
 }
 
-function Brand() {
+/** Tu cuenta: mis eventos y salir. */
+function AccountMenu() {
+  const { data, actor } = useStore()
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (event: MouseEvent) => !box.current?.contains(event.target as Node) && setOpen(false)
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+  const user = data?.me?.user
+  if (!user) return null
+  const person = actor ?? { name: user.name, color: '#1D3FBF', photo_url: user.picture }
   return (
-    <div className="brand">
-      <span className="brand-mark">
-        <svg viewBox="0 0 32 32" aria-hidden="true">
-          <rect x="3" y="5" width="26" height="20" rx="3" fill="#fff" />
-          <path d="M8 12h9M8 17h6" stroke="#1D3FBF" strokeWidth="2.2" strokeLinecap="round" />
-          <circle cx="22.5" cy="11.5" r="3.2" fill="#E5483A" />
-          <circle cx="21" cy="19" r="3.2" fill="#F2B21B" />
-          <path d="M11 25v3M21 25v3" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-      </span>
-      <span className="brand-text">
-        <strong>Al Fin</strong>
-        <span>Desayuno</span>
-      </span>
-    </div>
-  )
-}
-
-function Gate() {
-  const { unlock } = useStore()
-  const [code, setCode] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!code.trim()) return
-    setBusy(true)
-    setMessage(await unlock(code))
-    setBusy(false)
-  }
-
-  return (
-    <div className="splash">
-      <Brand />
-      <form className="gate" onSubmit={(event) => void submit(event)}>
-        <h1 className="splash-title">Código del equipo</h1>
-        <p className="muted small">Pídeselo a quien coordina el desayuno. Solo lo escribes una vez en este dispositivo.</p>
-        <input
-          className="input gate-input"
-          value={code}
-          onChange={(event) => setCode(event.target.value)}
-          placeholder="Escribe el código"
-          autoComplete="off"
-          autoCapitalize="none"
-          autoFocus
-          aria-label="Código del equipo"
-          aria-invalid={message ? true : undefined}
-          aria-describedby={message ? 'gate-error' : undefined}
-        />
-        {message ? (
-          <p className="gate-error" id="gate-error" role="alert">
-            {message}
+    <div className="account" ref={box}>
+      <button type="button" className="actor" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <Avatar member={person} size="sm" />
+        <span className="account-name">{person.name.split(' ')[0]}</span>
+        <Icon name="chevronDown" size={14} />
+      </button>
+      {open ? (
+        <div className="share-menu account-menu" role="menu">
+          <p className="account-who">
+            <strong>{user.name}</strong>
+            {user.email ? <span className="muted small">{user.email}</span> : null}
           </p>
-        ) : null}
-        <button className="btn btn-primary btn-md" type="submit" disabled={busy || !code.trim()}>
-          {busy ? 'Comprobando…' : 'Entrar a la pizarra'}
-        </button>
-      </form>
+          <a role="menuitem" className="share-item" href="/">
+            <Icon name="home" size={15} /> Mis eventos
+          </a>
+          <button
+            role="menuitem"
+            type="button"
+            className="share-item"
+            onClick={() => void platform.logout().finally(() => (window.location.href = '/'))}
+          >
+            <Icon name="x" size={15} /> Cerrar sesión
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }
 
 function Shell() {
-  const { data, loading, error, offline, live, locked, actor, setActor, refresh } = useStore()
+  const { slug, data, loading, error, offline, live, gate, actor, refresh } = useStore()
   const [tab, setTab] = useState(readTab)
 
   useEffect(() => {
@@ -109,6 +91,10 @@ function Shell() {
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
+
+  useEffect(() => {
+    if (gate === 'login') window.location.href = `/?next=${encodeURIComponent(`/e/${slug}`)}`
+  }, [gate, slug])
 
   useEffect(() => {
     if (!actor?.id) return
@@ -120,6 +106,9 @@ function Shell() {
     return () => clearInterval(timer)
   }, [actor?.id, tab])
 
+  useEffect(() => {
+    if (data?.settings.event_name) document.title = `${data.settings.event_name} · Juntada`
+  }, [data?.settings.event_name])
 
   const go = (next: string) => {
     setTab(next)
@@ -139,13 +128,15 @@ function Shell() {
   const days = data?.settings.event_date ? daysUntil(data.settings.event_date) : null
   const pct = useMemo(() => (data ? Math.round(summarize(data).overall * 100) : 0), [data])
 
-  if (locked) return <Gate />
+  if (gate === 'join') return <JoinScreen slug={slug} />
+  if (gate === 'no-event') return <NoEventScreen />
+  if (gate === 'claim' && data?.me) return <ClaimScreen />
 
-  if (!data) {
+  if (!data || gate === 'login') {
     return (
       <div className="splash">
         <Brand />
-        {loading ? (
+        {loading || gate === 'login' ? (
           <>
             <span className="spinner" />
             <p className="muted small">Armando la pizarra…</p>
@@ -168,7 +159,9 @@ function Shell() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <Brand />
+        <a href="/" className="brand-link" title="Mis eventos">
+          <Brand subtitle={data.settings.event_name} />
+        </a>
         <nav className="nav">
           {NAV.map((item) => (
             <button key={item.id} className={`nav-item ${tab === item.id ? 'is-active' : ''}`} onClick={() => go(item.id)}>
@@ -182,7 +175,7 @@ function Shell() {
         <div className={`sidebar-card ${tab === 'inicio' ? 'is-hidden' : ''}`}>
           <p className="sidebar-days">
             {days === null ? '—' : Math.max(0, days)}
-            <span>{days === 1 ? 'día' : 'días'} para el desayuno</span>
+            <span>{days === 1 ? 'día' : 'días'} para el evento</span>
           </p>
           <div className="sidebar-meter" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Avance del equipo">
             <i style={{ width: `${pct}%` }} />
@@ -196,9 +189,9 @@ function Shell() {
       <div className="main-col">
         <header className="topbar">
           <div className="topbar-left">
-            <span className="mobile-brand">
+            <a href="/" className="mobile-brand" title="Mis eventos">
               <Brand />
-            </span>
+            </a>
             <span className="topbar-title">{data.settings.event_name}</span>
             {data.settings.event_date ? (
               <span className="topbar-date">
@@ -208,24 +201,7 @@ function Shell() {
           </div>
           <div className="topbar-right">
             <span className={`live-dot ${live ? 'is-live' : ''}`} title={live ? 'Sincronizado en vivo' : 'Reconectando…'} />
-            <label className="actor">
-              {actor ? <span className="magnet-dot" style={{ background: actor.color }} /> : <span className="magnet-dot is-empty" />}
-              <select
-                value={actor?.id ?? ''}
-                onChange={(event) => {
-                  const next = data.members.find((member) => member.id === Number(event.target.value)) || null
-                  setActor(next)
-                }}
-                aria-label="Quién eres"
-              >
-                <option value="">Elige tu imán</option>
-                {data.members.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <AccountMenu />
             <button className="icon-btn only-mobile" onClick={() => go('ajustes')} aria-label="Ajustes">
               <Icon name="settings" size={18} />
             </button>
@@ -258,9 +234,17 @@ function Shell() {
   )
 }
 
+/** /e/<slug> es un evento; cualquier otra dirección es la portada de Juntada. */
+function eventSlugFromPath(): string | null {
+  const match = window.location.pathname.match(/^\/e\/([a-z0-9-]+)\/?$/)
+  return match ? match[1] : null
+}
+
 export default function App() {
+  const slug = eventSlugFromPath()
+  if (!slug) return <Portal />
   return (
-    <AppProvider>
+    <AppProvider slug={slug}>
       <Shell />
     </AppProvider>
   )

@@ -11,7 +11,7 @@
     "build": "vite build",
     "start": "node server/index.js",
     "typecheck": "tsc --noEmit",
-    "reset-demo": "node server/seed.js --reset",
+    "reset-demo": "node server/seed.js --reset demo",
     "shots": "node scripts/shots.mjs"
   },
   "engines": {

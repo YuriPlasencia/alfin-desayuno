@@ -16,6 +16,7 @@ import { TrafficMonitor } from '../components/TrafficMonitor'
 import { PhotoField } from '../components/photo'
 import { AREAS, AREA_COLORS, type Bootstrap, type Member } from '../types'
 import { summarize } from '../lib/stats'
+import { formatLongDate } from '../lib/format'
 
 const COLOR_OPTIONS = ['#E4572E', '#D98E04', '#2F8F5B', '#3B6EA5', '#8B5CF6', '#C2412D', '#0E7490', '#A16207', '#DB2777', '#475569']
 
@@ -34,20 +35,17 @@ export function Team() {
   const remove = (member: Member) => retireMember(member, data, mutate)
 
   const copyRsvpInvite = async () => {
-    const text = `🥐 *¡LLEGA EL DESAYUNO DE INTEGRACIÓN ALFIN!*
-📅 *Fecha:* ${data.settings.event_date || 'Por confirmar'} · ${data.settings.event_time || '08:30 a.m.'}
-📍 *Lugar:* ${data.settings.location || 'Local Comunal'}
-👥 *Comensales:* 80 colaboradores de todas las áreas
-
-🥖 *Menú Criollo:*
-• Pan con chicharrón caliente con camote frito y salsa criolla
-• Tamal criollo de cerdo
-• Café pasado de Chanchamayo, jugo de naranja y fruta de estación
-
-⚠️ *¿Tienes alguna dieta especial o restricción médica?*
-Contamos con opciones vegetarianas y sin gluten/lactosa. Por favor avisa a Ana Torres o Fiorella Núñez para tener tu plato especial listo.
-
-¡Te esperamos para compartir una gran mañana de equipo!`
+    const st = data.settings
+    const text = [
+      `🎉 *¡Te esperamos en ${st.event_name}!*`,
+      `📅 *Fecha:* ${st.event_date ? formatLongDate(st.event_date) : 'Por confirmar'}${st.event_time ? ` · ${st.event_time}` : ''}`,
+      `📍 *Lugar:* ${st.location || 'Por confirmar'}`,
+      st.guests ? `👥 *Invitados:* ${st.guests}` : '',
+      st.note ? `\n${st.note}` : '',
+      `\n¿Tienes alguna dieta especial o restricción? Avísale al equipo organizador.`,
+    ]
+      .filter(Boolean)
+      .join('\n')
 
     try {
       await navigator.clipboard.writeText(text)

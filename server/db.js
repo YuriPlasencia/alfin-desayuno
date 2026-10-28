@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import fs from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -8,170 +9,224 @@ export const DATA_DIR = process.env.DATA_DIR || path.join(here, '..', 'data')
 
 fs.mkdirSync(DATA_DIR, { recursive: true })
 
-export const db = new DatabaseSync(path.join(DATA_DIR, 'alfin.db'))
+const EVENTS_DIR = path.join(DATA_DIR, 'events')
+fs.mkdirSync(EVENTS_DIR, { recursive: true })
 
-db.exec(`
-  PRAGMA journal_mode = WAL;
-  PRAGMA foreign_keys = ON;
+/*
+ * Cada evento (p. ej. "Al Fin Desayuno · Octubre 2026") vive en su propia base SQLite:
+ * data/events/<slug>.db. Las rutas corren dentro de runInEvent(slug, …) y el `db`
+ * exportado apunta a la base del evento en curso, así el resto del código no cambia.
+ */
+const eventScope = new AsyncLocalStorage()
+const openDbs = new Map()
 
-  CREATE TABLE IF NOT EXISTS settings (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    event_name TEXT NOT NULL DEFAULT 'Al Fin Desayuno',
-    event_date TEXT NOT NULL DEFAULT '',
-    event_time TEXT NOT NULL DEFAULT '',
-    location TEXT NOT NULL DEFAULT '',
-    guests INTEGER NOT NULL DEFAULT 80,
-    team_size INTEGER NOT NULL DEFAULT 16,
-    note TEXT NOT NULL DEFAULT '',
-    updated_at TEXT NOT NULL DEFAULT ''
-  );
+export const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,58}[a-z0-9])?$/
 
-  CREATE TABLE IF NOT EXISTS members (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT '',
-    area TEXT NOT NULL DEFAULT '',
-    phone TEXT NOT NULL DEFAULT '',
-    email TEXT NOT NULL DEFAULT '',
-    color TEXT NOT NULL DEFAULT '#E4572E',
-    is_lead INTEGER NOT NULL DEFAULT 0,
-    position INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    detail TEXT NOT NULL DEFAULT '',
-    area TEXT NOT NULL DEFAULT 'Coordinación',
-    status TEXT NOT NULL DEFAULT 'pendiente',
-    priority TEXT NOT NULL DEFAULT 'media',
-    due_date TEXT,
-    position INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS task_assignees (
-    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-    member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-    PRIMARY KEY (task_id, member_id)
-  );
-
-  CREATE TABLE IF NOT EXISTS checklist_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    done INTEGER NOT NULL DEFAULT 0,
-    position INTEGER NOT NULL DEFAULT 0,
-    done_by INTEGER,
-    done_at TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS agreements (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    detail TEXT NOT NULL DEFAULT '',
-    status TEXT NOT NULL DEFAULT 'propuesto',
-    owner_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
-    due_date TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS budget_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    kind TEXT NOT NULL DEFAULT 'gasto',
-    concept TEXT NOT NULL,
-    amount REAL NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'pendiente',
-    owner_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
-    due_date TEXT,
-    note TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS activity_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    actor_id INTEGER,
-    actor_name TEXT NOT NULL DEFAULT '',
-    entity TEXT NOT NULL DEFAULT '',
-    entity_id INTEGER,
-    action TEXT NOT NULL DEFAULT '',
-    detail TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS task_options (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    detail TEXT NOT NULL DEFAULT '',
-    price REAL NOT NULL DEFAULT 0,
-    image_url TEXT NOT NULL DEFAULT '',
-    created_by INTEGER REFERENCES members(id) ON DELETE SET NULL,
-    created_by_name TEXT NOT NULL DEFAULT '',
-    is_winner INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS task_option_votes (
-    option_id INTEGER NOT NULL REFERENCES task_options(id) ON DELETE CASCADE,
-    member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-    created_at TEXT NOT NULL,
-    PRIMARY KEY (option_id, member_id)
-  );
-
-  CREATE TABLE IF NOT EXISTS member_presence (
-    member_id INTEGER PRIMARY KEY REFERENCES members(id) ON DELETE CASCADE,
-    last_seen_at TEXT NOT NULL,
-    device TEXT NOT NULL DEFAULT '',
-    user_agent TEXT NOT NULL DEFAULT '',
-    total_visits INTEGER NOT NULL DEFAULT 1,
-    last_view TEXT NOT NULL DEFAULT ''
-  );
-
-  CREATE TABLE IF NOT EXISTS page_views (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    member_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
-    member_name TEXT NOT NULL DEFAULT '',
-    view_name TEXT NOT NULL DEFAULT '',
-    device TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL
-  );
-`)
-
-try {
-  db.exec('ALTER TABLE settings ADD COLUMN treasurer_id INTEGER REFERENCES members(id);')
-} catch {
-  /* columna ya existe */
+export function eventDbPath(slug) {
+  return path.join(EVENTS_DIR, `${slug}.db`)
 }
 
-try {
-  db.exec('ALTER TABLE budget_items ADD COLUMN receipt_url TEXT NOT NULL DEFAULT "";')
-} catch {
-  /* columna ya existe */
+export function openEventDb(slug) {
+  if (!SLUG_PATTERN.test(slug)) throw new Error('Evento no válido')
+  let conn = openDbs.get(slug)
+  if (!conn) {
+    conn = new DatabaseSync(eventDbPath(slug))
+    initSchema(conn)
+    openDbs.set(slug, conn)
+  }
+  return conn
 }
 
-// Columnas añadidas después: se agregan solo si faltan.
-function addColumn(table, column, definition) {
-  const exists = db.prepare(`PRAGMA table_info(${table})`).all().some((col) => col.name === column)
-  if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`)
-  return !exists
+export function runInEvent(slug, fn) {
+  return eventScope.run({ slug, db: openEventDb(slug) }, fn)
 }
 
-addColumn('members', 'photo_url', "TEXT NOT NULL DEFAULT ''")
-addColumn('budget_items', 'category', "TEXT NOT NULL DEFAULT ''")
-addColumn('budget_items', 'validated_by', 'INTEGER REFERENCES members(id) ON DELETE SET NULL')
-addColumn('budget_items', 'validated_at', 'TEXT')
-// Presupuesto inicial ('plan') vs ejecución ('real'). Al crear la columna, lo pendiente y
-// sin constancia se toma como partida del presupuesto inicial; lo demás, como ejecución.
-if (addColumn('budget_items', 'stage', "TEXT NOT NULL DEFAULT 'real'")) {
-  db.exec("UPDATE budget_items SET stage = 'plan' WHERE status = 'pendiente' AND receipt_url = '' AND category = ''")
+export function currentSlug() {
+  return eventScope.getStore()?.slug ?? null
 }
-addColumn('budget_items', 'plan_id', 'INTEGER REFERENCES budget_items(id) ON DELETE SET NULL')
-// Foto de actividad (cotización) usada como constancia del gasto: evita registrarla dos veces.
-addColumn('budget_items', 'option_id', 'INTEGER REFERENCES task_options(id) ON DELETE SET NULL')
+
+export const db = new Proxy(
+  {},
+  {
+    get(_target, prop) {
+      const scope = eventScope.getStore()
+      if (!scope) throw new Error('No hay un evento activo')
+      const value = scope.db[prop]
+      return typeof value === 'function' ? value.bind(scope.db) : value
+    },
+  },
+)
+
+function initSchema(conn) {
+  conn.exec(`
+    PRAGMA journal_mode = WAL;
+    PRAGMA foreign_keys = ON;
+
+    CREATE TABLE IF NOT EXISTS settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      event_name TEXT NOT NULL DEFAULT 'Al Fin Desayuno',
+      event_date TEXT NOT NULL DEFAULT '',
+      event_time TEXT NOT NULL DEFAULT '',
+      location TEXT NOT NULL DEFAULT '',
+      guests INTEGER NOT NULL DEFAULT 80,
+      team_size INTEGER NOT NULL DEFAULT 16,
+      note TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT '',
+      area TEXT NOT NULL DEFAULT '',
+      phone TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      color TEXT NOT NULL DEFAULT '#E4572E',
+      is_lead INTEGER NOT NULL DEFAULT 0,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      detail TEXT NOT NULL DEFAULT '',
+      area TEXT NOT NULL DEFAULT 'Coordinación',
+      status TEXT NOT NULL DEFAULT 'pendiente',
+      priority TEXT NOT NULL DEFAULT 'media',
+      due_date TEXT,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS task_assignees (
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+      PRIMARY KEY (task_id, member_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS checklist_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      done INTEGER NOT NULL DEFAULT 0,
+      position INTEGER NOT NULL DEFAULT 0,
+      done_by INTEGER,
+      done_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS agreements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      detail TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'propuesto',
+      owner_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
+      due_date TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS budget_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind TEXT NOT NULL DEFAULT 'gasto',
+      concept TEXT NOT NULL,
+      amount REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pendiente',
+      owner_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
+      due_date TEXT,
+      note TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actor_id INTEGER,
+      actor_name TEXT NOT NULL DEFAULT '',
+      entity TEXT NOT NULL DEFAULT '',
+      entity_id INTEGER,
+      action TEXT NOT NULL DEFAULT '',
+      detail TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS task_options (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      detail TEXT NOT NULL DEFAULT '',
+      price REAL NOT NULL DEFAULT 0,
+      image_url TEXT NOT NULL DEFAULT '',
+      created_by INTEGER REFERENCES members(id) ON DELETE SET NULL,
+      created_by_name TEXT NOT NULL DEFAULT '',
+      is_winner INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS task_option_votes (
+      option_id INTEGER NOT NULL REFERENCES task_options(id) ON DELETE CASCADE,
+      member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (option_id, member_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS member_presence (
+      member_id INTEGER PRIMARY KEY REFERENCES members(id) ON DELETE CASCADE,
+      last_seen_at TEXT NOT NULL,
+      device TEXT NOT NULL DEFAULT '',
+      user_agent TEXT NOT NULL DEFAULT '',
+      total_visits INTEGER NOT NULL DEFAULT 1,
+      last_view TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS page_views (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      member_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
+      member_name TEXT NOT NULL DEFAULT '',
+      view_name TEXT NOT NULL DEFAULT '',
+      device TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    );
+  `)
+
+  try {
+    conn.exec('ALTER TABLE settings ADD COLUMN treasurer_id INTEGER REFERENCES members(id);')
+  } catch {
+    /* columna ya existe */
+  }
+
+  try {
+    conn.exec('ALTER TABLE budget_items ADD COLUMN receipt_url TEXT NOT NULL DEFAULT "";')
+  } catch {
+    /* columna ya existe */
+  }
+
+  // Columnas añadidas después: se agregan solo si faltan.
+  function addColumn(table, column, definition) {
+    const exists = conn.prepare(`PRAGMA table_info(${table})`).all().some((col) => col.name === column)
+    if (!exists) conn.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`)
+    return !exists
+  }
+
+  addColumn('members', 'photo_url', "TEXT NOT NULL DEFAULT ''")
+  addColumn('budget_items', 'category', "TEXT NOT NULL DEFAULT ''")
+  addColumn('budget_items', 'validated_by', 'INTEGER REFERENCES members(id) ON DELETE SET NULL')
+  addColumn('budget_items', 'validated_at', 'TEXT')
+  // Presupuesto inicial ('plan') vs ejecución ('real'). Al crear la columna, lo pendiente y
+  // sin constancia se toma como partida del presupuesto inicial; lo demás, como ejecución.
+  if (addColumn('budget_items', 'stage', "TEXT NOT NULL DEFAULT 'real'")) {
+    conn.exec("UPDATE budget_items SET stage = 'plan' WHERE status = 'pendiente' AND receipt_url = '' AND category = ''")
+  }
+  addColumn('budget_items', 'plan_id', 'INTEGER REFERENCES budget_items(id) ON DELETE SET NULL')
+  // Foto de actividad (cotización) usada como constancia del gasto: evita registrarla dos veces.
+  addColumn('budget_items', 'option_id', 'INTEGER REFERENCES task_options(id) ON DELETE SET NULL')
+
+  linkReceiptsToPhotos(conn)
+  // Cuotas cargadas con "Movimiento" (concepto "Cuota…") antes de que se marcaran solas.
+  conn.exec(
+    "UPDATE budget_items SET category = 'cuota' WHERE kind = 'ingreso' AND stage = 'real' AND category = '' AND lower(concept) LIKE '%cuota%'",
+  )
+}
 
 /**
  * Vincula cada gasto con la foto de actividad que usa como constancia, aunque se haya
@@ -179,8 +234,8 @@ addColumn('budget_items', 'option_id', 'INTEGER REFERENCES task_options(id) ON D
  * 2000 caracteres (antes de corregirlo) coinciden con el inicio de la foto: se reparan
  * con la imagen completa.
  */
-export function linkReceiptsToPhotos() {
-  db.exec(`
+export function linkReceiptsToPhotos(conn = db) {
+  conn.exec(`
     UPDATE budget_items
     SET option_id = (
       SELECT o.id FROM task_options o
@@ -200,12 +255,6 @@ export function linkReceiptsToPhotos() {
       AND receipt_url = substr((SELECT o.image_url FROM task_options o WHERE o.id = budget_items.option_id), 1, length(receipt_url));
   `)
 }
-linkReceiptsToPhotos()
-// Cuotas cargadas con "Movimiento" (concepto "Cuota…") antes de que se marcaran solas.
-db.exec(
-  "UPDATE budget_items SET category = 'cuota' WHERE kind = 'ingreso' AND stage = 'real' AND category = '' AND lower(concept) LIKE '%cuota%'",
-)
-
 
 export const nowIso = () => new Date().toISOString()
 
@@ -232,9 +281,9 @@ export function getSettings() {
   if (row) return plain(row)
   const seed = {
     id: 1,
-    event_name: 'Al Fin Desayuno',
+    event_name: 'Nuevo evento',
     event_date: '',
-    event_time: '08:30',
+    event_time: '',
     location: '',
     guests: 80,
     team_size: 16,

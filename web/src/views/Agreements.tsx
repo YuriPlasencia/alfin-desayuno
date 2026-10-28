@@ -59,7 +59,7 @@ export function Agreements() {
           <div className="btn-group">
             {data.agreements.length > 0 ? (
               <ShareButton
-                title="Acuerdos del desayuno"
+                title={`Acuerdos · ${data.settings.event_name}`}
                 label="Compartir acuerdos"
                 text={() => {
                   const groups = ORDER.map((status) => {

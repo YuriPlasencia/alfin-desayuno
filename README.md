@@ -1,6 +1,31 @@
-# Al Fin Desayuno
+# Juntada
 
-Aplicativo web (y PWA instalable en Android) para organizar en equipo el desayuno de **80 invitados** con **16 personas** a cargo: acuerdos, actividades con checklist, responsables, avance y presupuesto.
+**Juntada** es la app para armar eventos en equipo: actividades con responsables y checklist, acuerdos, cuotas por Yape o Plin con su constancia, gastos con boleta y el saldo de la caja, en una pizarra que todos ven en vivo. Funciona en la web y se instala en el celular.
+
+Cada evento es independiente: **Al Fin Desayuno · Octubre 2026** fue el primero, y otro equipo puede crear **Al Fin Desayuno · Noviembre 2026** (o un aniversario, un paseo…) con todas las funciones y su propio código.
+
+---
+
+## 0. Cómo funciona Juntada
+
+1. **Entrar:** con la cuenta de Google (si está configurada) o con el nombre.
+2. **Tus eventos:** la portada muestra los eventos de la persona; puede **crear uno** (queda como organizador) o **unirse** con el enlace que le pasaron.
+3. **Código del evento:** la primera vez que alguien entra a un evento se le pide su código. El organizador lo cambia en **Ajustes → Invitar al equipo**, donde también está el enlace para compartir.
+4. **¿Quién eres?:** al entrar por primera vez, la persona elige su nombre en la lista del equipo (o se agrega). Desde ahí sus cambios quedan firmados con su nombre, sin tener que elegirlo de nuevo.
+
+Cada evento guarda sus datos en su propia base (`data/events/<evento>.db`); las cuentas y los eventos están en `data/juntada.db`.
+
+**Paso desde Al Fin Desayuno:** al arrancar Juntada por primera vez, la base anterior (`data/alfin.db`) se copia como el evento `al-fin-desayuno-octubre-2026`, con todo lo cargado. Su código es el `TEAM_CODE` que ya usaban (o uno generado, que aparece en el log). El original no se borra.
+
+### Ingreso con Google (una vez)
+
+1. Entra a [console.cloud.google.com](https://console.cloud.google.com), crea un proyecto (p. ej. "Juntada").
+2. **APIs y servicios → Pantalla de consentimiento de OAuth:** tipo *Externo*, nombre "Juntada" y tu correo.
+3. **Credenciales → Crear credenciales → ID de cliente de OAuth → Aplicación web.**
+4. En **Orígenes de JavaScript autorizados** agrega la dirección de la app (p. ej. `https://alfin-desayuno.onrender.com`) y, para probar en local, `http://localhost:5173`.
+5. Copia el **ID de cliente** (termina en `.apps.googleusercontent.com`) y ponlo en Render como `GOOGLE_CLIENT_ID`.
+
+Sin `GOOGLE_CLIENT_ID` la app deja entrar solo con el nombre (cómodo para probar en local).
 
 ---
 
@@ -64,10 +89,10 @@ Otros comandos:
 
 ```bash
 npm run typecheck    # revisa tipos de TypeScript
-npm run reset-demo   # vuelve a cargar los datos de ejemplo
+npm run reset-demo   # crea/recarga el evento de ejemplo "demo" (código: demo) en http://localhost:5173/e/demo
 ```
 
-La base de datos queda en `data/alfin.db` (SQLite). Bórrala si quieres empezar de cero.
+Las bases quedan en `data/` (SQLite): `juntada.db` (cuentas y eventos) y `events/<evento>.db` (uno por evento). Bórralas si quieres empezar de cero.
 
 ### Abrirlo desde otros celulares de la red
 

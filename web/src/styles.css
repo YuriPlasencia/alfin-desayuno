@@ -3555,6 +3555,310 @@ select {
   }
 }
 
+/* ---------- Juntada: portada, eventos y acceso ---------- */
+
+.brand-link {
+  display: block;
+  border-radius: 12px;
+}
+
+.brand-text span {
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal {
+  min-height: 100vh;
+  background: var(--frame);
+}
+
+.portal-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 28px;
+  background: var(--rail);
+  color: #fff;
+}
+
+.portal-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.portal-user-name {
+  font-weight: 700;
+}
+
+.portal-user .btn-ghost {
+  color: var(--rail-ink);
+}
+
+.portal-user .btn-ghost:hover {
+  background: var(--rail-2);
+  color: #fff;
+}
+
+.portal-main {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 32px 28px 64px;
+}
+
+.splash-inline {
+  display: grid;
+  place-items: center;
+  min-height: 40vh;
+}
+
+.portal-login {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 28px;
+  align-items: start;
+}
+
+.portal-hero {
+  margin: 8px;
+}
+
+.portal-points {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 22px;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+
+.portal-points li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.portal-points svg {
+  flex: none;
+  color: var(--blue);
+}
+
+.portal-access {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.google-btn {
+  min-height: 44px;
+}
+
+.portal-name {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.portal-or {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--muted);
+  text-align: center;
+}
+
+.event-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.event-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  background: var(--board);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.event-card:hover {
+  border-color: var(--blue-line);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.event-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.event-days {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--red-ink);
+}
+
+.event-days.is-past {
+  color: var(--muted);
+}
+
+.event-card-name {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--blue);
+}
+
+.event-card-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--blue);
+}
+
+.gate-kicker {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.gate-back {
+  align-self: center;
+}
+
+.gate.claim {
+  width: min(440px, 100%);
+}
+
+.claim-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 46vh;
+  overflow-y: auto;
+  margin: 4px -4px;
+  padding: 4px;
+}
+
+.claim-list button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 6px 12px 6px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--board);
+  font-size: 15px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.claim-list button span:nth-child(2) {
+  flex: 1;
+}
+
+.claim-list button svg {
+  color: var(--muted);
+}
+
+.claim-list button:hover:not(:disabled) {
+  border-color: var(--blue);
+}
+
+.account {
+  position: relative;
+}
+
+.account .actor {
+  gap: 6px;
+  padding-right: 10px;
+}
+
+.account-name {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.account-menu {
+  min-width: 230px;
+}
+
+.account-who {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.invite-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.invite-link {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--well);
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
+
+.invite-code {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.invite-code .field {
+  flex: 1;
+  min-width: 220px;
+}
+
+@media (max-width: 860px) {
+  .portal-login {
+    grid-template-columns: 1fr;
+  }
+
+  /* En el celular, primero el cuadro para entrar (sobre todo si llega por invitación) */
+  .portal-access {
+    order: -1;
+  }
+
+  .portal-main {
+    padding: 20px 14px 48px;
+  }
+
+  .portal-top {
+    padding: 12px 14px;
+  }
+
+  .portal-top .brand-text span {
+    display: none;
+  }
+}
+
 /* ============================================================
    Responsive
    ============================================================ */

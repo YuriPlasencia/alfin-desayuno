@@ -1,4 +1,4 @@
-# Blueprint de Render para Al Fin Desayuno.
+# Blueprint de Render para Juntada.
 # En Render: New → Blueprint → elige este repositorio. Te pedirá el valor de TEAM_CODE.
 services:
   - type: web
@@ -15,7 +15,11 @@ services:
         value: "22"
       - key: DATA_DIR
         value: /data
+      # Código del evento Al Fin Desayuno al pasar a Juntada (luego se cambia en Ajustes)
       - key: TEAM_CODE
+        sync: false
+      # Ingreso con Google (Google Cloud → Credenciales → ID de cliente OAuth web)
+      - key: GOOGLE_CLIENT_ID
         sync: false
     disk:
       name: alfin-data

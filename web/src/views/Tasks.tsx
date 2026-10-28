@@ -694,7 +694,7 @@ function TaskEditor({ task, members, onClose }: { task: Task | null; members: Me
     >
       <div className="form-grid">
         <Field label="Título de la actividad">
-          <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ej. Comprar insumos del desayuno" autoFocus />
+          <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ej. Comprar los insumos" autoFocus />
         </Field>
         <Field label="Área">
           <Select value={area} onChange={(event) => setArea(event.target.value)}>

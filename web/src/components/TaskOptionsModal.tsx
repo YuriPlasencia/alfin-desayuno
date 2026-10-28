@@ -337,7 +337,7 @@ export function TaskOptionsModal({
                   {me ? (
                     <>Tu imán: <strong style={{ color: me.color }}>{me.name}</strong></>
                   ) : (
-                    'Elige tu imán arriba para firmar tu voto'
+                    'Elige quién eres en el evento para votar'
                   )}
                 </span>
               </div>

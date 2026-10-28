@@ -1,4 +1,4 @@
-import { db, nowIso, logActivity } from './db.js'
+import { db, runInEvent, nowIso, logActivity } from './db.js'
 
 const COLORS = ['#E4572E', '#D98E04', '#2F8F5B', '#3B6EA5', '#8B5CF6', '#C2412D', '#0E7490', '#A16207']
 
@@ -409,9 +409,13 @@ export function seedDemo({ force = false } = {}) {
   }
 }
 
+// Uso: node server/seed.js [--reset] [slug]  → evento de ejemplo (código "demo").
 const isCli = process.argv[1] && process.argv[1].endsWith('seed.js')
 if (isCli) {
   const force = process.argv.includes('--reset')
-  const created = seedDemo({ force })
-  console.log(created ? 'Datos de ejemplo cargados.' : 'Ya existen datos; usa --reset para reiniciar.')
+  const slug = process.argv.slice(2).find((arg) => !arg.startsWith('-')) || 'demo'
+  const { registerEvent } = await import('./platform.js')
+  registerEvent(slug, 'demo')
+  const created = runInEvent(slug, () => seedDemo({ force }))
+  console.log(created ? `Datos de ejemplo cargados en el evento "${slug}" (código: demo).` : 'Ya existen datos; usa --reset para reiniciar.')
 }

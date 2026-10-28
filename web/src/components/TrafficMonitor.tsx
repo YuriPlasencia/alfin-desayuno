@@ -15,7 +15,7 @@ function getDeviceIcon(device: string): string {
 }
 
 export function TrafficMonitor() {
-  const { toast } = useStore()
+  const { data, toast } = useStore()
   const [stats, setStats] = useState<PresenceStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'online' | 'today' | 'never'>('all')
@@ -67,12 +67,12 @@ export function TrafficMonitor() {
     if (!stats) return
     const names = neverMembers.map((m) => m.name.split(' ')[0]).join(', ')
     const appUrl = window.location.origin + window.location.pathname
-    const text = `¡Hola equipo! 👋 Ya tenemos lista y activa la app de la pizarra digital del Desayuno Alfin para coordinar actividades, ver fotos del local y votar el menú 🥐☕
+    const text = `¡Hola equipo! 👋 Ya está lista la pizarra de *${data?.settings.event_name || 'nuestro evento'}* en Juntada para coordinar actividades, acuerdos y cuotas.
 
 📲 Entren desde su celular o compu aquí:
 ${appUrl}
 
-👉 Al entrar, solo elijan su nombre en "Elige tu imán" para que quede registrada su participación.
+👉 Entran con su cuenta de Google, escriben el código del evento y eligen su nombre.
 ${neverMembers.length > 0 ? `\nFaltan ingresar: ${names}` : ''}
 
 ¡Gracias por el apoyo de todos!`

@@ -137,6 +137,15 @@ export interface Bootstrap {
   serverTime: string
   /** Contador de cambios del servidor (para notar avisos perdidos). */
   seq?: number
+  slug?: string
+  /** La cuenta que entra: su rol en el evento y qué imán es. */
+  me?: {
+    user: User
+    role: 'admin' | 'member'
+    member_id: number | null
+    /** Imanes ya ligados a alguna cuenta. */
+    claimed: number[]
+  }
 }
 
 export const AREAS = [
@@ -212,3 +221,20 @@ export interface ScrapedQuote {
 }
 
 
+
+export interface User {
+  id: number
+  email: string
+  name: string
+  picture: string
+}
+
+/** Un evento de Juntada, como se ve en "Tus eventos". */
+export interface EventSummary {
+  slug: string
+  name: string
+  date: string
+  time: string
+  location: string
+  role?: 'admin' | 'member'
+}

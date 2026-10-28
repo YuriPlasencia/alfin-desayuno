@@ -108,7 +108,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (tab: string) => void })
 
   const sendKudo = async () => {
     if (!kudoNote.trim()) return
-    const who = actor?.name || 'Compañero Alfin'
+    const who = actor?.name || 'Alguien del equipo'
     setSendingKudo(true)
     try {
       await api.logActivity({
@@ -127,15 +127,17 @@ export function Dashboard({ onNavigate }: { onNavigate: (tab: string) => void })
 
   return (
     <div className="stack">
-      <section className="board board-hero" aria-label="Resumen del desayuno">
+      <section className="board board-hero" aria-label="Resumen del evento">
         <div className="board-head">
           <div>
             <div className="title-row">
-              <h1 className="board-title">Desayuno · {eventDate ? shortDate.format(eventDate).replace('.', '') : 'fecha por definir'}</h1>
+              <h1 className="board-title">
+                {settings.event_name} · {eventDate ? shortDate.format(eventDate).replace('.', '') : 'fecha por definir'}
+              </h1>
               <button
                 className={`runway-toggle-btn ${activeMode ? 'is-active' : ''}`}
                 onClick={() => setDayMode(!activeMode)}
-                title="Activar vista de escaleta y urgencias para el día del desayuno"
+                title="Activar vista de escaleta y urgencias para el día del evento"
               >
                 <Icon name="sparkles" size={15} />
                 <span>{activeMode ? 'Modo Día D activo' : 'Ver Modo Día D'}</span>
@@ -228,7 +230,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (tab: string) => void })
             <div className="runway-head">
               <div>
                 <span className="runway-tag">
-                  <span className="live-dot is-live" /> EN VIVO · DÍA DEL DESAYUNO
+                  <span className="live-dot is-live" /> EN VIVO · DÍA DEL EVENTO
                 </span>
                 <h2 className="runway-title">Escaleta y coordinación horaria</h2>
                 <p className="small muted">

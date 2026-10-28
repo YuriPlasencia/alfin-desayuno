@@ -314,7 +314,7 @@ export function ValidateButton({ item }: { item: BudgetItem }) {
   }
   const validate = async () => {
     if (!actor) {
-      toast('Primero elige tu imán (arriba a la derecha) para firmar la validación', 'error')
+      toast('Primero elige quién eres en el evento para firmar la validación', 'error')
       return
     }
     setBusy(true)
@@ -391,7 +391,7 @@ export function ReceiptViewer({ item, onClose }: { item: BudgetItem; onClose: ()
               variant={validated ? 'outline' : 'success'}
               icon={validated ? undefined : 'check'}
               disabled={!actor || !image}
-              title={actor ? undefined : 'Elige tu imán arriba para validar'}
+              title={actor ? undefined : 'Elige quién eres para validar'}
               onClick={() => void toggle()}
             >
               {validated ? 'Quitar validación' : 'Validar'}

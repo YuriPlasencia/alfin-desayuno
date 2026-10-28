@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react'
 import { useStore } from '../store'
-import { api } from '../api'
+import { api, eventPath } from '../api'
 import { Button, Field, Icon, Input, PageHeader, Select, TextArea } from '../components/ui'
 import { TrafficMonitor } from '../components/TrafficMonitor'
+import { ShareButton } from '../components/share'
+import { formatLongDate } from '../lib/format'
 import type { Bootstrap } from '../types'
 
 
@@ -55,7 +57,7 @@ export function Settings() {
 
   return (
     <div className="stack">
-      <PageHeader title="Ajustes" subtitle="Datos del desayuno, respaldo y uso en el celular" />
+      <PageHeader title="Ajustes" subtitle="Datos del evento, invitación, respaldo y uso en el celular" />
 
       <section className="card">
         <header className="card-head">
@@ -104,7 +106,7 @@ export function Settings() {
           <Field label="Nota general" hint="Horarios de montaje, indicaciones, etc.">
             <TextArea rows={3} value={form.note} onChange={(event) => set('note')(event.target.value)} />
           </Field>
-          <Field label="Tesorero(a) oficial del desayuno" hint="Recibe los aportes por Yape/Plin y figura en el código QR y reportes oficiales">
+          <Field label="Tesorero(a) oficial del evento" hint="Recibe los aportes por Yape/Plin y figura en el código QR y reportes oficiales">
             <Select value={form.treasurer_id} onChange={(event) => set('treasurer_id')(event.target.value)}>
               <option value="">Selecciona al integrante</option>
               {data.members.map((member) => (
@@ -122,6 +124,8 @@ export function Settings() {
         </div>
       </section>
 
+      <InviteCard />
+
       <section className="card">
         <header className="card-head">
           <div>
@@ -130,7 +134,7 @@ export function Settings() {
           </div>
         </header>
         <div className="settings-actions">
-          <a className="btn btn-outline btn-md" href="/api/export">
+          <a className="btn btn-outline btn-md" href={eventPath('/export')}>
             <Icon name="download" size={17} /> Descargar respaldo
           </a>
           <Button variant="outline" icon="upload" onClick={() => fileRef.current?.click()}>
@@ -187,9 +191,70 @@ export function Settings() {
       </section>
 
       <p className="muted tiny">
-        Al Fin Desayuno · versión {__APP_VERSION__} · compilada{' '}
+        Juntada · versión {__APP_VERSION__} · compilada{' '}
         {new Date(__BUILT_AT__).toLocaleString('es-PE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
       </p>
     </div>
+  )
+}
+
+
+/** Invitar al equipo con el enlace del evento; quien organiza puede cambiar el código. */
+function InviteCard() {
+  const { slug, data, isAdmin, toast } = useStore()
+  const [code, setCode] = useState('')
+  const [saving, setSaving] = useState(false)
+  if (!data) return null
+  const link = `${window.location.origin}/e/${slug}`
+  const st = data.settings
+
+  const saveCode = async () => {
+    setSaving(true)
+    try {
+      await api.changeCode(code.trim())
+      toast('Código actualizado. Compártelo con el equipo.')
+      setCode('')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'No se pudo cambiar el código', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="card">
+      <header className="card-head">
+        <div>
+          <h2>Invitar al equipo</h2>
+          <p className="muted small">Comparte el enlace; al entrar les pedirá el código del evento.</p>
+        </div>
+      </header>
+      <div className="invite-row">
+        <code className="invite-link">{link}</code>
+        <ShareButton
+          title={`Únete a ${st.event_name}`}
+          label="Compartir enlace"
+          text={() =>
+            [
+              `🎉 Te invito a organizar *${st.event_name}* en Juntada`,
+              st.event_date ? `📅 ${formatLongDate(st.event_date)}${st.event_time ? ` · ${st.event_time}` : ''}` : '',
+              'Entra con tu cuenta de Google y escribe el código del evento (pídemelo).',
+            ]
+              .filter(Boolean)
+              .join('\n')
+          }
+        />
+      </div>
+      {isAdmin ? (
+        <div className="invite-code">
+          <Field label="Nuevo código del evento" hint="Quienes ya entraron siguen dentro; el nuevo código sirve para los que faltan.">
+            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Mínimo 4 caracteres" autoComplete="off" />
+          </Field>
+          <Button variant="outline" onClick={() => void saveCode()} disabled={saving || code.trim().length < 4}>
+            {saving ? 'Guardando…' : 'Cambiar código'}
+          </Button>
+        </div>
+      ) : null}
+    </section>
   )
 }

@@ -8,11 +8,10 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { api, ApiError } from './api'
+import { api, ApiError, eventPath, setEventSlug, type GateReason } from './api'
 import type { Bootstrap, Member } from './types'
 
-const CACHE_KEY = 'alfin.cache.v2'
-const VISIT_KEY = 'alfin.lastVisit'
+const LAST_EVENT_KEY = 'juntada.lastEvent'
 
 type ToastKind = 'ok' | 'error' | 'win'
 
@@ -28,11 +27,14 @@ interface StoreValue {
   error: string | null
   offline: boolean
   live: boolean
-  /** El servidor pide el código del equipo. */
-  locked: boolean
-  unlock: (code: string) => Promise<string | null>
+  slug: string
+  /** Qué falta para entrar: sesión, código del evento, elegir imán (o el evento no existe). */
+  gate: GateReason | 'claim' | null
+  /** La cuenta queda ligada a un imán del evento (null = crear uno con su nombre). */
+  claim: (memberId: number | null) => Promise<string | null>
   actor: Member | null
   setActor: (member: Member | null) => void
+  isAdmin: boolean
   refresh: () => Promise<void>
   mutate: (action: () => Promise<unknown>, okMessage?: string) => Promise<boolean>
   toast: (message: string, kind?: ToastKind) => void
@@ -44,9 +46,9 @@ interface StoreValue {
 
 const StoreContext = createContext<StoreValue | null>(null)
 
-function readCache(): Bootstrap | null {
+function readCache(key: string): Bootstrap | null {
   try {
-    const raw = localStorage.getItem(CACHE_KEY)
+    const raw = localStorage.getItem(key)
     return raw ? (JSON.parse(raw) as Bootstrap) : null
   } catch {
     return null
@@ -55,14 +57,25 @@ function readCache(): Bootstrap | null {
 
 let toastSeq = 1
 
-export function AppProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<Bootstrap | null>(() => readCache())
+export function AppProvider({ slug, children }: { slug: string; children: ReactNode }) {
+  // Cada evento guarda su propia copia para usar sin señal.
+  const CACHE_KEY = `juntada.cache.${slug}`
+  const VISIT_KEY = `juntada.lastVisit.${slug}`
+  useState(() => {
+    setEventSlug(slug)
+    try {
+      localStorage.setItem(LAST_EVENT_KEY, slug)
+    } catch {
+      /* sin almacenamiento */
+    }
+    return slug
+  })
+  const [data, setData] = useState<Bootstrap | null>(() => readCache(`juntada.cache.${slug}`))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [offline, setOffline] = useState(false)
   const [live, setLive] = useState(false)
-  const [locked, setLocked] = useState(false)
-  const [actorId, setActorId] = useState<number | null>(() => api.getActorId())
+  const [gate, setGate] = useState<GateReason | 'claim' | null>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
   const pending = useRef<number | null>(null)
   // Último contador de cambios visto: si el servidor va por otro, faltan cambios.
@@ -113,6 +126,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const next = await api.bootstrap()
       if (typeof next.seq === 'number') seenSeq.current = next.seq
+      setGate(next.me && !next.me.member_id ? 'claim' : null)
       setData(next)
       setOffline(false)
       setError(null)
@@ -122,8 +136,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         /* almacenamiento lleno */
       }
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        setLocked(true)
+      if (err instanceof ApiError && err.reason) {
+        setGate(err.reason)
         return
       }
       const message = err instanceof Error ? err.message : 'No se pudo cargar la información'
@@ -132,22 +146,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [CACHE_KEY])
 
   useEffect(() => {
     void refresh()
   }, [refresh])
 
-  const unlock = useCallback(
-    async (code: string) => {
+  const claim = useCallback(
+    async (memberId: number | null) => {
       try {
-        await api.unlock(code)
-        setLocked(false)
-        setLoading(true)
+        await api.claim(memberId)
         await refresh()
         return null
       } catch (err) {
-        return err instanceof Error ? err.message : 'No se pudo comprobar el código'
+        return err instanceof Error ? err.message : 'No se pudo completar'
       }
     },
     [refresh],
@@ -157,7 +169,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // responde con error (p. ej. durante un despliegue) y el celular lo corta en segundo
   // plano: por eso se reconecta a mano y se resincroniza al volver.
   useEffect(() => {
-    if (locked) return
+    if (gate && gate !== 'claim') return
     let source: EventSource | null = null
     let retry: number | undefined
     let attempt = 0
@@ -168,7 +180,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const connect = () => {
       if (disposed) return
       source?.close()
-      const current = new EventSource('/api/stream')
+      const current = new EventSource(eventPath('/stream'))
       source = current
       current.addEventListener('open', () => {
         attempt = 0
@@ -242,16 +254,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('focus', wake)
       source?.close()
     }
-  }, [refresh, locked])
+  }, [refresh, gate])
 
   // Mientras se muestra "sin conexión", se reintenta solo cada pocos segundos.
   useEffect(() => {
-    if (!offline || locked) return
+    if (!offline || gate) return
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void refresh()
     }, 8000)
     return () => window.clearInterval(timer)
-  }, [offline, locked, refresh])
+  }, [offline, gate, refresh])
 
   const mutate = useCallback(
     async (action: () => Promise<unknown>, okMessage?: string) => {
@@ -261,7 +273,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (okMessage) toast(okMessage)
         return true
       } catch (err) {
-        if (err instanceof ApiError && err.status === 401) setLocked(true)
+        if (err instanceof ApiError && err.reason) setGate(err.reason)
         const message =
           err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'No se pudo guardar el cambio'
         toast(message, 'error')
@@ -271,23 +283,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [refresh, toast],
   )
 
+  // Tu imán es el que tu cuenta tiene ligado en este evento.
+  const actor = useMemo(() => {
+    const id = data?.me?.member_id
+    if (!data || !id) return null
+    return data.members.find((member) => member.id === id) || null
+  }, [data])
+
   const setActor = useCallback(
     (member: Member | null) => {
-      api.setActorId(member ? member.id : null)
-      setActorId(member ? member.id : null)
-      if (member) toast(`Listo, ${member.name.split(' ')[0]}: tu imán ya está en la pizarra`)
+      void claim(member ? member.id : null)
     },
-    [toast],
+    [claim],
   )
 
-  const actor = useMemo(() => {
-    if (!data || !actorId) return null
-    return data.members.find((member) => member.id === actorId) || null
-  }, [data, actorId])
-
   const value = useMemo<StoreValue>(
-    () => ({ data, loading, error, offline, live, locked, unlock, actor, setActor, refresh, mutate, toast, lastVisit, toasts, dismissToast }),
-    [data, loading, error, offline, live, locked, unlock, actor, setActor, refresh, mutate, toast, lastVisit, toasts, dismissToast],
+    () => ({
+      slug,
+      data,
+      loading,
+      error,
+      offline,
+      live,
+      gate,
+      claim,
+      actor,
+      setActor,
+      isAdmin: data?.me?.role === 'admin',
+      refresh,
+      mutate,
+      toast,
+      lastVisit,
+      toasts,
+      dismissToast,
+    }),
+    [slug, data, loading, error, offline, live, gate, claim, actor, setActor, refresh, mutate, toast, lastVisit, toasts, dismissToast],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

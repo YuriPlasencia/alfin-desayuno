@@ -145,7 +145,7 @@ export function Budget() {
     const tName = treasurer ? treasurer.name : 'Tesorería'
     const tPhone = treasurer?.phone ? ` · *${treasurer.phone}*` : ''
 
-    const text = `🥐 *AL FIN DESAYUNO · REPORTE DE CAJA*
+    const text = `🥐 *${data.settings.event_name.toUpperCase()} · REPORTE DE CAJA*
 📅 *Evento:* ${data.settings.event_name}
 📍 *Lugar:* ${data.settings.location || 'Por definir'}
 ------------------------------------
@@ -714,10 +714,10 @@ function TreasurerManager({
       await api.logActivity({
         entity: 'treasurer',
         action: 'designar',
-        detail: `${actor?.name || 'Alguien'} designó a ${who} como Tesorero(a) oficial del desayuno`,
+        detail: `${actor?.name || 'Alguien'} designó a ${who} como Tesorero(a) oficial del evento`,
       })
 
-      await mutate(async () => {}, `¡${who} es ahora el Tesorero oficial del desayuno!`)
+      await mutate(async () => {}, `¡${who} es ahora el Tesorero oficial del evento!`)
       toast(`Designado(a) correctamente: ${who} recibirá los pagos de Yape y Plin`, 'win')
     } catch {
       toast('No se pudo guardar la designación del tesorero', 'error')
@@ -804,7 +804,7 @@ function TreasurerManager({
             <p className="yape-amount">S/ 100.00</p>
             <p className="yape-titular">
               <strong>{selectedMember?.name || 'Tesorero por designar'}</strong>
-              <span className="muted small"> · {selectedMember?.role || 'Tesorería del Desayuno'}</span>
+              <span className="muted small"> · {selectedMember?.role || 'Tesorería del evento'}</span>
             </p>
 
             <div className="yape-phone-row" style={{ margin: '14px 0' }}>
@@ -1188,7 +1188,7 @@ function BudgetEditor({
           </Field>
         </div>
         <Field label="Concepto">
-          <Input value={concept} onChange={(event) => setConcept(event.target.value)} placeholder="Ej. Insumos del desayuno o proveedor" autoFocus />
+          <Input value={concept} onChange={(event) => setConcept(event.target.value)} placeholder="Ej. Insumos o proveedor" autoFocus />
         </Field>
         <div className="form-row">
           <Field label={kind === 'ingreso' ? 'Quién pagó' : 'Responsable'}>
