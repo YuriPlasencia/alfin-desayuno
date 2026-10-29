@@ -30,6 +30,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError('No hay conexión con el servidor')
   }
 
+  // La app se mudó de dirección (dominio propio): salta a la nueva en la misma página.
+  if (response.status === 421) {
+    const body = (await response.json().catch(() => ({}))) as { moved?: string }
+    if (body.moved && /^https:\/\//.test(body.moved)) {
+      window.location.replace(body.moved + window.location.pathname + window.location.search + window.location.hash)
+    }
+    throw new ApiError('La app se mudó a otra dirección', 421)
+  }
+
   if (!response.ok) {
     let message = `Error ${response.status}`
     let reason: GateReason | undefined

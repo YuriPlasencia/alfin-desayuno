@@ -53,6 +53,20 @@ if (legacy) {
 const app = express()
 // Detrás del proxy de Railway (u otro), para saber si la conexión es https.
 app.set('trust proxy', 1)
+
+// Dominio propio (PUBLIC_URL, p. ej. https://juntada.pe): quien entra por la dirección
+// vieja de Render pasa al dominio nuevo en la misma página. Las llamadas a la API desde
+// una app instalada (que abre su copia guardada) reciben 421 con la dirección nueva y la
+// app salta sola. /api/health queda libre para el chequeo de Render.
+const PUBLIC_URL = String(process.env.PUBLIC_URL || '').trim().replace(/\/+$/, '')
+const PUBLIC_HOST = PUBLIC_URL ? new URL(PUBLIC_URL).host.toLowerCase() : ''
+app.use((req, res, next) => {
+  const host = String(req.get('host') || '').toLowerCase()
+  if (!PUBLIC_HOST || host === PUBLIC_HOST || !host.endsWith('.onrender.com') || req.path === '/api/health') return next()
+  if (req.path.startsWith('/api/')) return res.status(421).json({ error: 'La app se mudó a otra dirección', moved: PUBLIC_URL })
+  res.redirect(req.method === 'GET' || req.method === 'HEAD' ? 301 : 308, PUBLIC_URL + req.originalUrl)
+})
+
 app.use(express.json({ limit: '15mb' }))
 
 // ---------- sesiones y cuentas (Juntada) ----------

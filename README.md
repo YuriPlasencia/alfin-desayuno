@@ -203,6 +203,19 @@ Haz un respaldo (**Ajustes → Exportar**) de vez en cuando: es un archivo peque
 
 ---
 
+### Dominio propio (p. ej. juntada.pe)
+
+1. Compra el dominio (para `.pe` en un registrador de punto.pe; para `.app` o `.com`, en Namecheap, Porkbun, Cloudflare, etc.).
+2. En Render, en el servicio: **Settings → Custom Domains → Add Custom Domain** y escribe el dominio (y si quieres, también `www.` + dominio).
+3. Render muestra los registros DNS que debes crear en el panel de tu registrador (normalmente un registro **A** para el dominio raíz y un **CNAME** para `www` que apunta a la dirección `.onrender.com`). Créalos tal cual.
+4. Espera a que Render marque el dominio como **Verified** y emita el certificado (de minutos a unas horas).
+5. Recién entonces agrega en **Environment** la variable `PUBLIC_URL` con la dirección completa (p. ej. `https://juntada.pe`) y guarda: desde ahí, quien entre por `alfin-desayuno.onrender.com` pasa solo al dominio nuevo, en la misma página. Las apps ya instaladas también saltan solas.
+6. Si usas el ingreso con Google, agrega el dominio nuevo en **Orígenes de JavaScript autorizados** del ID de cliente.
+
+Al cambiar de dirección, cada persona vuelve a iniciar sesión una vez (las sesiones van por dirección) y, si tenía la app instalada, conviene instalarla de nuevo desde el dominio nuevo.
+
+---
+
 ## 7. Próximos pasos sugeridos
 
 1. **Cuentas y permisos**: hoy hay un código común del equipo; a futuro, PIN por integrante y roles admin/editor/lector.
