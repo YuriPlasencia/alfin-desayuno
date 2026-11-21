@@ -108,7 +108,7 @@ Las bases quedan en `data/` (SQLite): `juntada.db` (cuentas y eventos) y `events
 ## 3. Estructura del proyecto
 
 ```
-AlfinDesayuno/
+Juntada/
 ├─ server/
 │  ├─ db.js          # SQLite (node:sqlite), esquema y consultas del bootstrap
 │  ├─ seed.js        # datos de ejemplo realistas (16 personas / 80 invitados)
