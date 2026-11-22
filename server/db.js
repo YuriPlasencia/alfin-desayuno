@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { fileURLToPath } from 'node:url'
+import { initSecretSchema } from './secreto.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 export const DATA_DIR = process.env.DATA_DIR || path.join(here, '..', 'data')
@@ -220,6 +221,8 @@ function initSchema(conn) {
   addColumn('budget_items', 'plan_id', 'INTEGER REFERENCES budget_items(id) ON DELETE SET NULL')
   // Foto de actividad (cotización) usada como constancia del gasto: evita registrarla dos veces.
   addColumn('budget_items', 'option_id', 'INTEGER REFERENCES task_options(id) ON DELETE SET NULL')
+
+  initSecretSchema(conn)
 
   linkReceiptsToPhotos(conn)
   // Cuotas cargadas con "Movimiento" (concepto "Cuota…") antes de que se marcaran solas.

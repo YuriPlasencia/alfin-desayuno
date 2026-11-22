@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../store'
+import '../secreto.css'
 import { api } from '../api'
 import { Button, Icon, Magnet, Progress } from '../components/ui'
 import { StepToggle } from '../components/checklist'
@@ -125,8 +126,29 @@ export function Dashboard({ onNavigate }: { onNavigate: (tab: string) => void })
     }
   }
 
+  const secret = data.secreto
+  const secretNote = !secret
+    ? null
+    : secret.status === 'armando' && !secret.joined
+      ? { title: 'Hay un amigo secreto en marcha', hint: `Ya se apuntaron ${secret.count}. Apúntate y deja tu lista de deseos.` }
+      : secret.pending
+        ? { title: '¡Ya tienes amigo secreto!', hint: 'Abre tu papelito para ver a quién le regalas.' }
+        : secret.unread > 0
+          ? { title: 'Tienes mensajes anónimos', hint: `${secret.unread} sin leer en el amigo secreto.` }
+          : null
+
   return (
     <div className="stack">
+      {secretNote ? (
+        <button type="button" className="sec-banner" onClick={() => onNavigate('secreto')}>
+          <Icon name="gift" size={22} />
+          <span>
+            <strong>{secretNote.title}</strong>
+            {secretNote.hint}
+          </span>
+          <Icon name="arrowRight" size={18} />
+        </button>
+      ) : null}
       <section className="board board-hero" aria-label="Resumen del evento">
         <div className="board-head">
           <div>

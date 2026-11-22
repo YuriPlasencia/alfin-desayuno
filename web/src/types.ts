@@ -146,6 +146,77 @@ export interface Bootstrap {
     /** Imanes ya ligados a alguna cuenta. */
     claimed: number[]
   }
+  /** Amigo secreto: solo el resumen (las parejas nunca viajan aquí). */
+  secreto?: SecretSummary | null
+}
+
+export type SecretStatus = 'armando' | 'sorteado' | 'revelado'
+
+export interface SecretSummary {
+  status: SecretStatus
+  title: string
+  deliver_date: string
+  count: number
+  joined: boolean
+  /** Mensajes anónimos sin leer. */
+  unread: number
+  /** Ya hubo sorteo y todavía no abre su papelito. */
+  pending: boolean
+}
+
+export interface SecretGame {
+  status: SecretStatus
+  title: string
+  budget_min: number
+  budget_max: number
+  deliver_date: string
+  deliver_time: string
+  place: string
+  rules: string
+  /** Endulzadas: detalles anónimos mientras llega el día. */
+  sweets: number
+  created_by: number | null
+  drawn_at: string | null
+  revealed_at: string | null
+}
+
+export interface SecretWish {
+  id: number
+  title: string
+  link: string
+  price: number
+}
+
+export interface SecretMessage {
+  id: number
+  mine: boolean
+  kind: 'mensaje' | 'endulzada'
+  body: string
+  created_at: string
+}
+
+export interface SecretState {
+  game: SecretGame | null
+  can_manage: boolean
+  participants: { member_id: number; wishes: number; seen: boolean; gift_ready: boolean; guessed: boolean }[]
+  exclusions: [number, number][]
+  me: {
+    member_id: number
+    wishes: SecretWish[]
+    /** A quién le regalas (solo tú lo recibes). */
+    receiver: { member_id: number; wishes: SecretWish[] } | null
+    seen: boolean
+    gift_ready: boolean
+    guess_id: number | null
+    to_receiver: SecretMessage[]
+    from_giver: SecretMessage[]
+    unread_to_receiver: number
+    unread_from_giver: number
+  } | null
+  /** Tu nombre se apuntó desde otra cuenta. */
+  locked: boolean
+  reveal: { giver_id: number; receiver_id: number }[] | null
+  guesses?: { member_id: number; guess_id: number | null }[] | null
 }
 
 export const AREAS = [

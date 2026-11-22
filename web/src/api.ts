@@ -1,4 +1,4 @@
-import type { Bootstrap, EventSummary, TaskOption, PresenceStats, ScrapedQuote, User } from './types'
+import type { Bootstrap, EventSummary, TaskOption, PresenceStats, ScrapedQuote, SecretState, User } from './types'
 
 /** Por qué el servidor no deja pasar: falta iniciar sesión, unirse al evento o el evento no existe. */
 export type GateReason = 'login' | 'join' | 'no-event'
@@ -118,6 +118,29 @@ export const api = {
   pingPresence: (view?: string) => request<{ ok: boolean }>(eventPath('/presence'), json({ view })),
   getPresenceStats: () => request<PresenceStats>(eventPath('/presence/stats')),
   scrapeQuoteImage: (image: string) => request<ScrapedQuote>(eventPath('/ocr/scrape'), json({ image })),
+}
+
+const secretPost = (path: string, body: unknown = {}) => request<SecretState>(eventPath(`/secreto${path}`), json(body))
+
+/** Amigo secreto: cada llamada devuelve el juego tal como lo ve quien pregunta. */
+export const secreto = {
+  get: () => request<SecretState>(eventPath('/secreto')),
+  save: (body: Record<string, unknown>) => request<SecretState>(eventPath('/secreto'), { method: 'PUT', body: JSON.stringify(body) }),
+  cancel: () => request<SecretState>(eventPath('/secreto'), { method: 'DELETE' }),
+  join: () => secretPost('/join'),
+  leave: (memberId?: number) => secretPost('/leave', { member_id: memberId }),
+  addWish: (body: { title: string; link?: string; price?: number }) => secretPost('/wishes', body),
+  removeWish: (id: number) => request<SecretState>(eventPath(`/secreto/wishes/${id}`), { method: 'DELETE' }),
+  setExclusions: (pairs: [number, number][]) =>
+    request<SecretState>(eventPath('/secreto/exclusions'), { method: 'PUT', body: JSON.stringify({ pairs }) }),
+  draw: () => secretPost('/draw'),
+  reopen: () => secretPost('/reopen'),
+  seen: () => secretPost('/seen'),
+  gift: (ready: boolean) => secretPost('/gift', { ready }),
+  guess: (memberId: number | null) => secretPost('/guess', { member_id: memberId }),
+  message: (to: 'receiver' | 'giver', body: string, kind: 'mensaje' | 'endulzada' = 'mensaje') => secretPost('/messages', { to, body, kind }),
+  read: (thread: 'receiver' | 'giver') => secretPost('/read', { thread }),
+  reveal: () => secretPost('/reveal'),
 }
 
 

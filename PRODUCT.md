@@ -24,6 +24,7 @@ No es un gestor de proyectos genérico: cada evento es su propio tablero, con cu
 
 ## Capabilities and Constraints
 - Módulos: Inicio, Actividades (por área, prioridad, fecha, responsables, checklist), Acuerdos (propuesto → acordado → cumplido), Equipo, Presupuesto (ingresos/gastos, cobrado/pagado, en soles PEN), Ajustes (datos del evento, respaldo JSON, reinicio demo).
+- Amigo secreto (22-nov-2026): una actividad más de cada evento. Reglas (monto, fecha y lugar de entrega, endulzadas), cada quien se apunta y deja su lista de deseos, sorteo en una sola ronda con excepciones, papelito privado, mensajes anónimos en ambos sentidos, apuesta de quién te regala y revelación el día de la entrega. Las parejas no viajan en /bootstrap ni en el respaldo, y ni quien organiza las ve antes de revelar.
 - Sincronización en vivo por SSE; registro de actividad con autor.
 - Stack existente: React 19 + Vite + vite-plugin-pwa; API Express + SQLite (node:sqlite).
 - Idioma: español (Perú).

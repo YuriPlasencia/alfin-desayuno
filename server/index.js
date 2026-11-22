@@ -37,6 +37,7 @@ import {
   verifyCode,
 } from './platform.js'
 import { scrapeQuoteImage } from './ocr.js'
+import { mountSecreto, secretBeforeMemberDelete, secretSummary } from './secreto.js'
 
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -431,6 +432,8 @@ ev.get('/bootstrap', (req, res) => {
     seq: seqOf(slug),
     slug,
     me: { user: req.user, role: req.membership.role, member_id: req.membership.member_id, claimed: claimedMembers(slug) },
+    // Amigo secreto: solo el resumen; las parejas se piden aparte y cada quien ve la suya.
+    secreto: secretSummary(req),
   })
 })
 
@@ -582,6 +585,7 @@ ev.delete('/members/:id', (req, res) => {
   if (!current) return res.status(404).json({ error: 'Integrante no encontrado' })
   // Si era quien recibe los pagos, se quita la designación (si no, el borrado se rechaza).
   db.prepare('UPDATE settings SET treasurer_id = NULL WHERE treasurer_id = ?').run(id)
+  secretBeforeMemberDelete(id)
   db.prepare('DELETE FROM members WHERE id = ?').run(id)
   clearMemberLink(currentSlug(), id)
   note(req, 'member', id, 'delete', `Retiró a ${current.name} del equipo`)
@@ -1137,6 +1141,10 @@ ev.get('/presence/stats', (req, res) => {
     recent_views: recentViews,
   })
 })
+
+// ---------- amigo secreto ----------
+
+mountSecreto(ev, { note, broadcast, text, num, dateOrNull })
 
 // ---------- import / export ----------
 

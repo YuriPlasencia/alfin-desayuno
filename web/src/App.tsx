@@ -11,6 +11,7 @@ import { Agreements } from './views/Agreements'
 import { Team } from './views/Team'
 import { Budget } from './views/Budget'
 import { Settings } from './views/Settings'
+import { Secreto } from './views/Secreto'
 import { Portal } from './views/Portal'
 import { daysUntil } from './lib/format'
 import { summarize } from './lib/stats'
@@ -20,6 +21,7 @@ const NAV: { id: string; label: string; icon: IconName }[] = [
   { id: 'actividades', label: 'Actividades', icon: 'tasks' },
   { id: 'acuerdos', label: 'Acuerdos', icon: 'handshake' },
   { id: 'equipo', label: 'Equipo', icon: 'users' },
+  { id: 'secreto', label: 'Amigo secreto', icon: 'gift' },
   { id: 'presupuesto', label: 'Presupuesto', icon: 'wallet' },
   { id: 'ajustes', label: 'Ajustes', icon: 'settings' },
 ]
@@ -29,6 +31,7 @@ const VIEWS: Record<string, (props: { onNavigate: (tab: string) => void }) => Re
   actividades: () => <Tasks />,
   acuerdos: () => <Agreements />,
   equipo: () => <Team />,
+  secreto: () => <Secreto />,
   presupuesto: () => <Budget />,
   ajustes: () => <Settings />,
 }
@@ -121,6 +124,8 @@ function Shell() {
       actividades: data ? data.tasks.filter((task) => task.status !== 'hecha').length : 0,
       acuerdos: data ? data.agreements.filter((item) => item.status !== 'cumplido').length : 0,
       equipo: data ? data.members.length : 0,
+      // Mensajes anónimos sin leer, más el papelito sin abrir.
+      secreto: data?.secreto ? data.secreto.unread + (data.secreto.pending ? 1 : 0) : 0,
     }),
     [data],
   )
@@ -169,6 +174,7 @@ function Shell() {
               <span>{item.label}</span>
               {item.id === 'actividades' && counts.actividades > 0 ? <span className="nav-badge">{counts.actividades}</span> : null}
               {item.id === 'acuerdos' && counts.acuerdos > 0 ? <span className="nav-badge">{counts.acuerdos}</span> : null}
+              {item.id === 'secreto' && counts.secreto > 0 ? <span className="nav-badge">{counts.secreto}</span> : null}
             </button>
           ))}
         </nav>
@@ -222,8 +228,9 @@ function Shell() {
           {NAV.filter((item) => item.id !== 'ajustes').map((item) => (
             <button key={item.id} className={`bottom-item ${tab === item.id ? 'is-active' : ''}`} onClick={() => go(item.id)}>
               <Icon name={item.icon} size={20} />
-              <span>{item.label}</span>
+              <span>{item.id === 'secreto' ? 'Secreto' : item.label}</span>
               {item.id === 'actividades' && counts.actividades > 0 ? <i className="dot-badge">{counts.actividades}</i> : null}
+              {item.id === 'secreto' && counts.secreto > 0 ? <i className="dot-badge">{counts.secreto}</i> : null}
             </button>
           ))}
         </nav>
