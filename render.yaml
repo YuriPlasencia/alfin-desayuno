@@ -1,4 +1,4 @@
-# Blueprint de Render para Juntada.
+# Blueprint de Render para Juntay (antes Juntada).
 # En Render: New → Blueprint → elige este repositorio. Te pedirá el valor de TEAM_CODE.
 services:
   - type: web
@@ -21,7 +21,7 @@ services:
       # Ingreso con Google (Google Cloud → Credenciales → ID de cliente OAuth web)
       - key: GOOGLE_CLIENT_ID
         sync: false
-      # Dominio propio (p. ej. https://juntada.pe): la dirección .onrender.com redirige ahí
+      # Dominio propio (p. ej. https://juntay.lat): la dirección .onrender.com redirige ahí
       - key: PUBLIC_URL
         sync: false
     disk:

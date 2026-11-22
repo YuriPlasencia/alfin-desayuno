@@ -107,7 +107,7 @@ function Shell() {
   }, [actor?.id, tab])
 
   useEffect(() => {
-    if (data?.settings.event_name) document.title = `${data.settings.event_name} · Juntada`
+    if (data?.settings.event_name) document.title = `${data.settings.event_name} · Juntay`
   }, [data?.settings.event_name])
 
   const go = (next: string) => {
@@ -234,7 +234,7 @@ function Shell() {
   )
 }
 
-/** /e/<slug> es un evento; cualquier otra dirección es la portada de Juntada. */
+/** /e/<slug> es un evento; cualquier otra dirección es la portada de Juntay. */
 function eventSlugFromPath(): string | null {
   const match = window.location.pathname.match(/^\/e\/([a-z0-9-]+)\/?$/)
   return match ? match[1] : null

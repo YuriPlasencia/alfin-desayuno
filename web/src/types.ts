@@ -229,7 +229,7 @@ export interface User {
   picture: string
 }
 
-/** Un evento de Juntada, como se ve en "Tus eventos". */
+/** Un evento de Juntay, como se ve en "Tus eventos". */
 export interface EventSummary {
   slug: string
   name: string

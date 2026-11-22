@@ -1,12 +1,12 @@
-# Juntada
+# Juntay
 
-**Juntada** es la app para armar eventos en equipo: actividades con responsables y checklist, acuerdos, cuotas por Yape o Plin con su constancia, gastos con boleta y el saldo de la caja, en una pizarra que todos ven en vivo. Funciona en la web y se instala en el celular.
+**Juntay** (antes Juntada) es la app para armar eventos en equipo: actividades con responsables y checklist, acuerdos, cuotas por Yape o Plin con su constancia, gastos con boleta y el saldo de la caja, en una pizarra que todos ven en vivo. Funciona en la web y se instala en el celular.
 
 Cada evento es independiente: **Al Fin Desayuno · Octubre 2026** fue el primero, y otro equipo puede crear **Al Fin Desayuno · Noviembre 2026** (o un aniversario, un paseo…) con todas las funciones y su propio código.
 
 ---
 
-## 0. Cómo funciona Juntada
+## 0. Cómo funciona Juntay
 
 1. **Entrar:** con la cuenta de Google (si está configurada) o con el nombre.
 2. **Tus eventos:** la portada muestra los eventos de la persona; puede **crear uno** (queda como organizador) o **unirse** con el enlace que le pasaron.
@@ -15,12 +15,12 @@ Cada evento es independiente: **Al Fin Desayuno · Octubre 2026** fue el primero
 
 Cada evento guarda sus datos en su propia base (`data/events/<evento>.db`); las cuentas y los eventos están en `data/juntada.db`.
 
-**Paso desde Al Fin Desayuno:** al arrancar Juntada por primera vez, la base anterior (`data/alfin.db`) se copia como el evento `al-fin-desayuno-octubre-2026`, con todo lo cargado. Su código es el `TEAM_CODE` que ya usaban (o uno generado, que aparece en el log). El original no se borra.
+**Paso desde Al Fin Desayuno:** al arrancar la plataforma por primera vez, la base anterior (`data/alfin.db`) se copia como el evento `al-fin-desayuno-octubre-2026`, con todo lo cargado. Su código es el `TEAM_CODE` que ya usaban (o uno generado, que aparece en el log). El original no se borra.
 
 ### Ingreso con Google (una vez)
 
-1. Entra a [console.cloud.google.com](https://console.cloud.google.com), crea un proyecto (p. ej. "Juntada").
-2. **APIs y servicios → Pantalla de consentimiento de OAuth:** tipo *Externo*, nombre "Juntada" y tu correo.
+1. Entra a [console.cloud.google.com](https://console.cloud.google.com), crea un proyecto (p. ej. "Juntay").
+2. **APIs y servicios → Pantalla de consentimiento de OAuth:** tipo *Externo*, nombre "Juntay" y tu correo.
 3. **Credenciales → Crear credenciales → ID de cliente de OAuth → Aplicación web.**
 4. En **Orígenes de JavaScript autorizados** agrega la dirección de la app (p. ej. `https://alfin-desayuno.onrender.com`) y, para probar en local, `http://localhost:5173`.
 5. Copia el **ID de cliente** (termina en `.apps.googleusercontent.com`) y ponlo en Render como `GOOGLE_CLIENT_ID`.
@@ -203,13 +203,13 @@ Haz un respaldo (**Ajustes → Exportar**) de vez en cuando: es un archivo peque
 
 ---
 
-### Dominio propio (p. ej. juntada.pe)
+### Dominio propio (p. ej. juntay.lat)
 
 1. Compra el dominio (para `.pe` en un registrador de punto.pe; para `.app` o `.com`, en Namecheap, Porkbun, Cloudflare, etc.).
 2. En Render, en el servicio: **Settings → Custom Domains → Add Custom Domain** y escribe el dominio (y si quieres, también `www.` + dominio).
 3. Render muestra los registros DNS que debes crear en el panel de tu registrador (normalmente un registro **A** para el dominio raíz y un **CNAME** para `www` que apunta a la dirección `.onrender.com`). Créalos tal cual.
 4. Espera a que Render marque el dominio como **Verified** y emita el certificado (de minutos a unas horas).
-5. Recién entonces agrega en **Environment** la variable `PUBLIC_URL` con la dirección completa (p. ej. `https://juntada.pe`) y guarda: desde ahí, quien entre por `alfin-desayuno.onrender.com` pasa solo al dominio nuevo, en la misma página. Las apps ya instaladas también saltan solas.
+5. Recién entonces agrega en **Environment** la variable `PUBLIC_URL` con la dirección completa (p. ej. `https://juntay.lat`) y guarda: desde ahí, quien entre por `alfin-desayuno.onrender.com` pasa solo al dominio nuevo, en la misma página. Las apps ya instaladas también saltan solas.
 6. Si usas el ingreso con Google, agrega el dominio nuevo en **Orígenes de JavaScript autorizados** del ID de cliente.
 
 Al cambiar de dirección, cada persona vuelve a iniciar sesión una vez (las sesiones van por dirección) y, si tenía la app instalada, conviene instalarla de nuevo desde el dominio nuevo.

@@ -11,6 +11,8 @@ import {
 import { api, ApiError, eventPath, setEventSlug, type GateReason } from './api'
 import type { Bootstrap, Member } from './types'
 
+// Las claves guardadas en el navegador conservan el nombre anterior (Juntada): cambiarlas
+// borraría la caché y el último evento de quienes ya usan la app.
 const LAST_EVENT_KEY = 'juntada.lastEvent'
 
 type ToastKind = 'ok' | 'error' | 'win'

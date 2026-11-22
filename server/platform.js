@@ -5,10 +5,11 @@ import { DatabaseSync } from 'node:sqlite'
 import { DATA_DIR, SLUG_PATTERN, db, eventDbPath, getSettings, nowIso, plain, runInEvent } from './db.js'
 
 /*
- * Juntada: la plataforma. Guarda las cuentas (Google), los eventos con su código
+ * Juntay: la plataforma. Guarda las cuentas (Google), los eventos con su código
  * y quién pertenece a cada evento (y qué imán es). Los datos de cada evento viven
  * en su propia base (ver db.js).
  */
+// El archivo conserva el nombre anterior (Juntada): renombrarlo dejaría sin datos el disco de Render.
 export const pdb = new DatabaseSync(path.join(DATA_DIR, 'juntada.db'))
 
 pdb.exec(`
@@ -214,7 +215,7 @@ export function setEventCode(slug, code) {
 }
 
 /**
- * Primera vez con Juntada: la base de Al Fin Desayuno (data/alfin.db) pasa a ser
+ * Primera vez con Juntay (entonces Juntada): la base de Al Fin Desayuno (data/alfin.db) pasa a ser
  * el primer evento, con el código de equipo que ya usaban (TEAM_CODE).
  */
 export function migrateLegacy() {

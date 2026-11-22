@@ -67,7 +67,7 @@ export function TrafficMonitor() {
     if (!stats) return
     const names = neverMembers.map((m) => m.name.split(' ')[0]).join(', ')
     const appUrl = window.location.origin + window.location.pathname
-    const text = `¡Hola equipo! 👋 Ya está lista la pizarra de *${data?.settings.event_name || 'nuestro evento'}* en Juntada para coordinar actividades, acuerdos y cuotas.
+    const text = `¡Hola equipo! 👋 Ya está lista la pizarra de *${data?.settings.event_name || 'nuestro evento'}* en Juntay para coordinar actividades, acuerdos y cuotas.
 
 📲 Entren desde su celular o compu aquí:
 ${appUrl}

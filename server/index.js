@@ -46,15 +46,15 @@ const DIST = path.join(here, '..', 'dist')
 
 const legacy = migrateLegacy()
 if (legacy) {
-  console.log(`[juntada] Al Fin Desayuno pasó a ser el evento "${legacy.slug}".`)
-  if (legacy.generated) console.log(`[juntada] Código del evento (cámbialo en Ajustes): ${legacy.code}`)
+  console.log(`[juntay] Al Fin Desayuno pasó a ser el evento "${legacy.slug}".`)
+  if (legacy.generated) console.log(`[juntay] Código del evento (cámbialo en Ajustes): ${legacy.code}`)
 }
 
 const app = express()
 // Detrás del proxy de Railway (u otro), para saber si la conexión es https.
 app.set('trust proxy', 1)
 
-// Dominio propio (PUBLIC_URL, p. ej. https://juntada.pe): quien entra por la dirección
+// Dominio propio (PUBLIC_URL, p. ej. https://juntay.lat): quien entra por la dirección
 // vieja de Render pasa al dominio nuevo en la misma página. Las llamadas a la API desde
 // una app instalada (que abre su copia guardada) reciben 421 con la dirección nueva y la
 // app salta sola. /api/health queda libre para el chequeo de Render.
@@ -69,12 +69,13 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '15mb' }))
 
-// ---------- sesiones y cuentas (Juntada) ----------
+// ---------- sesiones y cuentas (Juntay) ----------
 // Se entra con Google (GOOGLE_CLIENT_ID) o, si no está configurado, con el nombre.
 // La sesión es una cookie firmada; cada evento además pide su código una vez.
 
 const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '').trim()
 const NAME_LOGIN = !GOOGLE_CLIENT_ID || process.env.NAME_LOGIN === '1'
+// La cookie conserva el nombre anterior (Juntada): cambiarla cerraría la sesión de todos.
 const SESSION_COOKIE = 'juntada_session'
 const SESSION_DAYS = 120
 const MAX_ATTEMPTS = 10
@@ -1317,6 +1318,6 @@ app.use((err, _req, res, _next) => {
 })
 
 app.listen(PORT, HOST, () => {
-  console.log(`[juntada] API y web en http://localhost:${PORT}`)
-  console.log(GOOGLE_CLIENT_ID ? '[juntada] Ingreso con Google activo' : '[juntada] Sin GOOGLE_CLIENT_ID: se entra con el nombre')
+  console.log(`[juntay] API y web en http://localhost:${PORT}`)
+  console.log(GOOGLE_CLIENT_ID ? '[juntay] Ingreso con Google activo' : '[juntay] Sin GOOGLE_CLIENT_ID: se entra con el nombre')
 })

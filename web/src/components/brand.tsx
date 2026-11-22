@@ -1,4 +1,4 @@
-/** Marca de Juntada: la pizarra con dos imanes. */
+/** Marca de Juntay: la pizarra con dos imanes. */
 export function Brand({ subtitle }: { subtitle?: string }) {
   return (
     <div className="brand">
@@ -12,7 +12,7 @@ export function Brand({ subtitle }: { subtitle?: string }) {
         </svg>
       </span>
       <span className="brand-text">
-        <strong>Juntada</strong>
+        <strong>Juntay</strong>
         {subtitle ? <span>{subtitle}</span> : null}
       </span>
     </div>

@@ -123,7 +123,7 @@ export const api = {
 
 
 
-/** Juntada: cuentas y eventos (fuera de un evento). */
+/** Juntay: cuentas y eventos (fuera de un evento). */
 export const platform = {
   config: () => request<{ googleClientId: string; nameLogin: boolean }>('/api/config'),
   me: () => request<{ user: User | null; events: EventSummary[] }>('/api/me'),

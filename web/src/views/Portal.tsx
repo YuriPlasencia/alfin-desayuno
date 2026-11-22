@@ -108,7 +108,7 @@ function Login({ onLogged }: { onLogged: (user: User) => void }) {
       </section>
 
       <section className="gate portal-access">
-        <h2 className="splash-title">{NEXT ? 'Entra para unirte al evento' : 'Entra a Juntada'}</h2>
+        <h2 className="splash-title">{NEXT ? 'Entra para unirte al evento' : 'Entra a Juntay'}</h2>
         {config?.googleClientId ? (
           <GoogleButton clientId={config.googleClientId} onCredential={(credential) => void finish(() => platform.loginGoogle(credential))} />
         ) : null}

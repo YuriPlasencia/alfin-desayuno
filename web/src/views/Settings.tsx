@@ -191,7 +191,7 @@ export function Settings() {
       </section>
 
       <p className="muted tiny">
-        Juntada · versión {__APP_VERSION__} · compilada{' '}
+        Juntay · versión {__APP_VERSION__} · compilada{' '}
         {new Date(__BUILT_AT__).toLocaleString('es-PE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
       </p>
     </div>
@@ -236,7 +236,7 @@ function InviteCard() {
           label="Compartir enlace"
           text={() =>
             [
-              `🎉 Te invito a organizar *${st.event_name}* en Juntada`,
+              `🎉 Te invito a organizar *${st.event_name}* en Juntay`,
               st.event_date ? `📅 ${formatLongDate(st.event_date)}${st.event_time ? ` · ${st.event_time}` : ''}` : '',
               'Entra con tu cuenta de Google y escribe el código del evento (pídemelo).',
             ]

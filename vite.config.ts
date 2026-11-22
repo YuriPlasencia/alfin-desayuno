@@ -30,8 +30,8 @@ export default defineConfig({
       injectRegister: 'auto',
       includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
       manifest: {
-        name: 'Juntada',
-        short_name: 'Juntada',
+        name: 'Juntay',
+        short_name: 'Juntay',
         description: 'Arma tus eventos en equipo: actividades, acuerdos, cuotas y gastos con constancia, en una pizarra en vivo.',
         lang: 'es',
         start_url: '/',
