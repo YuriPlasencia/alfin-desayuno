@@ -168,6 +168,20 @@ function mine(req) {
   return { row, locked: false }
 }
 
+/**
+ * Abre el juego al crear un evento de tipo «Amigo secreto» (dentro de runInEvent).
+ * La entrega toma la fecha, hora y lugar del evento; quien lo crea organiza y queda apuntado.
+ */
+export function openSecretGame({ title, date, time, place, memberId, userId }) {
+  if (getGame()) return
+  const now = nowIso()
+  db.prepare(
+    `INSERT INTO secret_game (id, status, title, budget_min, budget_max, deliver_date, deliver_time, place, rules, sweets, created_by, created_at)
+     VALUES (1, 'armando', ?, 0, 0, ?, ?, ?, '', 1, ?, ?)`,
+  ).run(String(title || '').slice(0, 80), date || '', time || '', String(place || '').slice(0, 120), memberId, now)
+  db.prepare('INSERT OR IGNORE INTO secret_participants (member_id, user_id, joined_at) VALUES (?, ?, ?)').run(memberId, userId, now)
+}
+
 /** ¿Hay un amigo secreto creado en el evento en curso? (importar una copia lo borraría). */
 export const secretGameExists = () => Boolean(getGame())
 

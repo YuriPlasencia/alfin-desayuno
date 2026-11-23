@@ -25,6 +25,7 @@ import {
   createEvent,
   eventSummary,
   countAdminEvents,
+  EVENT_TYPES,
   getEvent,
   getUser,
   joinEvent,
@@ -209,6 +210,7 @@ app.post('/api/events', requireUser, (req, res) => {
     location: text(body.location).slice(0, 120),
     guests: num(body.guests, 20),
     code,
+    type: oneOf(body.type, EVENT_TYPES, ''),
     user: req.user,
   })
   res.status(201).json({ slug })

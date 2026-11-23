@@ -3,6 +3,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { DATA_DIR, SLUG_PATTERN, db, eventDbPath, getSettings, nowIso, plain, runInEvent } from './db.js'
+import { openSecretGame } from './secreto.js'
+
+/** Tipos de evento que se eligen al crearlo. */
+export const EVENT_TYPES = ['desayuno', 'almuerzo', 'cena', 'secreto']
 
 /*
  * Juntay: la plataforma. Guarda las cuentas (Google), los eventos con su código
@@ -118,7 +122,7 @@ export function membership(slug, userId) {
 export function eventSummary(slug) {
   return runInEvent(slug, () => {
     const s = getSettings()
-    return { slug, name: s.event_name, date: s.event_date, time: s.event_time, location: s.location }
+    return { slug, name: s.event_name, date: s.event_date, time: s.event_time, location: s.location, type: s.event_type || '' }
   })
 }
 
@@ -160,15 +164,18 @@ export function slugify(name, date) {
 }
 
 /** Crea el evento con su base vacía; quien lo crea queda como organizador y primer imán. */
-export function createEvent({ name, date, time, location, guests, code, user }) {
+export function createEvent({ name, date, time, location, guests, code, type = '', user }) {
   const slug = slugify(name, date)
   const now = nowIso()
   const memberId = runInEvent(slug, () => {
     getSettings()
     db.prepare(
-      'UPDATE settings SET event_name = ?, event_date = ?, event_time = ?, location = ?, guests = ?, team_size = 1, updated_at = ? WHERE id = 1',
-    ).run(name, date || '', time || '', location || '', Math.max(1, Math.round(Number(guests) || 20)), now)
-    return addMemberFor(user, { role: 'Organiza el evento', lead: true })
+      'UPDATE settings SET event_name = ?, event_date = ?, event_time = ?, location = ?, guests = ?, team_size = 1, event_type = ?, updated_at = ? WHERE id = 1',
+    ).run(name, date || '', time || '', location || '', Math.max(1, Math.round(Number(guests) || 20)), type, now)
+    const id = addMemberFor(user, { role: 'Organiza el evento', lead: true })
+    // Un evento de amigo secreto nace con el juego abierto y su organizador ya apuntado.
+    if (type === 'secreto') openSecretGame({ title: name, date, time, place: location, memberId: id, userId: user.id })
+    return id
   })
   const result = pdb
     .prepare('INSERT INTO events (slug, code_hash, created_by, created_at) VALUES (?, ?, ?, ?)')

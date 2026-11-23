@@ -3717,6 +3717,19 @@ select {
   color: var(--blue);
 }
 
+.event-card-kind {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.chip.event-kind {
+  min-height: 40px;
+  padding: 0 14px;
+}
+
 .event-card-go {
   display: inline-flex;
   align-items: center;

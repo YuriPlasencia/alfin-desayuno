@@ -3,7 +3,7 @@ import { platform } from '../api'
 import { Brand } from '../components/brand'
 import { Avatar, Button, Field, Icon, Input, Modal } from '../components/ui'
 import { daysUntil, formatLongDate } from '../lib/format'
-import type { EventSummary, User } from '../types'
+import type { EventSummary, EventType, User } from '../types'
 
 declare global {
   interface Window {
@@ -147,6 +147,7 @@ function EventCard({ event }: { event: EventSummary }) {
         ) : null}
       </span>
       <strong className="event-card-name">{event.name}</strong>
+      {kindLabel(event.type) ? <span className="event-card-kind">{kindLabel(event.type)}</span> : null}
       <span className="muted small">
         {event.date ? formatLongDate(event.date) : 'Fecha por definir'}
         {event.time ? ` · ${event.time}` : ''}
@@ -159,10 +160,28 @@ function EventCard({ event }: { event: EventSummary }) {
   )
 }
 
+/** Tipos de evento: cada uno propone una hora y un ejemplo de nombre. */
+const EVENT_KINDS: { id: EventType; label: string; time: string; example: string }[] = [
+  { id: 'desayuno', label: 'Desayuno', time: '09:00', example: 'Ej. Al Fin Desayuno' },
+  { id: 'almuerzo', label: 'Almuerzo', time: '13:00', example: 'Ej. Almuerzo de fin de año' },
+  { id: 'cena', label: 'Cena', time: '20:00', example: 'Ej. Cena de aniversario' },
+  { id: 'secreto', label: 'Amigo secreto', time: '19:00', example: 'Ej. Amigo secreto de Navidad' },
+]
+const kindLabel = (type?: string) => EVENT_KINDS.find((kind) => kind.id === type)?.label
+
 function CreateEvent({ onClose }: { onClose: () => void }) {
+  const [type, setType] = useState<EventType>('desayuno')
+  const [timeTouched, setTimeTouched] = useState(false)
   const [name, setName] = useState('')
   const [date, setDate] = useState('')
   const [time, setTime] = useState('09:00')
+  const kind = EVENT_KINDS.find((item) => item.id === type) ?? EVENT_KINDS[0]
+  const secret = type === 'secreto'
+  const pickType = (next: EventType) => {
+    setType(next)
+    // La hora sugerida acompaña al tipo mientras nadie la haya cambiado a mano.
+    if (!timeTouched) setTime(EVENT_KINDS.find((item) => item.id === next)?.time ?? '09:00')
+  }
   const [location, setLocation] = useState('')
   const [guests, setGuests] = useState('20')
   const [code, setCode] = useState('')
@@ -173,8 +192,9 @@ function CreateEvent({ onClose }: { onClose: () => void }) {
     setBusy(true)
     setMessage(null)
     try {
-      const { slug } = await platform.createEvent({ name: name.trim(), date, time, location, guests: Number(guests) || 20, code })
-      goTo(`/e/${slug}`)
+      const { slug } = await platform.createEvent({ name: name.trim(), date, time, location, guests: Number(guests) || 20, code, type })
+      // Un amigo secreto se abre directo en su juego.
+      goTo(secret ? `/e/${slug}#/secreto` : `/e/${slug}`)
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'No se pudo crear el evento')
       setBusy(false)
@@ -186,7 +206,11 @@ function CreateEvent({ onClose }: { onClose: () => void }) {
       open
       onClose={onClose}
       title="Nuevo evento"
-      description="Tendrá su propia pizarra: actividades, acuerdos, equipo y presupuesto."
+      description={
+        secret
+          ? 'Juntay abre el juego: cada quien se apunta, deja su lista de deseos y recibe su papelito secreto.'
+          : 'Tendrá su propia pizarra: actividades, acuerdos, equipo y presupuesto.'
+      }
       footer={
         <>
           <span className="spacer" />
@@ -200,21 +224,47 @@ function CreateEvent({ onClose }: { onClose: () => void }) {
       }
     >
       <div className="form-grid">
+        <Field label="Tipo de evento">
+          <div className="chip-select" role="radiogroup" aria-label="Tipo de evento">
+            {EVENT_KINDS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                role="radio"
+                aria-checked={type === item.id}
+                className={`chip event-kind ${type === item.id ? 'is-selected' : ''}`}
+                onClick={() => pickType(item.id)}
+              >
+                {item.id === 'secreto' ? <Icon name="gift" size={15} /> : null}
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </Field>
         <Field label="Nombre del evento">
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Al Fin Desayuno" autoFocus />
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={kind.example} autoFocus />
         </Field>
         <div className="form-row">
-          <Field label="Fecha">
+          <Field label={secret ? 'Fecha de entrega' : 'Fecha'}>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
           <Field label="Hora">
-            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+            <Input
+              type="time"
+              value={time}
+              onChange={(e) => {
+                setTime(e.target.value)
+                setTimeTouched(true)
+              }}
+            />
           </Field>
-          <Field label="Invitados">
-            <Input type="number" min="1" value={guests} onChange={(e) => setGuests(e.target.value)} />
-          </Field>
+          {secret ? null : (
+            <Field label="Invitados">
+              <Input type="number" min="1" value={guests} onChange={(e) => setGuests(e.target.value)} />
+            </Field>
+          )}
         </div>
-        <Field label="Lugar">
+        <Field label={secret ? 'Lugar de entrega' : 'Lugar'}>
           <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Salón, dirección o referencia" />
         </Field>
         <Field label="Código del evento" hint="Quien quiera entrar lo necesita. Mínimo 6 caracteres; podrás cambiarlo en Ajustes.">

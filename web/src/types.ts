@@ -301,11 +301,15 @@ export interface User {
 }
 
 /** Un evento de Juntay, como se ve en "Tus eventos". */
+/** Tipo elegido al crear el evento ('' en eventos antiguos). */
+export type EventType = 'desayuno' | 'almuerzo' | 'cena' | 'secreto'
+
 export interface EventSummary {
   slug: string
   name: string
   date: string
   time: string
   location: string
+  type?: EventType | ''
   role?: 'admin' | 'member'
 }
