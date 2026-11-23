@@ -26,6 +26,7 @@ import {
   eventSummary,
   countAdminEvents,
   createNameUser,
+  recordHistory,
   EVENT_CATEGORIES,
   EVENT_TYPES,
   getEvent,
@@ -41,7 +42,8 @@ import {
   verifyCode,
 } from './platform.js'
 import { scrapeQuoteImage } from './ocr.js'
-import { mountSecreto, secretBeforeMemberDelete, secretGameExists, secretSummary } from './secreto.js'
+import { mountAdmin } from './admin.js'
+import { mountSecreto,secretBeforeMemberDelete, secretGameExists, secretSummary } from './secreto.js'
 
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -114,6 +116,7 @@ function sameSecret(a, b) {
 }
 
 function startSession(req, res, userId) {
+  recordHistory(userId, 'ingreso', '', 'Inició sesión')
   const exp = Date.now() + SESSION_DAYS * 86400000
   const value = `${userId}.${exp}`
   const secure = req.secure ? '; Secure' : ''
@@ -347,6 +350,8 @@ function actor(req) {
 function note(req, entity, entityId, action, detail) {
   const who = actor(req)
   logActivity({ actorId: who.id, actorName: who.name, entity, entityId, action, detail })
+  // Lo mismo en el historial de la persona (ligado a su cuenta, sobrevive a una importación).
+  if (req.user) recordHistory(req.user.id, 'actividad', currentSlug(), `${entity}: ${detail}`)
 }
 
 function text(value, fallback = '') {
@@ -1361,6 +1366,9 @@ ev.post('/import', (req, res) => {
 
 // Si el celular comparte antes de que la app quede instalada en caché, al menos abre la app.
 app.post('/compartir', (_req, res) => res.redirect(303, '/?compartido=0'))
+
+// Base de personas e historial en CSV (solo con ADMIN_KEY).
+mountAdmin(app, { tooManyAttempts, failAttempt })
 
 // ---------- static ----------
 

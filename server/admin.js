@@ -1,0 +1,190 @@
+import crypto from 'node:crypto'
+import { db, runInEvent } from './db.js'
+import { historySince, pdb } from './platform.js'
+
+/*
+ * Base de personas e historial de Juntay, para descargar en CSV desde /admin.
+ * Solo con la clave ADMIN_KEY (variable de entorno). Sin ella, /admin no existe.
+ */
+
+const ADMIN_KEY = process.env.ADMIN_KEY || ''
+
+const CATEGORY = { trabajo: 'Trabajo', familiar: 'Familiar', entretenimiento: 'Entretenimiento', finanzas: 'Finanzas personales' }
+const KIND = {
+  registro: 'Se registró',
+  ingreso: 'Inició sesión',
+  'creó evento': 'Creó un evento',
+  'se unió': 'Se unió a un evento',
+  actividad: 'Actividad en el evento',
+}
+
+/** Datos de cada evento: nombre, categoría y su registro de actividad (para reconstruir lo de antes). */
+function eventInfo() {
+  const events = pdb.prepare('SELECT id, slug FROM events').all()
+  const info = new Map()
+  for (const event of events) {
+    try {
+      info.set(
+        event.slug,
+        runInEvent(event.slug, () => {
+          const s = db.prepare('SELECT event_name, event_category, event_type FROM settings WHERE id = 1').get() || {}
+          const log = db.prepare('SELECT actor_id, actor_name, entity, detail, created_at FROM activity_log ORDER BY id ASC').all()
+          return { id: event.id, name: s.event_name || event.slug, category: s.event_category || '', log }
+        }),
+      )
+    } catch (err) {
+      console.error('[admin] no se pudo leer', event.slug, err)
+    }
+  }
+  return info
+}
+
+/** Historial completo: lo guardado desde que existe la tabla, más lo anterior reconstruido. */
+export function buildHistory(events = eventInfo()) {
+  const since = historySince()
+  const users = new Map(pdb.prepare('SELECT id, name, email, created_at FROM users').all().map((u) => [u.id, u]))
+  const rows = []
+  const push = (at, userId, kind, slug, detail, fallbackName = '') => {
+    const user = users.get(userId)
+    rows.push({
+      at,
+      userId: user ? user.id : null,
+      name: user?.name || fallbackName,
+      email: user?.email || '',
+      kind: KIND[kind] || kind,
+      event: slug ? events.get(slug)?.name || slug : '',
+      category: slug ? CATEGORY[events.get(slug)?.category] || '' : '',
+      detail,
+    })
+  }
+
+  for (const h of pdb.prepare('SELECT at, user_id, kind, slug, detail FROM history ORDER BY at ASC').all()) {
+    push(h.at, h.user_id, h.kind, h.slug, h.detail)
+  }
+
+  // Antes de que existiera el historial: registro, eventos creados, uniones y actividad de cada evento.
+  for (const user of users.values()) if (user.created_at < since) push(user.created_at, user.id, 'registro', '', 'Primera vez en Juntay')
+  for (const e of pdb.prepare('SELECT slug, created_by, created_at FROM events WHERE created_at < ?').all(since)) {
+    push(e.created_at, e.created_by, 'creó evento', e.slug, '')
+  }
+  const links = pdb
+    .prepare('SELECT e.slug, eu.user_id, eu.role, eu.member_id, eu.joined_at FROM event_users eu JOIN events e ON e.id = eu.event_id')
+    .all()
+  for (const link of links) {
+    if (link.joined_at < since && link.role !== 'admin') push(link.joined_at, link.user_id, 'se unió', link.slug, '')
+  }
+  // La actividad del evento está ligada al imán: se atribuye a la cuenta que hoy tiene ese imán.
+  for (const [slug, event] of events) {
+    const owner = new Map(links.filter((l) => l.slug === slug && l.member_id).map((l) => [l.member_id, l.user_id]))
+    for (const entry of event.log) {
+      if (entry.created_at >= since) continue
+      push(entry.created_at, owner.get(entry.actor_id) ?? null, 'actividad', slug, `${entry.entity}: ${entry.detail}`, entry.actor_name)
+    }
+  }
+
+  return rows.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
+}
+
+/** Una fila por persona: nombre, correo, primera vez, última vez y cuánto usa Juntay. */
+export function buildPeople() {
+  const users = pdb.prepare('SELECT id, name, email, news_opt_in, created_at, last_login_at FROM users ORDER BY created_at ASC').all()
+  const events = eventInfo()
+  const history = buildHistory(events)
+  const nameOf = new Map([...events].map(([slug, e]) => [slug, e.name]))
+  const memberships = pdb
+    .prepare('SELECT eu.user_id, eu.role, e.slug FROM event_users eu JOIN events e ON e.id = eu.event_id')
+    .all()
+  const byUser = new Map()
+  for (const row of history) {
+    if (row.userId === null) continue
+    const stats = byUser.get(row.userId) || { count: 0, last: '' }
+    stats.count += 1
+    if (row.at > stats.last) stats.last = row.at
+    byUser.set(row.userId, stats)
+  }
+  return users.map((u) => {
+    const mine = memberships.filter((m) => m.user_id === u.id)
+    const stats = byUser.get(u.id) || { count: 0, last: '' }
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      news: u.news_opt_in ? 'sí' : 'no',
+      first: u.created_at,
+      last_login: u.last_login_at,
+      last_activity: stats.last || u.last_login_at,
+      actions: stats.count,
+      events: mine.length,
+      organizes: mine.filter((m) => m.role === 'admin').length,
+      categories: [...new Set(mine.map((m) => CATEGORY[events.get(m.slug)?.category]).filter(Boolean))].join(' / '),
+      event_names: mine.map((m) => nameOf.get(m.slug) || m.slug).join(' / '),
+    }
+  })
+}
+
+// CSV con BOM para que Excel y Google Sheets muestren bien las tildes.
+const cell = (value) => {
+  const text = String(value ?? '')
+  // Evita que una celda que empieza con = + - @ se ejecute como fórmula al abrirla.
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text
+  return `"${safe.replace(/"/g, '""')}"`
+}
+const csv = (header, rows) => '﻿' + [header, ...rows].map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n'
+
+export function peopleCsv() {
+  return csv(
+    ['id', 'nombre', 'correo', 'acepta_novedades', 'primera_vez', 'ultimo_ingreso', 'ultima_actividad', 'acciones', 'eventos', 'organiza', 'categorias', 'nombres_de_eventos'],
+    buildPeople().map((p) => [p.id, p.name, p.email, p.news, p.first, p.last_login, p.last_activity, p.actions, p.events, p.organizes, p.categories, p.event_names]),
+  )
+}
+
+export function historyCsv() {
+  return csv(
+    ['fecha', 'nombre', 'correo', 'que_hizo', 'evento', 'categoria', 'detalle'],
+    buildHistory().map((h) => [h.at, h.name, h.email, h.kind, h.event, h.category, h.detail]),
+  )
+}
+
+function keyMatches(given) {
+  if (!ADMIN_KEY || typeof given !== 'string') return false
+  const a = crypto.createHash('sha256').update(given).digest()
+  const b = crypto.createHash('sha256').update(ADMIN_KEY).digest()
+  return crypto.timingSafeEqual(a, b)
+}
+
+const PAGE = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>Juntay · Administración</title>
+<style>body{font:16px/1.5 system-ui,sans-serif;max-width:520px;margin:48px auto;padding:0 16px;color:#0f172a;background:#f1f4fb}
+h1{font-size:22px;color:#1D3FBF}input{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font:inherit}
+button{margin:12px 8px 0 0;padding:10px 16px;border:0;border-radius:10px;background:#1D3FBF;color:#fff;font:inherit;font-weight:600;cursor:pointer}
+p.msg{min-height:24px;color:#b91c1c}</style></head><body>
+<h1>Juntay · Administración</h1><p>Descarga la base de personas y el historial completo (CSV para Excel o Google Sheets).</p>
+<label>Clave de administración<br><input id="k" type="password" autocomplete="off"></label>
+<div><button data-f="personas">Descargar personas</button><button data-f="historial">Descargar historial</button></div><p class="msg" id="m"></p>
+<script>for(const b of document.querySelectorAll('button'))b.onclick=async()=>{const m=document.getElementById('m');m.textContent='';
+const r=await fetch('/api/admin/'+b.dataset.f+'.csv',{headers:{'x-admin-key':document.getElementById('k').value}});
+if(!r.ok){m.textContent=r.status===429?'Demasiados intentos. Espera unos minutos.':'Clave incorrecta.';return}
+const a=document.createElement('a');a.href=URL.createObjectURL(await r.blob());a.download='juntay-'+b.dataset.f+'-'+new Date().toISOString().slice(0,10)+'.csv';a.click()}</script>
+</body></html>`
+
+/** /admin y sus descargas. Sin ADMIN_KEY configurada responden 404, como si no existieran. */
+export function mountAdmin(app, { tooManyAttempts, failAttempt }) {
+  app.get('/admin', (_req, res) => {
+    if (!ADMIN_KEY) return res.status(404).end()
+    res.setHeader('Cache-Control', 'no-store')
+    res.type('html').send(PAGE)
+  })
+  const guard = (req, res, next) => {
+    if (!ADMIN_KEY) return res.status(404).end()
+    const key = `admin:${req.ip}`
+    if (tooManyAttempts(key)) return res.status(429).json({ error: 'Demasiados intentos' })
+    if (!keyMatches(req.get('x-admin-key'))) {
+      failAttempt(key)
+      return res.status(401).json({ error: 'Clave incorrecta' })
+    }
+    res.setHeader('Cache-Control', 'no-store')
+    next()
+  }
+  app.get('/api/admin/personas.csv', guard, (_req, res) => res.type('text/csv; charset=utf-8').send(peopleCsv()))
+  app.get('/api/admin/historial.csv', guard, (_req, res) => res.type('text/csv; charset=utf-8').send(historyCsv()))
+}

@@ -65,6 +65,33 @@ for (const [column, definition] of [
   }
 }
 
+// Historial de cada persona en Juntay: ingresos, eventos creados, uniones y lo que hace en cada evento.
+pdb.exec(`
+  CREATE TABLE IF NOT EXISTS history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    kind TEXT NOT NULL,
+    slug TEXT NOT NULL DEFAULT '',
+    detail TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX IF NOT EXISTS history_user ON history (user_id, at);
+`)
+// Desde cuándo se guarda el historial: lo anterior se reconstruye de los datos que ya había.
+if (!pdb.prepare("SELECT 1 FROM meta WHERE key = 'history_since'").get()) {
+  pdb.prepare("INSERT INTO meta (key, value) VALUES ('history_since', ?)").run(nowIso())
+}
+export const historySince = () => pdb.prepare("SELECT value FROM meta WHERE key = 'history_since'").get().value
+
+/** Anota un hecho en el historial de la persona (nunca rompe la acción que lo origina). */
+export function recordHistory(userId, kind, slug = '', detail = '') {
+  try {
+    pdb.prepare('INSERT INTO history (at, user_id, kind, slug, detail) VALUES (?, ?, ?, ?, ?)').run(nowIso(), userId || null, kind, slug, String(detail).slice(0, 500))
+  } catch (err) {
+    console.error('[historial]', err)
+  }
+}
+
 /**
  * Entrada con nombre y correo (sin Google). El correo no se verifica, así que no sirve para
  * recuperar una cuenta: cada entrada crea una cuenta nueva y nadie toma la de otro escribiendo su correo.
@@ -76,7 +103,9 @@ export function createNameUser({ name, email, newsOptIn }) {
       'INSERT INTO users (google_sub, email, name, picture, created_at, last_login_at, news_opt_in, consent_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     )
     .run(`nombre:${crypto.randomUUID()}`, email, name, '', now, now, newsOptIn ? 1 : 0, newsOptIn ? now : null)
-  return Number(result.lastInsertRowid)
+  const id = Number(result.lastInsertRowid)
+  recordHistory(id, 'registro', '', 'Se registró con nombre y correo')
+  return id
 }
 
 // ---------- secreto de sesión (se genera una vez y queda en la base) ----------
@@ -120,7 +149,9 @@ export function upsertGoogleUser({ sub, email, name, picture }) {
   const result = pdb
     .prepare('INSERT INTO users (google_sub, email, name, picture, created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?)')
     .run(sub, email, name, picture, now, now)
-  return Number(result.lastInsertRowid)
+  const id = Number(result.lastInsertRowid)
+  recordHistory(id, 'registro', '', 'Se registró con Google')
+  return id
 }
 
 export function getUser(id) {
@@ -209,6 +240,7 @@ export function createEvent({ name, date, time, location, guests, code, type = '
   pdb
     .prepare("INSERT INTO event_users (event_id, user_id, role, member_id, joined_at) VALUES (?, ?, 'admin', ?, ?)")
     .run(Number(result.lastInsertRowid), user.id, memberId, now)
+  recordHistory(user.id, 'creó evento', slug, type ? `${name} (${type})` : name)
   return slug
 }
 
@@ -234,6 +266,7 @@ export function joinEvent(slug, user) {
   pdb
     .prepare('INSERT OR IGNORE INTO event_users (event_id, user_id, role, member_id, joined_at) VALUES (?, ?, ?, NULL, ?)')
     .run(event.id, user.id, hasMembers ? 'member' : 'admin', now)
+  recordHistory(user.id, 'se unió', slug, 'Entró al evento con el código')
   return membership(slug, user.id)
 }
 
