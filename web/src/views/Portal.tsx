@@ -89,6 +89,8 @@ function Login({ onLogged }: { onLogged: (user: User) => void }) {
   }
   const [config, setConfig] = useState<{ googleClientId: string; nameLogin: boolean } | null>(null)
   const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [news, setNews] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -109,9 +111,10 @@ function Login({ onLogged }: { onLogged: (user: User) => void }) {
     }
   }
 
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())
   const byName = (e: FormEvent) => {
     e.preventDefault()
-    if (name.trim()) void finish(() => platform.loginName(name.trim()))
+    if (name.trim() && emailOk) void finish(() => platform.loginName(name.trim(), email.trim(), news))
   }
 
   const info = CATEGORIES[category]
@@ -151,9 +154,26 @@ function Login({ onLogged }: { onLogged: (user: User) => void }) {
             <Field label="Tu nombre y apellido">
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Ana Torres" autoComplete="name" />
             </Field>
-            <Button type="submit" disabled={busy || !name.trim()}>
+            <Field label="Tu correo">
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Ej. ana@correo.com"
+                autoComplete="email"
+                inputMode="email"
+              />
+            </Field>
+            <label className="portal-news">
+              <input type="checkbox" checked={news} onChange={(e) => setNews(e.target.checked)} />
+              <span>Quiero recibir novedades de Juntay por correo</span>
+            </label>
+            <Button type="submit" disabled={busy || !name.trim() || !emailOk}>
               {busy ? 'Entrando…' : 'Entrar'}
             </Button>
+            <p className="portal-privacy muted small">
+              Usamos tu correo para identificarte en tus eventos. No lo compartimos. Las novedades llegan solo si marcas la casilla.
+            </p>
           </form>
         ) : null}
         {!config && !message ? <span className="spinner" /> : null}

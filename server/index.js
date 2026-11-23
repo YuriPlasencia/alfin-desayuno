@@ -25,6 +25,7 @@ import {
   createEvent,
   eventSummary,
   countAdminEvents,
+  createNameUser,
   EVENT_CATEGORIES,
   EVENT_TYPES,
   getEvent,
@@ -170,12 +171,15 @@ app.post('/api/auth/google', async (req, res) => {
   }
 })
 
-// Sin Google configurado: entrar con el nombre (la cuenta queda en este dispositivo).
+// Sin Google configurado: entrar con nombre y correo (la cuenta queda en este dispositivo).
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 app.post('/api/auth/name', (req, res) => {
   if (!NAME_LOGIN) return res.status(400).json({ error: 'Entra con tu cuenta de Google' })
   const name = text(req.body?.name).slice(0, 60)
+  const email = String(req.body?.email || '').trim().toLowerCase()
   if (!name) return res.status(400).json({ error: 'Escribe tu nombre' })
-  const userId = upsertGoogleUser({ sub: `nombre:${crypto.randomUUID()}`, email: '', name, picture: '' })
+  if (email.length > 254 || !EMAIL.test(email)) return res.status(400).json({ error: 'Escribe un correo válido' })
+  const userId = createNameUser({ name, email, newsOptIn: req.body?.news === true })
   startSession(req, res, userId)
   res.json({ user: getUser(userId) })
 })

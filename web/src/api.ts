@@ -152,7 +152,7 @@ export const platform = {
   config: () => request<{ googleClientId: string; nameLogin: boolean }>('/api/config'),
   me: () => request<{ user: User | null; events: EventSummary[] }>('/api/me'),
   loginGoogle: (credential: string) => request<{ user: User }>('/api/auth/google', json({ credential })),
-  loginName: (name: string) => request<{ user: User }>('/api/auth/name', json({ name })),
+  loginName: (name: string, email: string, news: boolean) => request<{ user: User }>('/api/auth/name', json({ name, email, news })),
   logout: () => request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
   createEvent: (body: { name: string; date: string; time: string; location: string; guests: number; code: string; type: EventType; category: EventCategory }) =>
     request<{ slug: string }>('/api/events', json(body)),

@@ -12,7 +12,8 @@
     "start": "node server/index.js",
     "typecheck": "tsc --noEmit",
     "reset-demo": "node server/seed.js --reset demo",
-    "shots": "node scripts/shots.mjs"
+    "shots": "node scripts/shots.mjs",
+    "correos": "node scripts/correos.mjs"
   },
   "engines": {
     "node": ">=22.13"

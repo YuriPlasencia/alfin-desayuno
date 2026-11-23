@@ -3725,6 +3725,29 @@ select {
   color: var(--muted);
 }
 
+.portal-news {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 36px;
+  font-size: 14px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.portal-news input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  accent-color: var(--blue);
+}
+
+.portal-privacy {
+  margin: 0;
+  line-height: 1.45;
+}
+
 .portal-ask {
   margin: 0 0 8px;
   font-size: 13px;

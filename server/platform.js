@@ -55,6 +55,30 @@ pdb.exec(`
   );
 `)
 
+// Permiso para recibir novedades de Juntay (se pide al entrar, desmarcado por defecto).
+for (const [column, definition] of [
+  ['news_opt_in', 'INTEGER NOT NULL DEFAULT 0'],
+  ['consent_at', 'TEXT'],
+]) {
+  if (!pdb.prepare('PRAGMA table_info(users)').all().some((col) => col.name === column)) {
+    pdb.exec(`ALTER TABLE users ADD COLUMN ${column} ${definition};`)
+  }
+}
+
+/**
+ * Entrada con nombre y correo (sin Google). El correo no se verifica, así que no sirve para
+ * recuperar una cuenta: cada entrada crea una cuenta nueva y nadie toma la de otro escribiendo su correo.
+ */
+export function createNameUser({ name, email, newsOptIn }) {
+  const now = nowIso()
+  const result = pdb
+    .prepare(
+      'INSERT INTO users (google_sub, email, name, picture, created_at, last_login_at, news_opt_in, consent_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+    .run(`nombre:${crypto.randomUUID()}`, email, name, '', now, now, newsOptIn ? 1 : 0, newsOptIn ? now : null)
+  return Number(result.lastInsertRowid)
+}
+
 // ---------- secreto de sesión (se genera una vez y queda en la base) ----------
 
 export function sessionSecret() {
