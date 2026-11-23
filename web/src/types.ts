@@ -337,6 +337,8 @@ export interface FinEntry {
   date: string
   concept: string
   merchant: string
+  /** Comercio normalizado (lo calcula el servidor) para agrupar el gasto por tienda. */
+  brand: string
   category: string
   amount: number
   current_value: number | null

@@ -283,3 +283,266 @@ button.fin-tile:hover {
     grid-row: 2;
   }
 }
+
+/* ---------- panel ---------- */
+
+.fin-panel {
+  /* Colores de serie validados para daltonismo sobre fondo blanco (ΔE 30 protan). */
+  --series-in: #1d3fbf;
+  --series-out: #eb6834;
+}
+
+.fin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.fin-search {
+  position: relative;
+  flex: 1 1 260px;
+  max-width: 420px;
+}
+
+.fin-search > svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.fin-search .input {
+  padding-left: 36px;
+}
+
+.fin-active {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.fin-active .chip {
+  gap: 6px;
+  padding: 0 10px 0 12px;
+}
+
+.fin-selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--blue-line);
+  background: var(--blue-soft);
+  color: var(--blue-ink);
+}
+
+.fin-selection strong {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.fin-panel-card {
+  display: grid;
+  gap: 10px;
+}
+
+.fin-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+
+.fin-panel-head .section-title {
+  margin: 0;
+}
+
+/* ranking: una sola serie, barras finas con el extremo redondeado */
+
+.fin-rank {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fin-rank-row {
+  display: grid;
+  grid-template-columns: minmax(96px, 150px) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+button.fin-rank-row:hover,
+button.fin-rank-row:focus-visible {
+  background: var(--well);
+}
+
+.fin-rank-row.is-active {
+  background: var(--blue-soft);
+}
+
+.fin-rank-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fin-rank-track {
+  height: 12px;
+}
+
+.fin-rank-track i {
+  display: block;
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  background: var(--series-in);
+}
+
+.fin-rank-value {
+  display: inline-flex;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fin-rank-value .muted {
+  min-width: 34px;
+  text-align: right;
+}
+
+/* tendencia */
+
+.fin-legend {
+  display: inline-flex;
+  gap: 14px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.fin-legend span,
+.fin-tooltip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fin-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.fin-swatch.is-in {
+  background: var(--series-in);
+}
+
+.fin-swatch.is-out {
+  background: var(--series-out);
+}
+
+.fin-trend {
+  position: relative;
+}
+
+.fin-trend svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.fin-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.fin-axis {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+
+.fin-tick {
+  fill: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-bar-in {
+  fill: var(--series-in);
+}
+
+.fin-bar-out {
+  fill: var(--series-out);
+}
+
+.fin-hover-band {
+  fill: var(--well);
+}
+
+.fin-trend rect[tabindex]:focus-visible {
+  outline: 2px solid var(--blue);
+}
+
+.fin-tooltip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--board);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.fin-table-toggle summary {
+  cursor: pointer;
+  color: var(--ink-2);
+}
+
+.fin-table-toggle .fin-table {
+  margin-top: 8px;
+}
+
+@media (max-width: 640px) {
+  .fin-panel-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .fin-rank-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .fin-rank-track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}

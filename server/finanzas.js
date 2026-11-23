@@ -101,6 +101,65 @@ export function guessRubro(description) {
   return 'Otros'
 }
 
+/*
+ * Comercios conocidos: el nombre comercial a partir de palabras de la boleta o del RUC.
+ * Así «SUPERMERCADOS PERUANOS S.A. … PLAZA VEA SAN MIGUEL» queda como «Plaza Vea» y se
+ * puede comparar cuánto se gasta en cada tienda.
+ */
+const BRANDS = [
+  { brand: 'Plaza Vea', words: ['plaza vea', 'plazavea', 'supermercados peruanos'], ruc: ['20100070970'] },
+  { brand: 'Vivanda', words: ['vivanda'] },
+  { brand: 'Mass', words: ['tiendas mass', ' mass '] },
+  { brand: 'Tottus', words: ['tottus'], ruc: ['20508565934'] },
+  { brand: 'Wong', words: ['wong'] },
+  { brand: 'Metro', words: ['metro', 'cencosud'], ruc: ['20109072177'] },
+  { brand: 'Makro', words: ['makro'], ruc: ['20492092313'] },
+  { brand: 'Tambo', words: ['tambo'] },
+  { brand: 'Oxxo', words: ['oxxo'] },
+  { brand: 'Franco', words: ['supermercados franco', 'franco'] },
+  { brand: 'Inkafarma', words: ['inkafarma', 'inretail pharma'] },
+  { brand: 'Mifarma', words: ['mifarma'] },
+  { brand: 'Boticas Perú', words: ['boticas peru'] },
+  { brand: 'Sodimac', words: ['sodimac'] },
+  { brand: 'Promart', words: ['promart'] },
+  { brand: 'Saga Falabella', words: ['falabella'] },
+  { brand: 'Ripley', words: ['ripley'] },
+  { brand: 'Oechsle', words: ['oechsle'] },
+  { brand: 'Primax', words: ['primax'] },
+  { brand: 'Repsol', words: ['repsol'] },
+  { brand: 'Petroperú', words: ['petroperu'] },
+  { brand: 'Starbucks', words: ['starbucks'] },
+  { brand: 'KFC', words: ['kfc', 'kentucky'] },
+  { brand: 'Bembos', words: ['bembos'] },
+  { brand: 'Rappi', words: ['rappi'] },
+  { brand: 'PedidosYa', words: ['pedidosya', 'pedidos ya'] },
+  { brand: 'Uber', words: ['uber'] },
+  { brand: 'Cabify', words: ['cabify'] },
+]
+
+/** Nombre comercial de un texto (boleta completa o lo que escribió la persona). '' si no se reconoce. */
+export function knownBrand(text) {
+  const plain = ` ${plainText(text).replace(/[^a-z0-9]+/g, ' ')} `
+  for (const { brand, words } of BRANDS) if (words.some((w) => plain.includes(w.includes(' ') ? w : ` ${w} `))) return brand
+  const digits = String(text || '').replace(/\D+/g, ' ')
+  for (const { brand, ruc = [] } of BRANDS) if (ruc.some((r) => digits.includes(r))) return brand
+  return ''
+}
+
+/** Comercio para agrupar: el nombre comercial conocido o el escrito, sin «S.A.C.» y con mayúsculas iniciales. */
+export function brandOf(merchant) {
+  const known = knownBrand(merchant)
+  if (known) return known
+  const clean = String(merchant || '')
+    .replace(/\b(s\.?\s?a\.?\s?c\.?|s\.?\s?a\.?\s?a\.?|s\.?\s?r\.?\s?l\.?|e\.?\s?i\.?\s?r\.?\s?l\.?|s\.?\s?a\.?)(?=\s|$)/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!clean) return 'Sin comercio'
+  // Siglas cortas (BCP, BBVA, KFC) se quedan en mayúsculas.
+  if (/^[A-Z0-9&]{2,5}$/.test(clean)) return clean
+  return clean.toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())
+}
+
 const SUPERMARKETS = ['plaza vea', 'tottus', 'metro', 'wong', 'makro', 'mass', 'tambo', 'oxxo', 'vivanda', 'franco', 'precio uno', 'supermercado', 'minimarket', 'market', 'bodega']
 const RESTAURANTS = ['restaurant', 'pollos', 'polleria', 'chifa', 'cafeteria', 'starbucks', 'kfc', 'bembos', 'pizza', 'burger', 'rappi', 'pedidosya', 'cevicheria', 'parrilla']
 const PHARMACIES = ['inkafarma', 'mifarma', 'botica', 'farmacia', 'clinica']
@@ -135,7 +194,8 @@ function firstLines(lines) {
 /** Boleta de compra → comercio, fecha, total y una línea por producto con su rubro. */
 export function parseExpenseText(raw) {
   const lines = String(raw || '').split(/\r?\n/).map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean)
-  const merchant = firstLines(lines).slice(0, 80)
+  // El comercio: el nombre comercial si se reconoce en cualquier parte de la boleta (o por su RUC).
+  const merchant = knownBrand(lines.join('\n')) || brandOf(firstLines(lines).slice(0, 80))
   let total = 0
   const items = []
   for (const line of lines) {
@@ -319,17 +379,21 @@ function saveLines(entryId, lines) {
 const ownDoc = (userId, docId) => (docId ? pdb.prepare('SELECT id FROM fin_docs WHERE id = ? AND user_id = ?').get(Number(docId), userId) : null)
 
 export function mountFinanzas(app, { requireUser, tooManyAttempts, failAttempt }) {
-  // Movimientos de un periodo (las inversiones siempre todas: son la cartera).
+  // Movimientos de un mes (?mes=) o de un rango de meses (?desde=&hasta=); las inversiones, siempre todas: son la cartera.
   app.get('/api/finanzas', requireUser, (req, res) => {
-    const month = /^\d{4}-\d{2}$/.test(String(req.query.mes || '')) ? String(req.query.mes) : nowIso().slice(0, 7)
+    const isMonth = (value) => /^\d{4}-\d{2}$/.test(String(value || ''))
+    const month = isMonth(req.query.mes) ? String(req.query.mes) : nowIso().slice(0, 7)
+    const from = isMonth(req.query.desde) ? String(req.query.desde) : month
+    const to = isMonth(req.query.hasta) && String(req.query.hasta) >= from ? String(req.query.hasta) : from === month ? month : from
     const rows = pdb
       .prepare(
         `SELECT id, kind, date, concept, merchant, category, amount, current_value, note, doc_id, source FROM fin_entries
-         WHERE user_id = ? AND (kind = 'inversion' OR substr(date, 1, 7) = ?) ORDER BY date DESC, id DESC`,
+         WHERE user_id = ? AND (kind = 'inversion' OR substr(date, 1, 7) BETWEEN ? AND ?) ORDER BY date DESC, id DESC`,
       )
-      .all(req.user.id, month)
+      .all(req.user.id, from, to)
     const lines = linesOf(rows.map((r) => r.id))
-    const entries = rows.map((r) => ({ ...r, has_doc: Boolean(r.doc_id), lines: lines.get(r.id) || [] }))
+    // brand: el comercio normalizado, para agrupar «Plaza Vea San Miguel» y «PLAZA VEA» juntos.
+    const entries = rows.map((r) => ({ ...r, brand: brandOf(r.merchant), has_doc: Boolean(r.doc_id), lines: lines.get(r.id) || [] }))
     res.setHeader('Cache-Control', 'no-store')
     res.json({
       month,
@@ -413,7 +477,8 @@ export function mountFinanzas(app, { requireUser, tooManyAttempts, failAttempt }
       try {
         const read = await readWithClaude({ kind, mime, base64: match[2] })
         if (read) {
-          draft = { ...read, date: isoDate(read.date), lines: cleanLines(kind, read.lines) }
+          const merchant = kind === 'gasto' ? knownBrand(read.merchant) || read.merchant : read.merchant
+          draft = { ...read, merchant, date: isoDate(read.date), lines: cleanLines(kind, read.lines) }
           source = 'ia'
         }
       } catch (err) {

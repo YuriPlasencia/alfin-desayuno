@@ -150,6 +150,8 @@ export const secreto = {
 /** Finanzas personales de la cuenta: ingresos, gastos e inversiones. */
 export const finanzas = {
   list: (month: string) => request<FinState>(`/api/finanzas?mes=${encodeURIComponent(month)}`),
+  /** Varios meses a la vez, para el panel (desde y hasta en AAAA-MM, inclusive). */
+  range: (from: string, to: string) => request<FinState>(`/api/finanzas?desde=${encodeURIComponent(from)}&hasta=${encodeURIComponent(to)}`),
   create: (body: Partial<FinEntry> & { kind: FinKind; source?: string }) => request<{ id: number }>('/api/finanzas/entries', json(body)),
   update: (id: number, body: Partial<FinEntry>) => request<{ ok: boolean }>(`/api/finanzas/entries/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   remove: (id: number) => request<{ ok: boolean }>(`/api/finanzas/entries/${id}`, { method: 'DELETE' }),

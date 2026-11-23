@@ -2,15 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { finanzas, platform } from '../api'
 import { Brand } from '../components/brand'
 import { Button, EmptyState, Field, Icon, IconButton, Input, Modal, Select } from '../components/ui'
-import { formatLongDate, soles } from '../lib/format'
+import { soles } from '../lib/format'
 import { compressImageFile } from '../lib/image'
 import { fileToDataUrl, readPdf } from '../lib/pdf'
 import type { FinDraft, FinEntry, FinKind, FinLine, FinState } from '../types'
+import { FinanzasPanel } from './FinanzasPanel'
 import '../finanzas.css'
 
 type Tab = 'resumen' | 'ingresos' | 'gastos' | 'inversiones'
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'resumen', label: 'Resumen' },
+  { id: 'resumen', label: 'Panel' },
   { id: 'ingresos', label: 'Ingresos' },
   { id: 'gastos', label: 'Gastos' },
   { id: 'inversiones', label: 'Inversiones' },
@@ -156,7 +157,7 @@ export function Finanzas() {
             <span className="spinner" />
           </div>
         ) : tab === 'resumen' ? (
-          <Summary entries={entries} month={month} onGo={go} />
+          <FinanzasPanel month={month} onGo={go} />
         ) : tab === 'inversiones' ? (
           <Investments entries={byKind('inversion')} onAdd={() => setEditing({ kind: 'inversion', entry: null, draft: null, docId: null, source: 'manual', warning: '' })} onOpen={(entry) => setEditing({ kind: 'inversion', entry, draft: null, docId: entry.doc_id, source: entry.source, warning: '' })} />
         ) : (
@@ -182,87 +183,6 @@ export function Finanzas() {
           }}
         />
       ) : null}
-    </div>
-  )
-}
-
-// ---------- resumen ----------
-
-function Bars({ title, rows }: { title: string; rows: [string, number][] }) {
-  const max = Math.max(1, ...rows.map(([, v]) => v))
-  if (!rows.length) return null
-  return (
-    <section className="card">
-      <h2 className="section-title">{title}</h2>
-      <ul className="fin-bars">
-        {rows.map(([label, value]) => (
-          <li key={label}>
-            <span className="fin-bar-label">{label}</span>
-            <span className="fin-bar-track" aria-hidden="true">
-              <i style={{ width: `${(value / max) * 100}%` }} />
-            </span>
-            <strong className="fin-bar-value">{soles(value)}</strong>
-          </li>
-        ))}
-      </ul>
-    </section>
-  )
-}
-
-function group(list: [string, number][]): [string, number][] {
-  const map = new Map<string, number>()
-  for (const [key, value] of list) map.set(key, (map.get(key) || 0) + value)
-  return [...map].map(([k, v]) => [k, Math.round(v * 100) / 100] as [string, number]).sort((a, b) => b[1] - a[1])
-}
-
-function Summary({ entries, month, onGo }: { entries: FinEntry[]; month: string; onGo: (tab: Tab) => void }) {
-  const ingresos = sum(entries.filter((e) => e.kind === 'ingreso').map((e) => e.amount))
-  const gastosList = entries.filter((e) => e.kind === 'gasto')
-  const gastos = sum(gastosList.map((e) => e.amount))
-  const inversiones = entries.filter((e) => e.kind === 'inversion')
-  const invested = sum(inversiones.map((e) => e.amount))
-  const value = sum(inversiones.map((e) => e.current_value ?? e.amount))
-  const byCategory = group(gastosList.map((e) => [e.category, e.amount]))
-  const byRubro = group(gastosList.filter((e) => e.category === 'Supermercado').flatMap((e) => e.lines.map((l) => [l.rubro || 'Otros', l.amount] as [string, number])))
-  const label = formatLongDate(`${month}-01`).replace(/^\S+\s+\d+\s+de\s+/i, '')
-
-  return (
-    <div className="stack">
-      <div className="fin-tiles">
-        <button type="button" className="fin-tile is-in" onClick={() => onGo('ingresos')}>
-          <span className="fin-tile-label">
-            <Icon name="download" size={16} /> Ingresos
-          </span>
-          <strong>{soles(ingresos)}</strong>
-          <span className="small muted">{label}</span>
-        </button>
-        <button type="button" className="fin-tile is-out" onClick={() => onGo('gastos')}>
-          <span className="fin-tile-label">
-            <Icon name="upload" size={16} /> Gastos
-          </span>
-          <strong>{soles(gastos)}</strong>
-          <span className="small muted">{label}</span>
-        </button>
-        <div className={`fin-tile ${ingresos - gastos < 0 ? 'is-negative' : ''}`}>
-          <span className="fin-tile-label">
-            <Icon name="wallet" size={16} /> Te queda
-          </span>
-          <strong>{soles(ingresos - gastos)}</strong>
-          <span className="small muted">ingresos menos gastos</span>
-        </div>
-        <button type="button" className="fin-tile is-inv" onClick={() => onGo('inversiones')}>
-          <span className="fin-tile-label">
-            <Icon name="chart" size={16} /> Inversiones
-          </span>
-          <strong>{soles(value)}</strong>
-          <span className="small muted">
-            {invested ? `${value >= invested ? '+' : ''}${soles(value - invested)} sobre lo invertido` : 'valor actual'}
-          </span>
-        </button>
-      </div>
-      <Bars title="Gastos por categoría" rows={byCategory} />
-      <Bars title="Supermercado por rubro" rows={byRubro} />
-      {!byCategory.length ? <EmptyState icon="wallet" title="Aún no hay movimientos este mes" hint="Entra a Gastos o Ingresos y sube tu primera boleta." /> : null}
     </div>
   )
 }
