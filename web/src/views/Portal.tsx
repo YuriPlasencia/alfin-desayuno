@@ -193,7 +193,7 @@ function CreateEvent({ onClose }: { onClose: () => void }) {
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
-          <Button onClick={() => void save()} disabled={busy || !name.trim() || code.trim().length < 4}>
+          <Button onClick={() => void save()} disabled={busy || !name.trim() || code.trim().length < 6}>
             {busy ? 'Creando…' : 'Crear evento'}
           </Button>
         </>
@@ -217,7 +217,7 @@ function CreateEvent({ onClose }: { onClose: () => void }) {
         <Field label="Lugar">
           <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Salón, dirección o referencia" />
         </Field>
-        <Field label="Código del evento" hint="Quien quiera entrar lo necesita. Mínimo 4 caracteres; podrás cambiarlo en Ajustes.">
+        <Field label="Código del evento" hint="Quien quiera entrar lo necesita. Mínimo 6 caracteres; podrás cambiarlo en Ajustes.">
           <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Ej. desayuno-nov" autoComplete="off" />
         </Field>
         {message ? (

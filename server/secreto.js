@@ -168,12 +168,18 @@ function mine(req) {
   return { row, locked: false }
 }
 
+/** ¿Hay un amigo secreto creado en el evento en curso? (importar una copia lo borraría). */
+export const secretGameExists = () => Boolean(getGame())
+
+/**
+ * Organiza quien administra el evento o quien creó el juego. «Coordina al equipo» (is_lead) no cuenta:
+ * cualquier miembro puede marcarlo en su propia ficha y con eso revelaría las parejas.
+ */
 function canManage(req, game) {
   if (req.membership?.role === 'admin') return true
   const memberId = Number(req.membership?.member_id) || 0
   if (!memberId) return false
-  if (game && game.created_by === memberId) return true
-  return Boolean(db.prepare('SELECT is_lead FROM members WHERE id = ?').get(memberId)?.is_lead)
+  return Boolean(game && game.created_by === memberId)
 }
 
 const thread = (rows, iAmGiver) =>

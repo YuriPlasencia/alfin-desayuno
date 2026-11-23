@@ -248,9 +248,9 @@ function InviteCard() {
       {isAdmin ? (
         <div className="invite-code">
           <Field label="Nuevo código del evento" hint="Quienes ya entraron siguen dentro; el nuevo código sirve para los que faltan.">
-            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Mínimo 4 caracteres" autoComplete="off" />
+            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Mínimo 6 caracteres" autoComplete="off" />
           </Field>
-          <Button variant="outline" onClick={() => void saveCode()} disabled={saving || code.trim().length < 4}>
+          <Button variant="outline" onClick={() => void saveCode()} disabled={saving || code.trim().length < 6}>
             {saving ? 'Guardando…' : 'Cambiar código'}
           </Button>
         </div>

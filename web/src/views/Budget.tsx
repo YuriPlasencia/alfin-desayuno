@@ -962,7 +962,8 @@ function BudgetEditor({
       setAmount(String(option.price))
       return
     }
-    // Sin precio en la actividad: se lee de la foto.
+    // Sin precio en la actividad: se lee de la foto (solo si es una foto guardada, no un enlace).
+    if (!option.image_url.startsWith('data:image/')) return
     setScanning(true)
     try {
       const scraped = await api.scrapeQuoteImage(option.image_url)

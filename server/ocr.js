@@ -8,7 +8,11 @@ async function getWorker() {
   if (!workerPromise) {
     workerPromise = (async () => {
       try {
-        const w = await createWorker('spa+eng')
+        // Sin errorHandler, tesseract.js relanza el error de un trabajo fallido fuera de la promesa
+        // y tumba el proceso entero (que atiende a todos los eventos).
+        const w = await createWorker('spa+eng', undefined, {
+          errorHandler: (err) => console.error('[OCR] Trabajo rechazado:', err),
+        })
         workerInstance = w
         return w
       } catch (err) {
@@ -155,33 +159,62 @@ function iso(year, month, day) {
   return `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 }
 
-export async function scrapeQuoteImage(imageBufferOrDataUrl) {
+// Un solo motor para todos los eventos: pocos trabajos en cola y cada uno con tiempo máximo.
+const MAX_QUEUE = 4
+const JOB_TIMEOUT_MS = 45_000
+const DATA_URL = /^data:image\/(jpeg|png|webp);base64,([a-z0-9+/=]+)$/i
+let pending = 0
+
+/** Reinicia el motor si un trabajo se colgó, para que el siguiente no espere detrás. */
+async function resetWorker() {
+  const w = workerInstance
+  workerInstance = null
+  workerPromise = null
+  if (w) await w.terminate().catch(() => {})
+}
+
+function withTimeout(promise) {
+  let timer
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error('timeout')), JOB_TIMEOUT_MS)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
+/** Solo acepta una imagen en data URL (jpeg, png o webp). Nunca una dirección ni una ruta de archivo. */
+export async function scrapeQuoteImage(dataUrl) {
+  const match = typeof dataUrl === 'string' ? DATA_URL.exec(dataUrl) : null
+  if (!match) return failed('La imagen no tiene un formato válido')
+  if (pending >= MAX_QUEUE) return failed('Hay muchas imágenes en lectura. Prueba en unos segundos.')
+  pending += 1
   try {
     const worker = await getWorker()
-    let input = imageBufferOrDataUrl
-    if (typeof imageBufferOrDataUrl === 'string' && imageBufferOrDataUrl.startsWith('data:')) {
-      const base64Data = imageBufferOrDataUrl.replace(/^data:image\/\w+;base64,/, '')
-      input = Buffer.from(base64Data, 'base64')
-    }
-
+    const input = Buffer.from(match[2], 'base64')
     const {
       data: { text },
-    } = await worker.recognize(input)
+    } = await withTimeout(worker.recognize(input))
 
     const parsed = parseQuoteText(text || '')
     return { ok: true, ...parsed }
   } catch (error) {
     console.error('[OCR] scrapeQuoteImage failed:', error)
-    return {
-      ok: false,
-      error: error.message || 'No se pudo procesar la imagen',
-      detectedAmount: null,
-      detectedConcept: '',
-      allPrices: [],
-      rawText: '',
-      wallet: '',
-      operationCode: '',
-      paidAt: '',
-    }
+    if (error?.message === 'timeout') await resetWorker()
+    return failed('No se pudo leer la imagen')
+  } finally {
+    pending -= 1
+  }
+}
+
+function failed(message) {
+  return {
+    ok: false,
+    error: message,
+    detectedAmount: null,
+    detectedConcept: '',
+    allPrices: [],
+    rawText: '',
+    wallet: '',
+    operationCode: '',
+    paidAt: '',
   }
 }

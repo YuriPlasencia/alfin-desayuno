@@ -24,6 +24,7 @@ import {
   clearMemberLink,
   createEvent,
   eventSummary,
+  countAdminEvents,
   getEvent,
   getUser,
   joinEvent,
@@ -37,7 +38,7 @@ import {
   verifyCode,
 } from './platform.js'
 import { scrapeQuoteImage } from './ocr.js'
-import { mountSecreto, secretBeforeMemberDelete, secretSummary } from './secreto.js'
+import { mountSecreto, secretBeforeMemberDelete, secretGameExists, secretSummary } from './secreto.js'
 
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -80,8 +81,17 @@ const NAME_LOGIN = !GOOGLE_CLIENT_ID || process.env.NAME_LOGIN === '1'
 const SESSION_COOKIE = 'juntada_session'
 const SESSION_DAYS = 120
 const MAX_ATTEMPTS = 10
+const MAX_EVENT_ATTEMPTS = 60 // fallos sumados de todas las direcciones y cuentas contra un mismo evento
 const ATTEMPT_WINDOW_MS = 15 * 60 * 1000
+const MIN_CODE = 6
+const MAX_CODE = 128
+const MAX_EVENTS_PER_ACCOUNT = 20
 const attempts = new Map()
+// Limpia registros vencidos para que el mapa no crezca sin fin.
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, record] of attempts) if (now - record.first >= ATTEMPT_WINDOW_MS) attempts.delete(key)
+}, ATTEMPT_WINDOW_MS).unref()
 
 function readCookie(req, name) {
   const raw = req.get('cookie') || ''
@@ -116,13 +126,13 @@ function sessionUser(req) {
   return getUser(Number(id)) || null
 }
 
-/** Límite de intentos por IP (código de evento, inicio de sesión). */
-function tooManyAttempts(key) {
+/** Límite de intentos fallidos del código de un evento, por ventana de 15 minutos. */
+function tooManyAttempts(key, max = MAX_ATTEMPTS) {
   const now = Date.now()
   const record = attempts.get(key)
   const recent = record && now - record.first < ATTEMPT_WINDOW_MS ? record : { first: now, count: 0 }
   attempts.set(key, recent)
-  return recent.count >= MAX_ATTEMPTS
+  return recent.count >= max
 }
 const failAttempt = (key) => {
   const record = attempts.get(key)
@@ -185,7 +195,13 @@ app.post('/api/events', requireUser, (req, res) => {
   const name = text(body.name).slice(0, 80)
   const code = String(body.code || '').trim()
   if (!name) return res.status(400).json({ error: 'Ponle un nombre al evento' })
-  if (code.length < 4) return res.status(400).json({ error: 'El código debe tener al menos 4 caracteres' })
+  if (code.length < MIN_CODE || code.length > MAX_CODE) {
+    return res.status(400).json({ error: `El código debe tener entre ${MIN_CODE} y ${MAX_CODE} caracteres` })
+  }
+  // Cada evento es un archivo abierto en el mismo servidor: sin tope, una cuenta podría llenarlo.
+  if (countAdminEvents(req.user.id) >= MAX_EVENTS_PER_ACCOUNT) {
+    return res.status(429).json({ error: `Ya organizas ${MAX_EVENTS_PER_ACCOUNT} eventos, el máximo por cuenta` })
+  }
   const slug = createEvent({
     name,
     date: dateOrNull(body.date) ?? '',
@@ -211,13 +227,18 @@ app.post('/api/events/:slug/join', requireUser, (req, res) => {
   const event = SLUG_PATTERN.test(slug) ? getEvent(slug) : null
   if (!event) return res.status(404).json({ error: 'Ese evento no existe' })
   if (membership(slug, req.user.id)) return res.json({ ok: true })
-  const key = `${req.ip}:${slug}`
-  if (tooManyAttempts(key)) return res.status(429).json({ error: 'Demasiados intentos. Espera unos minutos y vuelve a probar.' })
-  if (!verifyCode(req.body?.code, event.code_hash)) {
-    failAttempt(key)
+  // Tres contadores: por dirección, por cuenta y por evento. Cambiar de IP o de cuenta ya no da intentos nuevos.
+  const keys = [`ip:${req.ip}:${slug}`, `user:${req.user.id}:${slug}`]
+  const eventKey = `event:${slug}`
+  if (keys.some((key) => tooManyAttempts(key)) ||tooManyAttempts(eventKey, MAX_EVENT_ATTEMPTS)) {
+    return res.status(429).json({ error: 'Demasiados intentos. Espera unos minutos y vuelve a probar.' })
+  }
+  const code = String(req.body?.code ?? '')
+  if (code.length > MAX_CODE || !verifyCode(code, event.code_hash)) {
+    ;[...keys, eventKey].forEach(failAttempt)
     return res.status(401).json({ error: 'Ese código no es el del evento' })
   }
-  attempts.delete(key)
+  keys.forEach((key) => attempts.delete(key))
   joinEvent(slug, req.user)
   res.json({ ok: true })
 })
@@ -461,7 +482,9 @@ ev.post('/claim', (req, res) => {
 ev.patch('/code', (req, res) => {
   if (req.membership.role !== 'admin') return res.status(403).json({ error: 'Solo quien organiza puede cambiar el código' })
   const code = String(req.body?.code || '').trim()
-  if (code.length < 4) return res.status(400).json({ error: 'El código debe tener al menos 4 caracteres' })
+  if (code.length < MIN_CODE || code.length > MAX_CODE) {
+    return res.status(400).json({ error: `El código debe tener entre ${MIN_CODE} y ${MAX_CODE} caracteres` })
+  }
   setEventCode(currentSlug(), code)
   res.json({ ok: true })
 })
@@ -749,7 +772,8 @@ ev.post('/tasks/:id/options', (req, res) => {
   const who = actor(req)
   const price = Math.max(0, num(body.price, 0))
   const detail = text(body.detail)
-  const imageUrl = typeof body.image_url === 'string' ? body.image_url.trim() : ''
+  // Igual que las constancias: solo foto en data URL, nunca un enlace externo.
+  const imageUrl = imageData(body.image_url)
 
   const result = db
     .prepare(
@@ -1047,13 +1071,13 @@ ev.delete('/budget/:id', (req, res) => {
 // ---------- OCR & quote image scraping ----------
 
 ev.post('/ocr/scrape', async (req, res) => {
-  const image = req.body?.image
-  if (!image) return res.status(400).json({ error: 'Falta la imagen para escanear' })
+  // Solo fotos en data URL: una dirección o una ruta haría que el servidor descargue o lea archivos.
+  const image = imageData(req.body?.image)
+  if (!image) return res.status(400).json({ error: 'La imagen no tiene un formato válido' })
   try {
-    const result = await scrapeQuoteImage(image)
-    res.json(result)
-  } catch (err) {
-    res.status(500).json({ error: 'Error al escanear la imagen', details: err.message })
+    res.json(await scrapeQuoteImage(image))
+  } catch {
+    res.status(500).json({ error: 'Error al escanear la imagen' })
   }
 })
 
@@ -1155,10 +1179,30 @@ ev.get('/export', (_req, res) => {
   res.json(payload)
 })
 
+const MAX_IMPORT_ROWS = 5000
+const list = (value) => (Array.isArray(value) ? value : [])
+/** Cuenta todas las filas que crearía la copia, anidadas incluidas. */
+function importSize(data) {
+  let rows = list(data.members).length + list(data.agreements).length + list(data.budget).length
+  for (const task of list(data.tasks)) {
+    rows += 1 + list(task?.assignees).length + list(task?.checklist).length
+    for (const opt of list(task?.options)) rows += 1 + list(opt?.votes).length
+  }
+  return rows
+}
+
 ev.post('/import', (req, res) => {
   const data = req.body
   if (!data || !Array.isArray(data.members) || !Array.isArray(data.tasks)) {
     return res.status(400).json({ error: 'El archivo no tiene el formato esperado' })
+  }
+  // Importar reemplaza a todo el equipo y eso borraría en cascada el amigo secreto (que no viaja en la copia).
+  if (secretGameExists()) {
+    return res.status(409).json({ error: 'Hay un amigo secreto en este evento. Quien lo organiza debe cancelarlo antes de importar una copia.' })
+  }
+  // La importación corre de un tirón en el único proceso: una copia gigante lo dejaría bloqueado para todos.
+  if (importSize(data) > MAX_IMPORT_ROWS) {
+    return res.status(413).json({ error: 'La copia es demasiado grande para un evento' })
   }
   db.exec('BEGIN')
   try {
@@ -1232,7 +1276,7 @@ ev.post('/import', (req, res) => {
           text(opt.title, 'Opción'),
           text(opt.detail),
           Math.max(0, num(opt.price, 0)),
-          typeof opt.image_url === 'string' ? opt.image_url : '',
+          imageData(opt.image_url),
           memberOrNull(opt.created_by),
           text(opt.created_by_name),
           opt.is_winner ? 1 : 0,

@@ -132,6 +132,11 @@ export function listUserEvents(userId) {
     .map((row) => ({ ...eventSummary(row.slug), role: row.role }))
 }
 
+/** Cuántos eventos organiza esta cuenta (para poner un tope a la creación). */
+export function countAdminEvents(userId) {
+  return pdb.prepare("SELECT COUNT(*) AS n FROM event_users WHERE user_id = ? AND role = 'admin'").get(userId).n
+}
+
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 
 export function slugify(name, date) {
@@ -145,8 +150,12 @@ export function slugify(name, date) {
   const [year, month] = String(date || '').split('-')
   const suffix = year && month ? `-${MONTHS[Number(month) - 1] || month}-${year}` : ''
   let slug = `${base}${suffix}`.replace(/-+/g, '-').slice(0, 60).replace(/-+$/, '')
-  let n = 2
-  while (getEvent(slug) || fs.existsSync(eventDbPath(slug))) slug = `${base}${suffix}-${n++}`.slice(0, 60)
+  // Se recorta el nombre, nunca el número: si no, al llegar a cierto contador el bucle no terminaba.
+  for (let n = 2; getEvent(slug) || fs.existsSync(eventDbPath(slug)); n++) {
+    if (n > 500) return `evento-${Date.now()}`
+    const tail = `-${n}`
+    slug = `${base}${suffix}`.slice(0, 60 - tail.length).replace(/-+$/, '') + tail
+  }
   return SLUG_PATTERN.test(slug) ? slug : `evento-${Date.now()}`
 }
 
