@@ -181,28 +181,34 @@ function withTimeout(promise) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
 }
 
-/** Solo acepta una imagen en data URL (jpeg, png o webp). Nunca una dirección ni una ruta de archivo. */
-export async function scrapeQuoteImage(dataUrl) {
+/**
+ * Texto de una imagen en data URL (jpeg, png o webp). Nunca una dirección ni una ruta de archivo.
+ * Devuelve { text } o { error } con un mensaje para mostrar.
+ */
+export async function recognizeText(dataUrl) {
   const match = typeof dataUrl === 'string' ? DATA_URL.exec(dataUrl) : null
-  if (!match) return failed('La imagen no tiene un formato válido')
-  if (pending >= MAX_QUEUE) return failed('Hay muchas imágenes en lectura. Prueba en unos segundos.')
+  if (!match) return { error: 'La imagen no tiene un formato válido' }
+  if (pending >= MAX_QUEUE) return { error: 'Hay muchas imágenes en lectura. Prueba en unos segundos.' }
   pending += 1
   try {
     const worker = await getWorker()
-    const input = Buffer.from(match[2], 'base64')
     const {
       data: { text },
-    } = await withTimeout(worker.recognize(input))
-
-    const parsed = parseQuoteText(text || '')
-    return { ok: true, ...parsed }
+    } = await withTimeout(worker.recognize(Buffer.from(match[2], 'base64')))
+    return { text: text || '' }
   } catch (error) {
-    console.error('[OCR] scrapeQuoteImage failed:', error)
+    console.error('[OCR] recognizeText failed:', error)
     if (error?.message === 'timeout') await resetWorker()
-    return failed('No se pudo leer la imagen')
+    return { error: 'No se pudo leer la imagen' }
   } finally {
     pending -= 1
   }
+}
+
+export async function scrapeQuoteImage(dataUrl) {
+  const result = await recognizeText(dataUrl)
+  if (result.error) return failed(result.error)
+  return { ok: true, ...parseQuoteText(result.text) }
 }
 
 function failed(message) {

@@ -320,6 +320,50 @@ export type EventType =
   | 'viaje'
   | 'ahorro'
 
+/** Finanzas personales de la cuenta (no de un evento). */
+export type FinKind = 'ingreso' | 'gasto' | 'inversion'
+
+export interface FinLine {
+  description: string
+  quantity: number
+  amount: number
+  /** Rubro del producto (gastos) o Ingreso / Descuento (boleta de pago). */
+  rubro: string
+}
+
+export interface FinEntry {
+  id: number
+  kind: FinKind
+  date: string
+  concept: string
+  merchant: string
+  category: string
+  amount: number
+  current_value: number | null
+  note: string
+  doc_id: number | null
+  has_doc: boolean
+  source: 'manual' | 'ocr' | 'ia'
+  lines: FinLine[]
+}
+
+export interface FinState {
+  month: string
+  entries: FinEntry[]
+  catalog: { gasto: string[]; rubros: string[]; ingreso: string[]; lineasIngreso: string[]; inversion: string[] }
+  ai: boolean
+}
+
+/** Borrador que devuelve la lectura de una boleta, para revisar antes de guardar. */
+export interface FinDraft {
+  merchant: string
+  date: string
+  concept: string
+  category: string
+  amount: number
+  lines: FinLine[]
+}
+
 /** Para qué se usa el evento. */
 export type EventCategory = 'trabajo' | 'familiar' | 'entretenimiento' | 'finanzas'
 

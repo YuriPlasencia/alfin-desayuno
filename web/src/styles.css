@@ -3725,6 +3725,52 @@ select {
   color: var(--muted);
 }
 
+.fin-home {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.fin-home-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px;
+  border-radius: var(--radius);
+  background: var(--board);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.fin-home-card:hover {
+  border-color: var(--blue-line);
+  transform: translateY(-2px);
+}
+
+.fin-home-card strong {
+  font-size: 19px;
+  color: var(--blue);
+}
+
+.fin-home-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 4px;
+  border-radius: 14px;
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fin-home-card {
+    transition: none;
+  }
+}
+
 .portal-news {
   display: flex;
   align-items: flex-start;

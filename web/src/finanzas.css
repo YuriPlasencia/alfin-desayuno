@@ -1,0 +1,285 @@
+/* Finanzas personales */
+
+.fin .portal-main {
+  max-width: 1040px;
+}
+
+.fin-month {
+  display: grid;
+  gap: 4px;
+  min-width: 170px;
+}
+
+.fin-tabs {
+  align-self: flex-start;
+}
+
+.fin-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--amber-soft);
+  color: var(--ink-2);
+}
+
+.fin .section-title {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* tarjetas del resumen */
+
+.fin-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.fin-tile {
+  display: grid;
+  gap: 4px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--board);
+  text-align: left;
+  color: var(--ink);
+}
+
+button.fin-tile:hover {
+  border-color: var(--blue-line);
+}
+
+.fin-tile strong {
+  font-size: 24px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-tile-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.fin-tile.is-in .fin-tile-label {
+  color: var(--green-ink);
+}
+
+.fin-tile.is-out .fin-tile-label {
+  color: var(--red-ink);
+}
+
+.fin-tile.is-inv .fin-tile-label {
+  color: var(--blue);
+}
+
+.fin-tile.is-negative strong {
+  color: var(--red-ink);
+}
+
+/* barras por categoría y rubro */
+
+.fin-bars {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fin-bars li {
+  display: grid;
+  grid-template-columns: minmax(120px, 190px) 1fr auto;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.fin-bar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--well);
+  overflow: hidden;
+}
+
+.fin-bar-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--blue);
+}
+
+.fin-bar-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* listas */
+
+.fin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.fin-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fin-table .nowrap {
+  white-space: nowrap;
+}
+
+.fin-table tr.is-clickable {
+  cursor: pointer;
+}
+
+.fin-table tr.is-clickable:hover td {
+  background: var(--well);
+}
+
+.fin-table td svg {
+  margin-left: 6px;
+  vertical-align: -2px;
+  color: var(--muted);
+}
+
+.fin-table tfoot td {
+  font-weight: 700;
+  border-top: 1px solid var(--line-strong);
+}
+
+.fin-invest {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.fin-invest-card {
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  color: var(--ink);
+}
+
+.fin-invest-card:hover {
+  border-color: var(--blue-line);
+}
+
+.fin-invest-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.fin-gain {
+  font-weight: 700;
+  color: var(--green-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-gain.is-negative {
+  color: var(--red-ink);
+}
+
+/* editor */
+
+.fin-lines {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.fin-lines-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fin-lines-head .section-title {
+  margin: 0;
+}
+
+.fin-line-list {
+  display: grid;
+  gap: 6px;
+  max-height: 46vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fin-line-list li {
+  display: grid;
+  grid-template-columns: 1fr 110px 40px;
+  align-items: center;
+  gap: 6px;
+}
+
+.fin-line-list li.has-type {
+  grid-template-columns: 1fr 170px 110px 40px;
+}
+
+.fin-line-list .num {
+  text-align: right;
+}
+
+.fin-doc {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+
+@media (max-width: 640px) {
+  /* En el celular, la categoría ya se ve al abrir el movimiento: deja sitio al monto. */
+  .fin-table th:nth-child(3),
+  .fin-table td:nth-child(3) {
+    display: none;
+  }
+
+  .fin-table.data-table {
+    min-width: 0;
+  }
+
+  .fin-table td:nth-child(2) {
+    white-space: normal;
+  }
+
+  .fin-bars li {
+    grid-template-columns: 1fr auto;
+  }
+
+  .fin-bar-track {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+
+  .fin-line-list li,
+  .fin-line-list li.has-type {
+    grid-template-columns: 1fr 96px 40px;
+  }
+
+  .fin-line-list li.has-type .select {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}

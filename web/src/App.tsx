@@ -13,6 +13,7 @@ import { Budget } from './views/Budget'
 import { Settings } from './views/Settings'
 import { Secreto } from './views/Secreto'
 import { Portal } from './views/Portal'
+import { Finanzas } from './views/Finanzas'
 import { daysUntil } from './lib/format'
 import { summarize } from './lib/stats'
 
@@ -255,6 +256,8 @@ function eventSlugFromPath(): string | null {
 }
 
 export default function App() {
+  // Finanzas personales: de la cuenta, no de un evento.
+  if (/^\/finanzas\/?$/.test(window.location.pathname)) return <Finanzas />
   const slug = eventSlugFromPath()
   if (!slug) return <Portal />
   return (

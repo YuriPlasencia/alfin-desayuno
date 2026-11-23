@@ -45,6 +45,7 @@ import {
 } from './platform.js'
 import { scrapeQuoteImage } from './ocr.js'
 import { mountAdmin } from './admin.js'
+import { mountFinanzas } from './finanzas.js'
 import { EMAIL_VERIFY, checkLoginCode, sendLoginCode } from './mail.js'
 import { mountSecreto,secretBeforeMemberDelete, secretGameExists, secretSummary } from './secreto.js'
 
@@ -1424,6 +1425,9 @@ app.post('/compartir', (_req, res) => res.redirect(303, '/?compartido=0'))
 
 // Base de personas e historial en CSV (solo con ADMIN_KEY).
 mountAdmin(app, { tooManyAttempts, failAttempt })
+
+// Finanzas personales de cada cuenta: ingresos, gastos e inversiones, con lectura de boletas.
+mountFinanzas(app, { requireUser, tooManyAttempts, failAttempt })
 
 // ---------- static ----------
 

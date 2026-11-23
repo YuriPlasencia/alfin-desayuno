@@ -8,6 +8,12 @@ export function money(value: number): string {
   return moneyFmt.format(Number.isFinite(value) ? value : 0)
 }
 
+const centsFmt = new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+/** Con céntimos: en las finanzas personales cada sol y céntimo cuenta. */
+export function soles(value: number): string {
+  return centsFmt.format(Number.isFinite(value) ? value : 0)
+}
+
 export function parseDate(value: string | null | undefined): Date | null {
   if (!value) return null
   const [year, month, day] = value.split('-').map(Number)

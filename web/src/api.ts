@@ -1,4 +1,4 @@
-import type { Bootstrap, EventCategory, EventSummary, EventType, TaskOption, PresenceStats, ScrapedQuote, SecretState, User } from './types'
+import type { Bootstrap, EventCategory, EventSummary, EventType, FinDraft, FinEntry, FinKind, FinState, TaskOption, PresenceStats, ScrapedQuote, SecretState, User } from './types'
 
 /** Por qué el servidor no deja pasar: falta iniciar sesión, unirse al evento o el evento no existe. */
 export type GateReason = 'login' | 'join' | 'no-event'
@@ -146,6 +146,18 @@ export const secreto = {
 
 
 
+
+/** Finanzas personales de la cuenta: ingresos, gastos e inversiones. */
+export const finanzas = {
+  list: (month: string) => request<FinState>(`/api/finanzas?mes=${encodeURIComponent(month)}`),
+  create: (body: Partial<FinEntry> & { kind: FinKind; source?: string }) => request<{ id: number }>('/api/finanzas/entries', json(body)),
+  update: (id: number, body: Partial<FinEntry>) => request<{ ok: boolean }>(`/api/finanzas/entries/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  remove: (id: number) => request<{ ok: boolean }>(`/api/finanzas/entries/${id}`, { method: 'DELETE' }),
+  doc: (id: number) => request<{ mime: string; data: string }>(`/api/finanzas/docs/${id}`),
+  /** Lee una boleta: devuelve un borrador para revisar (no guarda el movimiento). */
+  scan: (body: { kind: 'ingreso' | 'gasto'; file: string; text?: string; image?: string }) =>
+    request<{ doc_id: number; source: 'ocr' | 'ia' | 'manual'; warning: string; draft: FinDraft | null }>('/api/finanzas/scan', json(body)),
+}
 
 /** Juntay: cuentas y eventos (fuera de un evento). */
 export const platform = {

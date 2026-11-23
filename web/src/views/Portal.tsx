@@ -61,10 +61,20 @@ function GoogleButton({ clientId, onCredential }: { clientId: string; onCredenti
 }
 
 /** Trabajo, Familiar, Entretenimiento o Finanzas personales: botones de una sola elección. */
-function CategoryPicker({ value, onChange, labelledBy }: { value: EventCategory; onChange: (next: EventCategory) => void; labelledBy?: string }) {
+function CategoryPicker({
+  value,
+  onChange,
+  labelledBy,
+  ids = CATEGORY_IDS,
+}: {
+  value: EventCategory
+  onChange: (next: EventCategory) => void
+  labelledBy?: string
+  ids?: EventCategory[]
+}) {
   return (
     <div className="chip-select category-picker" role="radiogroup" aria-labelledby={labelledBy} aria-label={labelledBy ? undefined : 'Categoría'}>
-      {CATEGORY_IDS.map((id) => (
+      {ids.map((id) => (
         <button
           key={id}
           type="button"
@@ -269,13 +279,17 @@ function EventCard({ event }: { event: EventSummary }) {
 const eventLabel = (event: EventSummary) =>
   [event.category ? CATEGORIES[event.category]?.label : '', event.type ? EVENT_KINDS[event.type]?.label : ''].filter(Boolean).join(' · ')
 
+// Las finanzas personales ya no son un evento: tienen su propia sección.
+const EVENT_CATEGORY_IDS = CATEGORY_IDS.filter((id) => !isPersonal(id))
+const eventCategory = (): EventCategory => (isPersonal(readCategory()) ? 'trabajo' : readCategory())
+
 function CreateEvent({ onClose }: { onClose: () => void }) {
-  const [category, setCategory] = useState<EventCategory>(readCategory)
-  const [type, setType] = useState<EventType>(() => CATEGORIES[readCategory()].types[0])
+  const [category, setCategory] = useState<EventCategory>(eventCategory)
+  const [type, setType] = useState<EventType>(() => CATEGORIES[eventCategory()].types[0])
   const [timeTouched, setTimeTouched] = useState(false)
   const [name, setName] = useState('')
   const [date, setDate] = useState('')
-  const [time, setTime] = useState(() => EVENT_KINDS[CATEGORIES[readCategory()].types[0]].time)
+  const [time, setTime] = useState(() => EVENT_KINDS[CATEGORIES[eventCategory()].types[0]].time)
   const kind = EVENT_KINDS[type]
   const secret = type === 'secreto'
   const personal = isPersonal(category)
@@ -335,7 +349,7 @@ function CreateEvent({ onClose }: { onClose: () => void }) {
     >
       <div className="form-grid">
         <Field label="Categoría">
-          <CategoryPicker value={category} onChange={pickCategory} />
+          <CategoryPicker value={category} onChange={pickCategory} ids={EVENT_CATEGORY_IDS} />
         </Field>
         <Field label={personal ? 'Para qué' : 'Tipo de evento'}>
           <div className="chip-select" role="radiogroup" aria-label="Tipo de evento">
@@ -409,6 +423,47 @@ function CreateEvent({ onClose }: { onClose: () => void }) {
   )
 }
 
+/** Inicio de Finanzas personales: tres caminos en vez de «Crear evento». */
+function FinanceHome({ onEvents }: { onEvents: () => void }) {
+  const options = [
+    { id: 'ingresos', icon: 'download' as const, title: 'Ingresos', hint: 'Sube tu boleta de pago o anótalo a mano: neto y cada concepto.' },
+    { id: 'gastos', icon: 'upload' as const, title: 'Gastos', hint: 'Foto o PDF de la boleta: cada producto queda con su rubro.' },
+    { id: 'inversiones', icon: 'chart' as const, title: 'Inversiones', hint: 'Depósitos, fondos, acciones: cuánto pusiste y cuánto vale hoy.' },
+  ]
+  return (
+    <div className="stack">
+      <div className="page-head">
+        <div>
+          <h1>Mis finanzas</h1>
+          <p className="muted">¿Qué quieres registrar?</p>
+        </div>
+        <div className="btn-group">
+          <Button variant="outline" icon="users" onClick={onEvents}>
+            Mis eventos
+          </Button>
+          <a className="btn btn-primary btn-md" href="/finanzas#/resumen">
+            <Icon name="chart" size={17} /> Ver resumen del mes
+          </a>
+        </div>
+      </div>
+      <div className="fin-home">
+        {options.map((option) => (
+          <a key={option.id} className="fin-home-card" href={`/finanzas#/${option.id}`}>
+            <span className="fin-home-icon">
+              <Icon name={option.icon} size={24} />
+            </span>
+            <strong>{option.title}</strong>
+            <span className="muted small">{option.hint}</span>
+            <span className="event-card-go">
+              Entrar <Icon name="arrowRight" size={15} />
+            </span>
+          </a>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /** Unirse con el enlace que pasó el equipo (o el nombre corto del evento). */
 function JoinEvent({ onClose }: { onClose: () => void }) {
   const [link, setLink] = useState('')
@@ -443,6 +498,12 @@ export function Portal() {
   const [creating, setCreating] = useState(false)
   const [joining, setJoining] = useState(false)
   const [linkError, setLinkError] = useState<string | null>(null)
+  // Quien eligió «Finanzas personales» ve sus finanzas en vez de la lista de eventos.
+  const [area, setArea] = useState<'eventos' | 'finanzas'>(() => (isPersonal(readCategory()) ? 'finanzas' : 'eventos'))
+  const switchArea = (next: 'eventos' | 'finanzas') => {
+    setArea(next)
+    saveCategory(next === 'finanzas' ? 'finanzas' : 'trabajo')
+  }
 
   const load = async () => {
     // Llegó desde el enlace del correo: se comprueba y se limpia la dirección.
@@ -515,6 +576,8 @@ export function Portal() {
             ) : null}
             <Login onLogged={() => void load()} />
           </>
+        ) : area === 'finanzas' ? (
+          <FinanceHome onEvents={() => switchArea('eventos')} />
         ) : (
           <div className="stack">
             <div className="page-head">
@@ -525,6 +588,9 @@ export function Portal() {
                 </p>
               </div>
               <div className="btn-group">
+                <Button variant="soft" icon="wallet" onClick={() => switchArea('finanzas')}>
+                  Mis finanzas
+                </Button>
                 <Button variant="outline" icon="users" onClick={() => setJoining(true)}>
                   Unirme a un evento
                 </Button>
