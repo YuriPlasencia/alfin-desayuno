@@ -124,6 +124,9 @@ export interface EventSettings {
   team_size: number
   note: string
   treasurer_id?: number | null
+  /** Elegidos al crear el evento ('' en eventos de antes). */
+  event_type?: EventType | ''
+  event_category?: EventCategory | ''
   updated_at: string
 }
 
@@ -304,10 +307,21 @@ export interface User {
 
 /** Un evento de Juntay, como se ve en "Tus eventos". */
 /** Tipo elegido al crear el evento ('' en eventos antiguos). */
-export type EventType = 'desayuno' | 'almuerzo' | 'cena' | 'cumpleanos' | 'paseo' | 'fiesta' | 'partido' | 'secreto'
+export type EventType =
+  | 'desayuno'
+  | 'almuerzo'
+  | 'cena'
+  | 'cumpleanos'
+  | 'paseo'
+  | 'fiesta'
+  | 'partido'
+  | 'secreto'
+  | 'mes'
+  | 'viaje'
+  | 'ahorro'
 
 /** Para qué se usa el evento. */
-export type EventCategory = 'trabajo' | 'familiar' | 'entretenimiento'
+export type EventCategory = 'trabajo' | 'familiar' | 'entretenimiento' | 'finanzas'
 
 export interface EventSummary {
   slug: string

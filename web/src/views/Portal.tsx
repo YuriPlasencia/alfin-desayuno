@@ -3,7 +3,7 @@ import { platform } from '../api'
 import { Brand } from '../components/brand'
 import { Avatar, Button, Field, Icon, Input, Modal } from '../components/ui'
 import { daysUntil, formatLongDate } from '../lib/format'
-import { CATEGORIES, CATEGORY_IDS, EVENT_KINDS, readCategory, saveCategory } from '../lib/categories'
+import { CATEGORIES, CATEGORY_IDS, EVENT_KINDS, isPersonal, readCategory, saveCategory } from '../lib/categories'
 import type { EventCategory, EventSummary, EventType, User } from '../types'
 
 declare global {
@@ -60,7 +60,7 @@ function GoogleButton({ clientId, onCredential }: { clientId: string; onCredenti
   return failed ? <p className="gate-error">No se pudo cargar el ingreso con Google. Revisa tu conexión.</p> : <div ref={box} className="google-btn" />
 }
 
-/** Trabajo, Familiar o Entretenimiento: botones de una sola elección. */
+/** Trabajo, Familiar, Entretenimiento o Finanzas personales: botones de una sola elección. */
 function CategoryPicker({ value, onChange, labelledBy }: { value: EventCategory; onChange: (next: EventCategory) => void; labelledBy?: string }) {
   return (
     <div className="chip-select category-picker" role="radiogroup" aria-labelledby={labelledBy} aria-label={labelledBy ? undefined : 'Categoría'}>
@@ -226,6 +226,7 @@ function CreateEvent({ onClose }: { onClose: () => void }) {
   const [time, setTime] = useState(() => EVENT_KINDS[CATEGORIES[readCategory()].types[0]].time)
   const kind = EVENT_KINDS[type]
   const secret = type === 'secreto'
+  const personal = isPersonal(category)
   const pickType = (next: EventType) => {
     setType(next)
     // La hora sugerida acompaña al tipo mientras nadie la haya cambiado a mano.
@@ -248,8 +249,8 @@ function CreateEvent({ onClose }: { onClose: () => void }) {
     setMessage(null)
     try {
       const { slug } = await platform.createEvent({ name: name.trim(), date, time, location, guests: Number(guests) || 20, code, type, category })
-      // Un amigo secreto se abre directo en su juego.
-      goTo(secret ? `/e/${slug}#/secreto` : `/e/${slug}`)
+      // Un amigo secreto se abre en su juego; las finanzas personales, en Presupuesto.
+      goTo(secret ? `/e/${slug}#/secreto` : personal ? `/e/${slug}#/presupuesto` : `/e/${slug}`)
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'No se pudo crear el evento')
       setBusy(false)
@@ -260,11 +261,13 @@ function CreateEvent({ onClose }: { onClose: () => void }) {
     <Modal
       open
       onClose={onClose}
-      title="Nuevo evento"
+      title={personal ? 'Nuevas finanzas' : 'Nuevo evento'}
       description={
         secret
           ? 'Juntay abre el juego: cada quien se apunta, deja su lista de deseos y recibe su papelito secreto.'
-          : 'Tendrá su propia pizarra: actividades, acuerdos, equipo y presupuesto.'
+          : personal
+            ? 'Tu propio presupuesto: escanea boletas y comprobantes y ve cuánto gastaste frente a lo planeado.'
+            : 'Tendrá su propia pizarra: actividades, acuerdos, equipo y presupuesto.'
       }
       footer={
         <>
@@ -273,7 +276,7 @@ function CreateEvent({ onClose }: { onClose: () => void }) {
             Cancelar
           </Button>
           <Button onClick={() => void save()} disabled={busy || !name.trim() || code.trim().length < 6}>
-            {busy ? 'Creando…' : 'Crear evento'}
+            {busy ? 'Creando…' : personal ? 'Crear' : 'Crear evento'}
           </Button>
         </>
       }
@@ -282,7 +285,7 @@ function CreateEvent({ onClose }: { onClose: () => void }) {
         <Field label="Categoría">
           <CategoryPicker value={category} onChange={pickCategory} />
         </Field>
-        <Field label="Tipo de evento">
+        <Field label={personal ? 'Para qué' : 'Tipo de evento'}>
           <div className="chip-select" role="radiogroup" aria-label="Tipo de evento">
             {CATEGORIES[category].types.map((id) => (
               <button
@@ -299,34 +302,50 @@ function CreateEvent({ onClose }: { onClose: () => void }) {
             ))}
           </div>
         </Field>
-        <Field label="Nombre del evento">
+        <Field label={personal ? 'Nombre' : 'Nombre del evento'}>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={kind.example} autoFocus />
         </Field>
-        <div className="form-row">
-          <Field label={secret ? 'Fecha de entrega' : 'Fecha'}>
+        {personal ? (
+          // De una sola persona: sin hora, lugar ni invitados.
+          <Field label={type === 'mes' ? 'Mes' : type === 'ahorro' ? 'Fecha meta' : 'Fecha del viaje'}>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
-          <Field label="Hora">
-            <Input
-              type="time"
-              value={time}
-              onChange={(e) => {
-                setTime(e.target.value)
-                setTimeTouched(true)
-              }}
-            />
-          </Field>
-          {secret ? null : (
-            <Field label="Invitados">
-              <Input type="number" min="1" value={guests} onChange={(e) => setGuests(e.target.value)} />
+        ) : (
+          <>
+            <div className="form-row">
+              <Field label={secret ? 'Fecha de entrega' : 'Fecha'}>
+                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              </Field>
+              <Field label="Hora">
+                <Input
+                  type="time"
+                  value={time}
+                  onChange={(e) => {
+                    setTime(e.target.value)
+                    setTimeTouched(true)
+                  }}
+                />
+              </Field>
+              {secret ? null : (
+                <Field label="Invitados">
+                  <Input type="number" min="1" value={guests} onChange={(e) => setGuests(e.target.value)} />
+                </Field>
+              )}
+            </div>
+            <Field label={secret ? 'Lugar de entrega' : 'Lugar'}>
+              <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Salón, dirección o referencia" />
             </Field>
-          )}
-        </div>
-        <Field label={secret ? 'Lugar de entrega' : 'Lugar'}>
-          <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Salón, dirección o referencia" />
-        </Field>
-        <Field label="Código del evento" hint="Quien quiera entrar lo necesita. Mínimo 6 caracteres; podrás cambiarlo en Ajustes.">
-          <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Ej. desayuno-nov" autoComplete="off" />
+          </>
+        )}
+        <Field
+          label={personal ? 'Código' : 'Código del evento'}
+          hint={
+            personal
+              ? 'Es tu llave: solo entra quien lo tenga. Compártelo solo si quieres que alguien más lo vea. Mínimo 6 caracteres.'
+              : 'Quien quiera entrar lo necesita. Mínimo 6 caracteres; podrás cambiarlo en Ajustes.'
+          }
+        >
+          <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder={personal ? 'Ej. mis-cuentas-26' : 'Ej. desayuno-nov'} autoComplete="off" />
         </Field>
         {message ? (
           <p className="gate-error" role="alert">

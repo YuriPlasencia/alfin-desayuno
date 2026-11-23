@@ -165,39 +165,61 @@ Yape / Plin a: ${tName}${tPhone}
     }
   }
 
+  // Finanzas personales: sin cuotas del equipo, tesorero ni reporte para el grupo.
+  const personal = data.settings.event_category === 'finanzas'
+  const realIncome = (): EditorState => ({
+    item: null,
+    preset: { kind: 'ingreso', status: 'hecho', stage: 'real', ownerId: actor?.id ?? null, pick: false },
+  })
+
   return (
     <div className="stack">
       <PageHeader
-        title="Presupuesto y Tesorería"
-        subtitle="Lo planificado, lo que ya se cobró y pagó, y el saldo en caja"
+        title={personal ? 'Mis finanzas' : 'Presupuesto y Tesorería'}
+        subtitle={
+          personal ? 'Lo que planeaste, lo que entró y lo que gastaste, con sus boletas' : 'Lo planificado, lo que ya se cobró y pagó, y el saldo en caja'
+        }
         action={
-          <div className="btn-group">
-            <Button icon="camera" onClick={() => setCuota({ file: null })}>
-              Subir cuota
-            </Button>
-            <Button variant="soft" icon="camera" onClick={() => setEditing(realExpense())}>
-              Subir gasto
-            </Button>
-            <Button variant="outline" icon="share" onClick={() => void copyWhatsAppReport()}>
-              WhatsApp
-            </Button>
-          </div>
+          personal ? (
+            <div className="btn-group">
+              <Button icon="camera" onClick={() => setEditing(realExpense())}>
+                Subir gasto
+              </Button>
+              <Button variant="soft" icon="plus" onClick={() => setEditing(realIncome())}>
+                Registrar ingreso
+              </Button>
+            </div>
+          ) : (
+            <div className="btn-group">
+              <Button icon="camera" onClick={() => setCuota({ file: null })}>
+                Subir cuota
+              </Button>
+              <Button variant="soft" icon="camera" onClick={() => setEditing(realExpense())}>
+                Subir gasto
+              </Button>
+              <Button variant="outline" icon="share" onClick={() => void copyWhatsAppReport()}>
+                WhatsApp
+              </Button>
+            </div>
+          )
         }
       />
 
       <div className="segmented budget-tabs" role="tablist" aria-label="Secciones de presupuesto">
         <button role="tab" aria-selected={mainTab === 'inicial'} className={mainTab === 'inicial' ? 'is-active' : ''} onClick={() => setMainTab('inicial')}>
-          Presupuestado <span className="seg-count">{plan.length + 1}</span>
+          {personal ? 'Lo planeado' : 'Presupuestado'} <span className="seg-count">{plan.length + 1}</span>
         </button>
         <button role="tab" aria-selected={mainTab === 'ejecucion'} className={mainTab === 'ejecucion' ? 'is-active' : ''} onClick={() => setMainTab('ejecucion')}>
-          Presupuesto en ejecución <span className="seg-count">{real.length}</span>
+          {personal ? 'Lo real' : 'Presupuesto en ejecución'} <span className="seg-count">{real.length}</span>
         </button>
-        <button role="tab" aria-selected={mainTab === 'tesorero'} className={mainTab === 'tesorero' ? 'is-active' : ''} onClick={() => setMainTab('tesorero')}>
-          Tesorero(a) <span className="seg-count">{treasurer ? '✓' : '—'}</span>
-        </button>
+        {personal ? null : (
+          <button role="tab" aria-selected={mainTab === 'tesorero'} className={mainTab === 'tesorero' ? 'is-active' : ''} onClick={() => setMainTab('tesorero')}>
+            Tesorero(a) <span className="seg-count">{treasurer ? '✓' : '—'}</span>
+          </button>
+        )}
       </div>
 
-      {mainTab === 'tesorero' ? (
+      {mainTab === 'tesorero' && !personal ? (
         <TreasurerManager settings={data.settings} members={data.members} currentTreasurer={treasurer} />
       ) : mainTab === 'inicial' ? (
         <>
@@ -328,7 +350,7 @@ Yape / Plin a: ${tName}${tPhone}
             </div>
           </section>
 
-          <CuotasPanel members={data.members} budget={real} onOpen={setViewing} onPay={() => setCuota({ file: null })} />
+          {personal ? null : <CuotasPanel members={data.members} budget={real} onOpen={setViewing} onPay={() => setCuota({ file: null })} />}
 
           <div className="toolbar-row">
             <div className="segmented">
@@ -374,7 +396,11 @@ Yape / Plin a: ${tName}${tPhone}
             <EmptyState
               icon="wallet"
               title="Todavía no hay movimientos"
-              hint="Usa “Subir cuota” para los aportes y “Subir gasto” para cada compra con su boleta."
+              hint={
+                personal
+                  ? 'Toca “Subir gasto” y toma foto a la boleta o al comprobante de Yape o Plin: Juntay lee el monto.'
+                  : 'Usa “Subir cuota” para los aportes y “Subir gasto” para cada compra con su boleta.'
+              }
             />
           ) : (
             <div className="card table-card">

@@ -41,6 +41,9 @@ function readTab(): string {
   return NAV.some((item) => item.id === hash) ? hash : 'inicio'
 }
 
+/** Finanzas personales: una sola persona, sin equipo, actividades ni amigo secreto. */
+const PERSONAL_TABS = ['presupuesto', 'ajustes']
+
 /** Tu cuenta: mis eventos y salir. */
 function AccountMenu() {
   const { data, actor } = useStore()
@@ -159,7 +162,11 @@ function Shell() {
     )
   }
 
-  const View = VIEWS[tab] || Dashboard
+  const personal = data.settings.event_category === 'finanzas'
+  const nav = personal ? NAV.filter((item) => PERSONAL_TABS.includes(item.id)) : NAV
+  // Una pestaña de grupo abierta en finanzas personales cae en Presupuesto.
+  const current = nav.some((item) => item.id === tab) ? tab : nav[0].id === 'inicio' ? 'inicio' : 'presupuesto'
+  const View = VIEWS[current] || Dashboard
 
   return (
     <div className="app-shell">
@@ -168,8 +175,8 @@ function Shell() {
           <Brand subtitle={data.settings.event_name} />
         </a>
         <nav className="nav">
-          {NAV.map((item) => (
-            <button key={item.id} className={`nav-item ${tab === item.id ? 'is-active' : ''}`} onClick={() => go(item.id)}>
+          {nav.map((item) => (
+            <button key={item.id} className={`nav-item ${current === item.id ? 'is-active' : ''}`} onClick={() => go(item.id)}>
               <Icon name={item.icon} size={19} />
               <span>{item.label}</span>
               {item.id === 'actividades' && counts.actividades > 0 ? <span className="nav-badge">{counts.actividades}</span> : null}
@@ -178,7 +185,7 @@ function Shell() {
             </button>
           ))}
         </nav>
-        <div className={`sidebar-card ${tab === 'inicio' ? 'is-hidden' : ''}`}>
+        <div className={`sidebar-card ${current === 'inicio' || personal ? 'is-hidden' : ''}`}>
           <p className="sidebar-days">
             {days === null ? '—' : Math.max(0, days)}
             <span>{days === 1 ? 'día' : 'días'} para el evento</span>
@@ -199,7 +206,7 @@ function Shell() {
               <Brand />
             </a>
             <span className="topbar-title">{data.settings.event_name}</span>
-            {data.settings.event_date ? (
+            {data.settings.event_date && !personal ? (
               <span className="topbar-date">
                 {data.settings.event_time || ''} · {data.settings.location || 'Lugar por definir'}
               </span>
@@ -225,8 +232,8 @@ function Shell() {
         </main>
 
         <nav className="bottom-nav">
-          {NAV.filter((item) => item.id !== 'ajustes').map((item) => (
-            <button key={item.id} className={`bottom-item ${tab === item.id ? 'is-active' : ''}`} onClick={() => go(item.id)}>
+          {nav.filter((item) => personal || item.id !== 'ajustes').map((item) => (
+            <button key={item.id} className={`bottom-item ${current === item.id ? 'is-active' : ''}`} onClick={() => go(item.id)}>
               <Icon name={item.icon} size={20} />
               <span>{item.id === 'secreto' ? 'Secreto' : item.label}</span>
               {item.id === 'actividades' && counts.actividades > 0 ? <i className="dot-badge">{counts.actividades}</i> : null}

@@ -6,9 +6,9 @@ import { DATA_DIR, SLUG_PATTERN, db, eventDbPath, getSettings, nowIso, plain, ru
 import { openSecretGame } from './secreto.js'
 
 /** Tipos de evento que se eligen al crearlo. */
-export const EVENT_TYPES = ['desayuno', 'almuerzo', 'cena', 'cumpleanos', 'paseo', 'fiesta', 'partido', 'secreto']
+export const EVENT_TYPES = ['desayuno', 'almuerzo', 'cena', 'cumpleanos', 'paseo', 'fiesta', 'partido', 'secreto', 'mes', 'viaje', 'ahorro']
 /** Para qué se usa el evento (se elige en la portada). */
-export const EVENT_CATEGORIES = ['trabajo', 'familiar', 'entretenimiento']
+export const EVENT_CATEGORIES = ['trabajo', 'familiar', 'entretenimiento', 'finanzas']
 
 /*
  * Juntay: la plataforma. Guarda las cuentas (Google), los eventos con su código

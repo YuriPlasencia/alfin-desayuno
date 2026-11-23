@@ -11,6 +11,9 @@ export const EVENT_KINDS: Record<EventType, { label: string; time: string; examp
   fiesta: { label: 'Fiesta', time: '21:00', example: 'Ej. Fiesta de promoción' },
   partido: { label: 'Partido', time: '10:00', example: 'Ej. Pichanga del sábado' },
   secreto: { label: 'Amigo secreto', time: '19:00', example: 'Ej. Amigo secreto de Navidad' },
+  mes: { label: 'Gastos del mes', time: '', example: 'Ej. Mis gastos de diciembre' },
+  viaje: { label: 'Viaje', time: '', example: 'Ej. Viaje a Cusco' },
+  ahorro: { label: 'Meta de ahorro', time: '', example: 'Ej. Ahorro para la laptop' },
 }
 
 /** Para qué se usa Juntay: cambia el texto de la portada y los tipos que se ofrecen al crear. */
@@ -54,7 +57,22 @@ export const CATEGORIES: Record<
     ],
     types: ['paseo', 'fiesta', 'partido', 'secreto'],
   },
+  finanzas: {
+    label: 'Finanzas personales',
+    icon: 'wallet',
+    title: 'Ordena tus finanzas personales',
+    sub: 'Toma foto a tus boletas y comprobantes de Yape o Plin: Juntay lee el monto y lo anota. Ve en qué se va tu plata y cuánto te queda.',
+    points: [
+      { icon: 'camera', text: 'Escanea boletas y comprobantes, el monto se lee solo' },
+      { icon: 'chart', text: 'Lo que planeaste frente a lo que de verdad gastaste' },
+      { icon: 'lock', text: 'Solo tú lo ves, salvo que compartas el código' },
+    ],
+    types: ['mes', 'viaje', 'ahorro'],
+  },
 }
+
+/** Las finanzas personales son de una persona: sin hora, lugar ni invitados, y abren en Presupuesto. */
+export const isPersonal = (category: EventCategory) => category === 'finanzas'
 
 export const CATEGORY_IDS = Object.keys(CATEGORIES) as EventCategory[]
 
