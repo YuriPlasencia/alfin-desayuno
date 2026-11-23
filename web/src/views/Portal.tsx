@@ -87,12 +87,15 @@ function Login({ onLogged }: { onLogged: (user: User) => void }) {
     setCategory(next)
     saveCategory(next)
   }
-  const [config, setConfig] = useState<{ googleClientId: string; nameLogin: boolean } | null>(null)
+  const [config, setConfig] = useState<{ googleClientId: string; nameLogin: boolean; emailVerify: boolean } | null>(null)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [news, setNews] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  // Comprobación de correo: después de enviar, se pide el código que llegó.
+  const [sentTo, setSentTo] = useState<string | null>(null)
+  const [code, setCode] = useState('')
 
   useEffect(() => {
     platform.config().then(setConfig).catch(() => setMessage('No hay conexión con el servidor'))
@@ -112,9 +115,28 @@ function Login({ onLogged }: { onLogged: (user: User) => void }) {
   }
 
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())
+  const sendCode = async () => {
+    setBusy(true)
+    setMessage(null)
+    try {
+      await platform.startEmail(name.trim(), email.trim(), news, NEXT)
+      setSentTo(email.trim().toLowerCase())
+      setCode('')
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'No pudimos enviar el código')
+    } finally {
+      setBusy(false)
+    }
+  }
   const byName = (e: FormEvent) => {
     e.preventDefault()
-    if (name.trim() && emailOk) void finish(() => platform.loginName(name.trim(), email.trim(), news))
+    if (!name.trim() || !emailOk) return
+    if (config?.emailVerify) void sendCode()
+    else void finish(() => platform.loginName(name.trim(), email.trim(), news))
+  }
+  const byCode = (e: FormEvent) => {
+    e.preventDefault()
+    if (sentTo && code.replace(/\D/g, '').length === 6) void finish(() => platform.verifyEmail({ email: sentTo, code }))
   }
 
   const info = CATEGORIES[category]
@@ -148,7 +170,37 @@ function Login({ onLogged }: { onLogged: (user: User) => void }) {
         {config?.googleClientId ? (
           <GoogleButton clientId={config.googleClientId} onCredential={(credential) => void finish(() => platform.loginGoogle(credential))} />
         ) : null}
-        {config?.nameLogin ? (
+        {config?.nameLogin && sentTo ? (
+          <form className="portal-name" onSubmit={byCode}>
+            <p className="portal-sent">
+              Te enviamos un código a <strong>{sentTo}</strong>. Escríbelo aquí o toca el enlace del correo.
+            </p>
+            <Field label="Código de 6 dígitos">
+              <Input
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/[^\d ]/g, '').slice(0, 7))}
+                placeholder="123 456"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                className="portal-code"
+              />
+            </Field>
+            <Button type="submit" disabled={busy || code.replace(/\D/g, '').length !== 6}>
+              {busy ? 'Entrando…' : 'Entrar'}
+            </Button>
+            <p className="portal-privacy muted small">
+              ¿No llegó? Revisa spam o{' '}
+              <button type="button" className="link-btn" disabled={busy} onClick={() => void sendCode()}>
+                envíalo de nuevo
+              </button>
+              {' · '}
+              <button type="button" className="link-btn" onClick={() => setSentTo(null)}>
+                cambiar correo
+              </button>
+            </p>
+          </form>
+        ) : config?.nameLogin ? (
           <form className="portal-name" onSubmit={byName}>
             {config.googleClientId ? <p className="portal-or">o con tu nombre</p> : null}
             <Field label="Tu nombre y apellido">
@@ -169,7 +221,7 @@ function Login({ onLogged }: { onLogged: (user: User) => void }) {
               <span>Quiero recibir novedades de Juntay por correo</span>
             </label>
             <Button type="submit" disabled={busy || !name.trim() || !emailOk}>
-              {busy ? 'Entrando…' : 'Entrar'}
+              {busy ? (config.emailVerify ? 'Enviando…' : 'Entrando…') : config.emailVerify ? 'Enviarme el código' : 'Entrar'}
             </Button>
             <p className="portal-privacy muted small">
               Usamos tu correo para identificarte en tus eventos. No lo compartimos. Las novedades llegan solo si marcas la casilla.
@@ -390,9 +442,22 @@ export function Portal() {
   const [state, setState] = useState<{ user: User | null; events: EventSummary[] } | null>(null)
   const [creating, setCreating] = useState(false)
   const [joining, setJoining] = useState(false)
+  const [linkError, setLinkError] = useState<string | null>(null)
 
-  const load = () =>
-    platform
+  const load = async () => {
+    // Llegó desde el enlace del correo: se comprueba y se limpia la dirección.
+    const token = params.get('verificar')
+    if (token) {
+      params.delete('verificar')
+      window.history.replaceState(null, '', window.location.pathname + (params.size ? `?${params}` : '') + window.location.hash)
+      try {
+        const { next } = await platform.verifyEmail({ token })
+        if (next) return goTo(next)
+      } catch (err) {
+        setLinkError(err instanceof Error ? err.message : 'Ese enlace no es válido. Pide un código nuevo.')
+      }
+    }
+    return platform
       .me()
       .then((me) => {
         // Llegó desde el menú Compartir del celular: va al último evento abierto.
@@ -410,6 +475,7 @@ export function Portal() {
         setState(me)
       })
       .catch(() => setState({ user: null, events: [] }))
+  }
 
   useEffect(() => {
     void load()
@@ -441,7 +507,14 @@ export function Portal() {
             <span className="spinner" />
           </div>
         ) : !state.user ? (
-          <Login onLogged={() => void load()} />
+          <>
+            {linkError ? (
+              <p className="gate-error portal-link-error" role="alert">
+                {linkError}
+              </p>
+            ) : null}
+            <Login onLogged={() => void load()} />
+          </>
         ) : (
           <div className="stack">
             <div className="page-head">

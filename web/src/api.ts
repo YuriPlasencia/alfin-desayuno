@@ -149,7 +149,13 @@ export const secreto = {
 
 /** Juntay: cuentas y eventos (fuera de un evento). */
 export const platform = {
-  config: () => request<{ googleClientId: string; nameLogin: boolean }>('/api/config'),
+  config: () => request<{ googleClientId: string; nameLogin: boolean; emailVerify: boolean }>('/api/config'),
+  /** Manda un código de 6 dígitos y un enlace al correo. */
+  startEmail: (name: string, email: string, news: boolean, next: string) =>
+    request<{ ok: boolean }>('/api/auth/email/start', json({ name, email, news, next })),
+  /** Entra con el código (y el correo) o con el enlace del correo. */
+  verifyEmail: (body: { email?: string; code?: string; token?: string }) =>
+    request<{ user: User; next: string }>('/api/auth/email/verify', json(body)),
   me: () => request<{ user: User | null; events: EventSummary[] }>('/api/me'),
   loginGoogle: (credential: string) => request<{ user: User }>('/api/auth/google', json({ credential })),
   loginName: (name: string, email: string, news: boolean) => request<{ user: User }>('/api/auth/name', json({ name, email, news })),

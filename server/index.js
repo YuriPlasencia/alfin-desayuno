@@ -26,7 +26,9 @@ import {
   eventSummary,
   countAdminEvents,
   createNameUser,
+  isVerified,
   recordHistory,
+  signInVerified,
   EVENT_CATEGORIES,
   EVENT_TYPES,
   getEvent,
@@ -43,6 +45,7 @@ import {
 } from './platform.js'
 import { scrapeQuoteImage } from './ocr.js'
 import { mountAdmin } from './admin.js'
+import { EMAIL_VERIFY, checkLoginCode, sendLoginCode } from './mail.js'
 import { mountSecreto,secretBeforeMemberDelete, secretGameExists, secretSummary } from './secreto.js'
 
 
@@ -129,6 +132,8 @@ function startSession(req, res, userId) {
 function sessionUser(req) {
   const [id, exp, mac] = readCookie(req, SESSION_COOKIE).split('.')
   if (!id || !exp || !mac || Number(exp) < Date.now() || !sameSecret(mac, sign(`${id}.${exp}`))) return null
+  // Con la comprobación de correo activa, una cuenta sin correo comprobado debe volver a entrar con su código.
+  if (EMAIL_VERIFY && !isVerified(Number(id))) return null
   return getUser(Number(id)) || null
 }
 
@@ -148,7 +153,7 @@ const failAttempt = (key) => {
 const VERSION = (process.env.RENDER_GIT_COMMIT || '').slice(0, 7) || 'local'
 app.get('/api/health', (_req, res) => res.json({ ok: true, version: VERSION }))
 
-app.get('/api/config', (_req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, nameLogin: NAME_LOGIN }))
+app.get('/api/config', (_req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, nameLogin: NAME_LOGIN, emailVerify: EMAIL_VERIFY }))
 
 app.get('/api/me', (req, res) => {
   res.setHeader('Cache-Control', 'no-store')
@@ -166,7 +171,13 @@ app.post('/api/auth/google', async (req, res) => {
     if (!response.ok || info.aud !== GOOGLE_CLIENT_ID || !validIssuer || Number(info.exp) * 1000 < Date.now()) {
       return res.status(401).json({ error: 'No se pudo verificar tu cuenta de Google' })
     }
-    const userId = upsertGoogleUser({ sub: info.sub, email: info.email || '', name: info.name || info.email || 'Integrante', picture: info.picture || '' })
+    const userId = upsertGoogleUser({
+      sub: info.sub,
+      email: info.email || '',
+      name: info.name || info.email || 'Integrante',
+      picture: info.picture || '',
+      emailVerified: info.email_verified === true || info.email_verified === 'true',
+    })
     startSession(req, res, userId)
     res.json({ user: getUser(userId) })
   } catch {
@@ -178,6 +189,8 @@ app.post('/api/auth/google', async (req, res) => {
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 app.post('/api/auth/name', (req, res) => {
   if (!NAME_LOGIN) return res.status(400).json({ error: 'Entra con tu cuenta de Google' })
+  // Con la comprobación activa, nadie entra sin el código que llega al correo.
+  if (EMAIL_VERIFY) return res.status(403).json({ error: 'Te enviaremos un código a tu correo para entrar' })
   const name = text(req.body?.name).slice(0, 60)
   const email = String(req.body?.email || '').trim().toLowerCase()
   if (!name) return res.status(400).json({ error: 'Escribe tu nombre' })
@@ -185,6 +198,48 @@ app.post('/api/auth/name', (req, res) => {
   const userId = createNameUser({ name, email, newsOptIn: req.body?.news === true })
   startSession(req, res, userId)
   res.json({ user: getUser(userId) })
+})
+
+const safeNext = (value) => (typeof value === 'string' && /^\/e\/[a-z0-9-]+\/?$/.test(value) ? value : '')
+
+// Paso 1: nombre y correo → llega un código y un enlace al correo.
+app.post('/api/auth/email/start', async (req, res) => {
+  if (!EMAIL_VERIFY) return res.status(404).json({ error: 'No disponible' })
+  const name = text(req.body?.name).slice(0, 60)
+  const email = String(req.body?.email || '').trim().toLowerCase()
+  if (!name) return res.status(400).json({ error: 'Escribe tu nombre' })
+  if (email.length > 254 || !EMAIL.test(email)) return res.status(400).json({ error: 'Escribe un correo válido' })
+  // Tope de envíos: por correo y por dirección, para no usar Juntay para llenar bandejas ajenas.
+  const keys = [`mail:${email}`, `mailip:${req.ip}`]
+  if (tooManyAttempts(keys[0], 4) || tooManyAttempts(keys[1], 12)) {
+    return res.status(429).json({ error: 'Ya enviamos varios códigos. Revisa tu correo o espera unos minutos.' })
+  }
+  keys.forEach(failAttempt)
+  try {
+    await sendLoginCode({ name, email, news: req.body?.news === true, next: safeNext(req.body?.next) })
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[correo]', err)
+    res.status(502).json({ error: 'No pudimos enviar el correo. Intenta de nuevo en un momento.' })
+  }
+})
+
+// Paso 2: el código de 6 dígitos o el enlace del correo → entra (o se crea la cuenta).
+app.post('/api/auth/email/verify', (req, res) => {
+  if (!EMAIL_VERIFY) return res.status(404).json({ error: 'No disponible' })
+  const key = `verify:${req.ip}`
+  if (tooManyAttempts(key, 20)) return res.status(429).json({ error: 'Demasiados intentos. Espera unos minutos.' })
+  const email = String(req.body?.email || '').trim().toLowerCase()
+  const token = typeof req.body?.token === 'string' ? req.body.token.slice(0, 100) : ''
+  if (!token && !EMAIL.test(email)) return res.status(400).json({ error: 'Escribe un correo válido' })
+  const result = checkLoginCode({ email, code: req.body?.code, token })
+  if (result.error) {
+    failAttempt(key)
+    return res.status(401).json({ error: result.error })
+  }
+  const userId = signInVerified({ name: result.name, email: result.email, newsOptIn: result.news })
+  startSession(req, res, userId)
+  res.json({ user: getUser(userId), next: result.next })
 })
 
 app.post('/api/auth/logout', (req, res) => {

@@ -3743,6 +3743,25 @@ select {
   accent-color: var(--blue);
 }
 
+.portal-sent {
+  margin: 0;
+  font-size: 14.5px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.input.portal-code {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
+}
+
+.portal-link-error {
+  max-width: 960px;
+  margin: 0 auto 16px;
+}
+
 .portal-privacy {
   margin: 0;
   line-height: 1.45;

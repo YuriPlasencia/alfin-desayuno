@@ -55,10 +55,11 @@ pdb.exec(`
   );
 `)
 
-// Permiso para recibir novedades de Juntay (se pide al entrar, desmarcado por defecto).
+// Permiso para recibir novedades (desmarcado por defecto) y correo comprobado con un código.
 for (const [column, definition] of [
   ['news_opt_in', 'INTEGER NOT NULL DEFAULT 0'],
   ['consent_at', 'TEXT'],
+  ['email_verified', 'INTEGER NOT NULL DEFAULT 0'],
 ]) {
   if (!pdb.prepare('PRAGMA table_info(users)').all().some((col) => col.name === column)) {
     pdb.exec(`ALTER TABLE users ADD COLUMN ${column} ${definition};`)
@@ -90,6 +91,65 @@ export function recordHistory(userId, kind, slug = '', detail = '') {
   } catch (err) {
     console.error('[historial]', err)
   }
+}
+
+// Códigos de acceso enviados por correo (se guardan solo sus huellas, nunca el código).
+pdb.exec(`
+  CREATE TABLE IF NOT EXISTS login_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    name TEXT NOT NULL,
+    news INTEGER NOT NULL DEFAULT 0,
+    code_hash TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    next TEXT NOT NULL DEFAULT '',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS login_codes_email ON login_codes (email, created_at);
+`)
+
+export const isVerified = (userId) => Boolean(pdb.prepare('SELECT email_verified FROM users WHERE id = ?').get(userId)?.email_verified)
+
+/**
+ * Entrada con el correo ya comprobado: recupera la cuenta de ese correo o crea una.
+ * Si había cuentas antiguas (sin comprobar) con ese correo, se queda con la más usada
+ * para que la persona conserve sus eventos.
+ */
+export function signInVerified({ name, email, newsOptIn }) {
+  const now = nowIso()
+  const verified = pdb.prepare('SELECT id FROM users WHERE email = ? AND email_verified = 1 ORDER BY last_login_at DESC LIMIT 1').get(email)
+  const legacy = verified
+    ? null
+    : pdb
+        .prepare(
+          `SELECT u.id FROM users u LEFT JOIN event_users eu ON eu.user_id = u.id
+           WHERE u.email = ? GROUP BY u.id ORDER BY COUNT(eu.event_id) DESC, u.last_login_at DESC LIMIT 1`,
+        )
+        .get(email)
+  const existing = verified || legacy
+  if (existing) {
+    pdb
+      .prepare(
+        `UPDATE users SET email_verified = 1, last_login_at = ?,
+           news_opt_in = CASE WHEN ? THEN 1 ELSE news_opt_in END,
+           consent_at = CASE WHEN ? AND news_opt_in = 0 THEN ? ELSE consent_at END
+         WHERE id = ?`,
+      )
+      .run(now, newsOptIn ? 1 : 0, newsOptIn ? 1 : 0, now, existing.id)
+    if (legacy) recordHistory(existing.id, 'correo verificado', '', 'Comprobó su correo con el código')
+    return existing.id
+  }
+  const result = pdb
+    .prepare(
+      'INSERT INTO users (google_sub, email, name, picture, created_at, last_login_at, news_opt_in, consent_at, email_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)',
+    )
+    .run(`correo:${crypto.randomUUID()}`, email, name, '', now, now, newsOptIn ? 1 : 0, newsOptIn ? now : null)
+  const id = Number(result.lastInsertRowid)
+  recordHistory(id, 'registro', '', 'Se registró con su correo comprobado')
+  return id
 }
 
 /**
@@ -139,16 +199,19 @@ export function verifyCode(code, stored) {
 
 // ---------- usuarios ----------
 
-export function upsertGoogleUser({ sub, email, name, picture }) {
+export function upsertGoogleUser({ sub, email, name, picture, emailVerified = false }) {
   const now = nowIso()
+  const verified = emailVerified ? 1 : 0
   const existing = pdb.prepare('SELECT id FROM users WHERE google_sub = ?').get(sub)
   if (existing) {
-    pdb.prepare('UPDATE users SET email = ?, name = ?, picture = ?, last_login_at = ? WHERE id = ?').run(email, name, picture, now, existing.id)
+    pdb
+      .prepare('UPDATE users SET email = ?, name = ?, picture = ?, last_login_at = ?, email_verified = MAX(email_verified, ?) WHERE id = ?')
+      .run(email, name, picture, now, verified, existing.id)
     return existing.id
   }
   const result = pdb
-    .prepare('INSERT INTO users (google_sub, email, name, picture, created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(sub, email, name, picture, now, now)
+    .prepare('INSERT INTO users (google_sub, email, name, picture, created_at, last_login_at, email_verified) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(sub, email, name, picture, now, now, verified)
   const id = Number(result.lastInsertRowid)
   recordHistory(id, 'registro', '', 'Se registró con Google')
   return id
