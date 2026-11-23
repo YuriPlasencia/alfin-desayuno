@@ -212,6 +212,8 @@ function initSchema(conn) {
   addColumn('members', 'photo_url', "TEXT NOT NULL DEFAULT ''")
   // Tipo de evento elegido al crearlo: desayuno, almuerzo, cena, secreto ('' = sin tipo).
   addColumn('settings', 'event_type', "TEXT NOT NULL DEFAULT ''")
+  // Para qué es: trabajo, familiar o entretenimiento ('' = eventos de antes).
+  addColumn('settings', 'event_category', "TEXT NOT NULL DEFAULT ''")
   addColumn('budget_items', 'category', "TEXT NOT NULL DEFAULT ''")
   addColumn('budget_items', 'validated_by', 'INTEGER REFERENCES members(id) ON DELETE SET NULL')
   addColumn('budget_items', 'validated_at', 'TEXT')

@@ -302,7 +302,10 @@ export interface User {
 
 /** Un evento de Juntay, como se ve en "Tus eventos". */
 /** Tipo elegido al crear el evento ('' en eventos antiguos). */
-export type EventType = 'desayuno' | 'almuerzo' | 'cena' | 'secreto'
+export type EventType = 'desayuno' | 'almuerzo' | 'cena' | 'cumpleanos' | 'paseo' | 'fiesta' | 'partido' | 'secreto'
+
+/** Para qué se usa el evento. */
+export type EventCategory = 'trabajo' | 'familiar' | 'entretenimiento'
 
 export interface EventSummary {
   slug: string
@@ -311,5 +314,6 @@ export interface EventSummary {
   time: string
   location: string
   type?: EventType | ''
+  category?: EventCategory | ''
   role?: 'admin' | 'member'
 }

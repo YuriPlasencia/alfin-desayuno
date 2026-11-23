@@ -6,7 +6,9 @@ import { DATA_DIR, SLUG_PATTERN, db, eventDbPath, getSettings, nowIso, plain, ru
 import { openSecretGame } from './secreto.js'
 
 /** Tipos de evento que se eligen al crearlo. */
-export const EVENT_TYPES = ['desayuno', 'almuerzo', 'cena', 'secreto']
+export const EVENT_TYPES = ['desayuno', 'almuerzo', 'cena', 'cumpleanos', 'paseo', 'fiesta', 'partido', 'secreto']
+/** Para qué se usa el evento (se elige en la portada). */
+export const EVENT_CATEGORIES = ['trabajo', 'familiar', 'entretenimiento']
 
 /*
  * Juntay: la plataforma. Guarda las cuentas (Google), los eventos con su código
@@ -122,7 +124,7 @@ export function membership(slug, userId) {
 export function eventSummary(slug) {
   return runInEvent(slug, () => {
     const s = getSettings()
-    return { slug, name: s.event_name, date: s.event_date, time: s.event_time, location: s.location, type: s.event_type || '' }
+    return { slug, name: s.event_name, date: s.event_date, time: s.event_time, location: s.location, type: s.event_type || '', category: s.event_category || '' }
   })
 }
 
@@ -164,14 +166,14 @@ export function slugify(name, date) {
 }
 
 /** Crea el evento con su base vacía; quien lo crea queda como organizador y primer imán. */
-export function createEvent({ name, date, time, location, guests, code, type = '', user }) {
+export function createEvent({ name, date, time, location, guests, code, type = '', category = '', user }) {
   const slug = slugify(name, date)
   const now = nowIso()
   const memberId = runInEvent(slug, () => {
     getSettings()
     db.prepare(
-      'UPDATE settings SET event_name = ?, event_date = ?, event_time = ?, location = ?, guests = ?, team_size = 1, event_type = ?, updated_at = ? WHERE id = 1',
-    ).run(name, date || '', time || '', location || '', Math.max(1, Math.round(Number(guests) || 20)), type, now)
+      'UPDATE settings SET event_name = ?, event_date = ?, event_time = ?, location = ?, guests = ?, team_size = 1, event_type = ?, event_category = ?, updated_at = ? WHERE id = 1',
+    ).run(name, date || '', time || '', location || '', Math.max(1, Math.round(Number(guests) || 20)), type, category, now)
     const id = addMemberFor(user, { role: 'Organiza el evento', lead: true })
     // Un evento de amigo secreto nace con el juego abierto y su organizador ya apuntado.
     if (type === 'secreto') openSecretGame({ title: name, date, time, place: location, memberId: id, userId: user.id })

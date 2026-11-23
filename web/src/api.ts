@@ -1,4 +1,4 @@
-import type { Bootstrap, EventSummary, EventType, TaskOption, PresenceStats, ScrapedQuote, SecretState, User } from './types'
+import type { Bootstrap, EventCategory, EventSummary, EventType, TaskOption, PresenceStats, ScrapedQuote, SecretState, User } from './types'
 
 /** Por qué el servidor no deja pasar: falta iniciar sesión, unirse al evento o el evento no existe. */
 export type GateReason = 'login' | 'join' | 'no-event'
@@ -153,7 +153,7 @@ export const platform = {
   loginGoogle: (credential: string) => request<{ user: User }>('/api/auth/google', json({ credential })),
   loginName: (name: string) => request<{ user: User }>('/api/auth/name', json({ name })),
   logout: () => request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
-  createEvent: (body: { name: string; date: string; time: string; location: string; guests: number; code: string; type: EventType }) =>
+  createEvent: (body: { name: string; date: string; time: string; location: string; guests: number; code: string; type: EventType; category: EventCategory }) =>
     request<{ slug: string }>('/api/events', json(body)),
   publicEvent: (slug: string) => request<EventSummary>(`/api/events/${encodeURIComponent(slug)}/public`),
   join: (slug: string, code: string) => request<{ ok: boolean }>(`/api/events/${encodeURIComponent(slug)}/join`, json({ code })),

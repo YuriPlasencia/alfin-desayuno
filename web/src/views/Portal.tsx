@@ -3,7 +3,8 @@ import { platform } from '../api'
 import { Brand } from '../components/brand'
 import { Avatar, Button, Field, Icon, Input, Modal } from '../components/ui'
 import { daysUntil, formatLongDate } from '../lib/format'
-import type { EventSummary, EventType, User } from '../types'
+import { CATEGORIES, CATEGORY_IDS, EVENT_KINDS, readCategory, saveCategory } from '../lib/categories'
+import type { EventCategory, EventSummary, EventType, User } from '../types'
 
 declare global {
   interface Window {
@@ -59,7 +60,33 @@ function GoogleButton({ clientId, onCredential }: { clientId: string; onCredenti
   return failed ? <p className="gate-error">No se pudo cargar el ingreso con Google. Revisa tu conexión.</p> : <div ref={box} className="google-btn" />
 }
 
+/** Trabajo, Familiar o Entretenimiento: botones de una sola elección. */
+function CategoryPicker({ value, onChange, labelledBy }: { value: EventCategory; onChange: (next: EventCategory) => void; labelledBy?: string }) {
+  return (
+    <div className="chip-select category-picker" role="radiogroup" aria-labelledby={labelledBy} aria-label={labelledBy ? undefined : 'Categoría'}>
+      {CATEGORY_IDS.map((id) => (
+        <button
+          key={id}
+          type="button"
+          role="radio"
+          aria-checked={value === id}
+          className={`chip event-kind ${value === id ? 'is-selected' : ''}`}
+          onClick={() => onChange(id)}
+        >
+          <Icon name={CATEGORIES[id].icon} size={15} />
+          {CATEGORIES[id].label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function Login({ onLogged }: { onLogged: (user: User) => void }) {
+  const [category, setCategory] = useState<EventCategory>(readCategory)
+  const pickCategory = (next: EventCategory) => {
+    setCategory(next)
+    saveCategory(next)
+  }
   const [config, setConfig] = useState<{ googleClientId: string; nameLogin: boolean } | null>(null)
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
@@ -87,24 +114,30 @@ function Login({ onLogged }: { onLogged: (user: User) => void }) {
     if (name.trim()) void finish(() => platform.loginName(name.trim()))
   }
 
+  const info = CATEGORIES[category]
+
   return (
     <div className="portal-login">
-      <section className="board portal-hero">
-        <h1 className="board-title">Arma tu evento en equipo</h1>
-        <p className="board-sub">
-          Actividades con responsables, acuerdos, cuotas con su constancia y gastos con boleta. Todo en una pizarra que el equipo ve en vivo.
+      {/* Primero se elige para qué es; en el celular queda encima del cuadro para entrar. */}
+      <div className="portal-categories">
+        <p className="portal-ask" id="portal-ask">
+          ¿Para qué lo vas a usar?
         </p>
+        <CategoryPicker value={category} onChange={pickCategory} labelledBy="portal-ask" />
+      </div>
+      <section className="board portal-hero">
+        <h1 className="board-title">{info.title}</h1>
+        <p className="board-sub">{info.sub}</p>
         <ul className="portal-points">
-          <li>
-            <Icon name="tasks" size={18} /> Cada quien ve qué le toca y lo marca desde el celular
-          </li>
-          <li>
-            <Icon name="wallet" size={18} /> Cuotas por Yape o Plin con foto, validadas por el equipo
-          </li>
-          <li>
-            <Icon name="users" size={18} /> Un evento por equipo, cada uno con su código
-          </li>
+          {info.points.map((point) => (
+            <li key={point.text}>
+              <Icon name={point.icon} size={18} /> {point.text}
+            </li>
+          ))}
         </ul>
+        <p className="portal-kinds muted small">
+          Para {info.types.map((type) => EVENT_KINDS[type].label.toLowerCase()).join(', ').replace(/, ([^,]*)$/, ' y $1')}.
+        </p>
       </section>
 
       <section className="gate portal-access">
@@ -147,7 +180,7 @@ function EventCard({ event }: { event: EventSummary }) {
         ) : null}
       </span>
       <strong className="event-card-name">{event.name}</strong>
-      {kindLabel(event.type) ? <span className="event-card-kind">{kindLabel(event.type)}</span> : null}
+      {eventLabel(event) ? <span className="event-card-kind">{eventLabel(event)}</span> : null}
       <span className="muted small">
         {event.date ? formatLongDate(event.date) : 'Fecha por definir'}
         {event.time ? ` · ${event.time}` : ''}
@@ -160,27 +193,29 @@ function EventCard({ event }: { event: EventSummary }) {
   )
 }
 
-/** Tipos de evento: cada uno propone una hora y un ejemplo de nombre. */
-const EVENT_KINDS: { id: EventType; label: string; time: string; example: string }[] = [
-  { id: 'desayuno', label: 'Desayuno', time: '09:00', example: 'Ej. Al Fin Desayuno' },
-  { id: 'almuerzo', label: 'Almuerzo', time: '13:00', example: 'Ej. Almuerzo de fin de año' },
-  { id: 'cena', label: 'Cena', time: '20:00', example: 'Ej. Cena de aniversario' },
-  { id: 'secreto', label: 'Amigo secreto', time: '19:00', example: 'Ej. Amigo secreto de Navidad' },
-]
-const kindLabel = (type?: string) => EVENT_KINDS.find((kind) => kind.id === type)?.label
+/** «Familiar · Cumpleaños» para la tarjeta (vacío en eventos de antes). */
+const eventLabel = (event: EventSummary) =>
+  [event.category ? CATEGORIES[event.category]?.label : '', event.type ? EVENT_KINDS[event.type]?.label : ''].filter(Boolean).join(' · ')
 
 function CreateEvent({ onClose }: { onClose: () => void }) {
-  const [type, setType] = useState<EventType>('desayuno')
+  const [category, setCategory] = useState<EventCategory>(readCategory)
+  const [type, setType] = useState<EventType>(() => CATEGORIES[readCategory()].types[0])
   const [timeTouched, setTimeTouched] = useState(false)
   const [name, setName] = useState('')
   const [date, setDate] = useState('')
-  const [time, setTime] = useState('09:00')
-  const kind = EVENT_KINDS.find((item) => item.id === type) ?? EVENT_KINDS[0]
+  const [time, setTime] = useState(() => EVENT_KINDS[CATEGORIES[readCategory()].types[0]].time)
+  const kind = EVENT_KINDS[type]
   const secret = type === 'secreto'
   const pickType = (next: EventType) => {
     setType(next)
     // La hora sugerida acompaña al tipo mientras nadie la haya cambiado a mano.
-    if (!timeTouched) setTime(EVENT_KINDS.find((item) => item.id === next)?.time ?? '09:00')
+    if (!timeTouched) setTime(EVENT_KINDS[next].time)
+  }
+  const pickCategory = (next: EventCategory) => {
+    setCategory(next)
+    saveCategory(next)
+    // Si el tipo elegido no existe en la nueva categoría, se pasa al primero de ella.
+    if (!CATEGORIES[next].types.includes(type)) pickType(CATEGORIES[next].types[0])
   }
   const [location, setLocation] = useState('')
   const [guests, setGuests] = useState('20')
@@ -192,7 +227,7 @@ function CreateEvent({ onClose }: { onClose: () => void }) {
     setBusy(true)
     setMessage(null)
     try {
-      const { slug } = await platform.createEvent({ name: name.trim(), date, time, location, guests: Number(guests) || 20, code, type })
+      const { slug } = await platform.createEvent({ name: name.trim(), date, time, location, guests: Number(guests) || 20, code, type, category })
       // Un amigo secreto se abre directo en su juego.
       goTo(secret ? `/e/${slug}#/secreto` : `/e/${slug}`)
     } catch (err) {
@@ -224,19 +259,22 @@ function CreateEvent({ onClose }: { onClose: () => void }) {
       }
     >
       <div className="form-grid">
+        <Field label="Categoría">
+          <CategoryPicker value={category} onChange={pickCategory} />
+        </Field>
         <Field label="Tipo de evento">
           <div className="chip-select" role="radiogroup" aria-label="Tipo de evento">
-            {EVENT_KINDS.map((item) => (
+            {CATEGORIES[category].types.map((id) => (
               <button
-                key={item.id}
+                key={id}
                 type="button"
                 role="radio"
-                aria-checked={type === item.id}
-                className={`chip event-kind ${type === item.id ? 'is-selected' : ''}`}
-                onClick={() => pickType(item.id)}
+                aria-checked={type === id}
+                className={`chip event-kind ${type === id ? 'is-selected' : ''}`}
+                onClick={() => pickType(id)}
               >
-                {item.id === 'secreto' ? <Icon name="gift" size={15} /> : null}
-                {item.label}
+                {id === 'secreto' ? <Icon name="gift" size={15} /> : null}
+                {EVENT_KINDS[id].label}
               </button>
             ))}
           </div>

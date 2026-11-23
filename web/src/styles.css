@@ -3725,6 +3725,27 @@ select {
   color: var(--muted);
 }
 
+.portal-ask {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.portal-categories {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 860px) {
+  .portal-categories {
+    order: -2;
+  }
+}
+
+.portal-kinds {
+  margin-top: 4px;
+}
+
 .chip.event-kind {
   min-height: 40px;
   padding: 0 14px;
