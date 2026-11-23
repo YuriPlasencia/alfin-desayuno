@@ -5,6 +5,7 @@ import { Avatar, Button, EmptyState, Field, Icon, IconButton, Input, Magnet, Mod
 import { ShareButton } from '../components/share'
 import type { Member, SecretGame, SecretMessage, SecretState, SecretWish } from '../types'
 import { daysUntil, formatLongDate, money, plural, relativeTime } from '../lib/format'
+import { compressImageFile } from '../lib/image'
 import '../secreto.css'
 
 function budgetLabel(game: SecretGame): string {
@@ -427,15 +428,37 @@ function WishList({ wishes, run }: { wishes: SecretWish[]; run: Run }) {
   const [title, setTitle] = useState('')
   const [link, setLink] = useState('')
   const [price, setPrice] = useState('')
+  const [photo, setPhoto] = useState('')
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const [photoError, setPhotoError] = useState<string | null>(null)
   const [more, setMore] = useState(false)
+  const photoInput = useRef<HTMLInputElement>(null)
+
+  const pickPhoto = async (file: File | undefined) => {
+    if (!file) return
+    setPhotoBusy(true)
+    setPhotoError(null)
+    try {
+      // Comprimida: basta para reconocer el regalo y no pesa en la lista.
+      setPhoto(await compressImageFile(file, 720, 0.72))
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : 'No se pudo usar esa foto')
+    } finally {
+      setPhotoBusy(false)
+      if (photoInput.current) photoInput.current.value = ''
+    }
+  }
 
   const add = async () => {
     if (!title.trim()) return
-    const ok = await run(() => secreto.addWish({ title: title.trim(), link: link.trim(), price: Number(price) || 0 }))
+    const ok = await run(() =>
+      secreto.addWish({ title: title.trim(), link: link.trim(), price: Number(price) || 0, photo_url: photo || undefined }),
+    )
     if (ok) {
       setTitle('')
       setLink('')
       setPrice('')
+      setPhoto('')
     }
   }
 
@@ -465,28 +488,77 @@ function WishList({ wishes, run }: { wishes: SecretWish[]; run: Run }) {
         }}
       >
         <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ej. Una taza grande, chocolates, medias de colores" maxLength={120} aria-label="Deseo" />
-        <Button type="submit" icon="plus" disabled={!title.trim()}>
+        <Button type="submit" icon="plus" disabled={!title.trim() || photoBusy}>
           Agregar
         </Button>
       </form>
       {more ? (
-        <div className="sec-wish-more">
-          <Input value={link} onChange={(event) => setLink(event.target.value)} placeholder="Enlace de la tienda (opcional)" inputMode="url" aria-label="Enlace" />
-          <Input value={price} onChange={(event) => setPrice(event.target.value)} placeholder="Precio aprox." inputMode="decimal" aria-label="Precio aproximado" />
-        </div>
+        <>
+          <div className="sec-wish-more">
+            <Input value={link} onChange={(event) => setLink(event.target.value)} placeholder="Enlace de la tienda (opcional)" inputMode="url" aria-label="Enlace" />
+            <Input value={price} onChange={(event) => setPrice(event.target.value)} placeholder="Precio aprox." inputMode="decimal" aria-label="Precio aproximado" />
+          </div>
+          <div className="sec-wish-photo">
+            {photo ? <img src={photo} alt="Foto del regalo" className="sec-wish-thumb" /> : null}
+            <Button type="button" variant="outline" size="sm" icon="camera" disabled={photoBusy} onClick={() => photoInput.current?.click()}>
+              {photoBusy ? 'Preparando…' : photo ? 'Cambiar foto' : 'Foto del regalo (opcional)'}
+            </Button>
+            {photo ? (
+              <Button type="button" variant="ghost" size="sm" onClick={() => setPhoto('')}>
+                Quitar
+              </Button>
+            ) : null}
+            {photoError ? <p className="field-error">{photoError}</p> : null}
+            <input ref={photoInput} type="file" accept="image/*" hidden onChange={(event) => void pickPhoto(event.target.files?.[0])} />
+          </div>
+        </>
       ) : (
         <button type="button" className="sec-link" onClick={() => setMore(true)}>
-          Agregar enlace o precio
+          Agregar enlace, precio o foto
         </button>
       )}
     </section>
   )
 }
 
+/** Miniatura que pide la foto al abrirse; al tocarla se ve en grande. */
+function WishPhoto({ wish }: { wish: SecretWish }) {
+  const [src, setSrc] = useState('')
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    let alive = true
+    secreto
+      .wishPhoto(wish.id)
+      .then((result) => alive && setSrc(result.photo_url))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [wish.id])
+  if (!src) return <span className="sec-wish-thumb is-loading" aria-hidden="true" />
+  return (
+    <>
+      <button type="button" className="sec-wish-thumb-btn" onClick={() => setOpen(true)} aria-label={`Ver foto: ${wish.title}`}>
+        <img src={src} alt="" className="sec-wish-thumb" />
+      </button>
+      {open ? (
+        <div className="photo-lightbox" onClick={() => setOpen(false)}>
+          <div className="lightbox-content" onClick={(event) => event.stopPropagation()}>
+            <img src={src} alt={wish.title} className="lightbox-img" />
+            <button type="button" className="lightbox-close" onClick={() => setOpen(false)} aria-label="Cerrar imagen">
+              <Icon name="x" size={24} />
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </>
+  )
+}
+
 function WishLine({ wish }: { wish: SecretWish }) {
   return (
     <span className="sec-wish">
-      <Icon name="star" size={15} />
+      {wish.has_photo ? <WishPhoto wish={wish} /> : <Icon name="star" size={15} />}
       <span>
         {wish.title}
         {wish.price ? <em> · aprox. {money(wish.price)}</em> : null}

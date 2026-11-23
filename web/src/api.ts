@@ -129,7 +129,8 @@ export const secreto = {
   cancel: () => request<SecretState>(eventPath('/secreto'), { method: 'DELETE' }),
   join: () => secretPost('/join'),
   leave: (memberId?: number) => secretPost('/leave', { member_id: memberId }),
-  addWish: (body: { title: string; link?: string; price?: number }) => secretPost('/wishes', body),
+  addWish: (body: { title: string; link?: string; price?: number; photo_url?: string }) => secretPost('/wishes', body),
+  wishPhoto: (id: number) => request<{ photo_url: string }>(eventPath(`/secreto/wishes/${id}/photo`)),
   removeWish: (id: number) => request<SecretState>(eventPath(`/secreto/wishes/${id}`), { method: 'DELETE' }),
   setExclusions: (pairs: [number, number][]) =>
     request<SecretState>(eventPath('/secreto/exclusions'), { method: 'PUT', body: JSON.stringify({ pairs }) }),

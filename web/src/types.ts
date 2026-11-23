@@ -185,6 +185,8 @@ export interface SecretWish {
   title: string
   link: string
   price: number
+  /** La foto se pide aparte con secreto.wishPhoto(id). */
+  has_photo: boolean
 }
 
 export interface SecretMessage {

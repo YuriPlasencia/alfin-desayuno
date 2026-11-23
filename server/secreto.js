@@ -64,6 +64,17 @@ export function initSecretSchema(conn) {
       read_at TEXT
     );
   `)
+  // Foto opcional del regalo deseado (data URL comprimida).
+  if (!conn.prepare('PRAGMA table_info(secret_wishes)').all().some((col) => col.name === 'photo_url')) {
+    conn.exec("ALTER TABLE secret_wishes ADD COLUMN photo_url TEXT NOT NULL DEFAULT '';")
+  }
+}
+
+const MAX_WISH_PHOTO = 600_000
+/** Solo una foto en data URL (jpeg, png o webp) y de tamaño acotado; si no, sin foto. */
+function wishPhoto(value) {
+  const clean = typeof value === 'string' ? value.trim() : ''
+  return /^data:image\/(jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(clean) && clean.length <= MAX_WISH_PHOTO ? clean : ''
 }
 
 // ---------- sorteo ----------
@@ -147,7 +158,10 @@ const getGame = () => plain(db.prepare('SELECT * FROM secret_game WHERE id = 1')
 const listParticipants = () =>
   db.prepare('SELECT * FROM secret_participants ORDER BY joined_at ASC, member_id ASC').all().map(plain)
 const wishesOf = (memberId) =>
-  db.prepare('SELECT id, title, link, price FROM secret_wishes WHERE member_id = ? ORDER BY id ASC').all(memberId).map(plain)
+  db
+    .prepare("SELECT id, title, link, price, photo_url != '' AS has_photo FROM secret_wishes WHERE member_id = ? ORDER BY id ASC")
+    .all(memberId)
+    .map((wish) => ({ ...plain(wish), has_photo: Boolean(wish.has_photo) }))
 
 function blockedSet() {
   const set = new Set()
@@ -421,15 +435,28 @@ export function mountSecreto(ev, { note, broadcast, text, num, dateOrNull }) {
       return fail(res, 400, 'Tu lista ya tiene 12 deseos')
     }
     const link = text(req.body?.link).slice(0, 500)
-    db.prepare('INSERT INTO secret_wishes (member_id, title, link, price, created_at) VALUES (?, ?, ?, ?, ?)').run(
+    const photo = wishPhoto(req.body?.photo_url)
+    if (req.body?.photo_url && !photo) return fail(res, 400, 'Esa foto no se pudo usar. Prueba con otra.')
+    db.prepare('INSERT INTO secret_wishes (member_id, title, link, price, photo_url, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
       row.member_id,
       title,
       /^https?:\/\/\S+$/i.test(link) ? link : '',
       Math.max(0, num(req.body?.price, 0)),
+      photo,
       nowIso(),
     )
     broadcast()
     send(req, res, 201)
+  })
+
+  // La foto viaja aparte (pesa): solo la ve quien armó la lista o quien le regala.
+  ev.get('/secreto/wishes/:id/photo', (req, res) => {
+    const wish = db.prepare('SELECT member_id, photo_url FROM secret_wishes WHERE id = ?').get(Number(req.params.id))
+    const { row } = mine(req)
+    const allowed = wish && row && (wish.member_id === row.member_id || wish.member_id === row.receiver_id)
+    if (!allowed || !wish.photo_url) return fail(res, 404, 'Foto no encontrada')
+    res.setHeader('Cache-Control', 'private, max-age=300')
+    res.json({ photo_url: wish.photo_url })
   })
 
   ev.delete('/secreto/wishes/:id', (req, res) => {
