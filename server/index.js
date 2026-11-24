@@ -45,6 +45,7 @@ import {
 } from './platform.js'
 import { scrapeQuoteImage } from './ocr.js'
 import { mountAdmin } from './admin.js'
+import { linkVisitor, mountVisits } from './visits.js'
 import { mountFinanzas } from './finanzas.js'
 import { EMAIL_VERIFY, checkLoginCode, sendLoginCode } from './mail.js'
 import { mountSecreto,secretBeforeMemberDelete, secretGameExists, secretSummary } from './secreto.js'
@@ -121,6 +122,7 @@ function sameSecret(a, b) {
 
 function startSession(req, res, userId) {
   recordHistory(userId, 'ingreso', '', 'Inició sesión')
+  linkVisitor(req, userId, readCookie)
   const exp = Date.now() + SESSION_DAYS * 86400000
   const value = `${userId}.${exp}`
   const secure = req.secure ? '; Secure' : ''
@@ -1423,7 +1425,10 @@ ev.post('/import', (req, res) => {
 // Si el celular comparte antes de que la app quede instalada en caché, al menos abre la app.
 app.post('/compartir', (_req, res) => res.redirect(303, '/?compartido=0'))
 
-// Base de personas e historial en CSV (solo con ADMIN_KEY).
+// Visitas de cada página, con o sin sesión (para el panel /admin).
+mountVisits(app, { sessionUser, readCookie })
+
+// Panel de administración: visitas, personas e historial (solo con ADMIN_KEY).
 mountAdmin(app, { tooManyAttempts, failAttempt })
 
 // Finanzas personales de cada cuenta: ingresos, gastos e inversiones, con lectura de boletas.

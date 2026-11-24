@@ -1,6 +1,8 @@
 import crypto from 'node:crypto'
+import fs from 'node:fs'
 import { db, runInEvent } from './db.js'
 import { historySince, pdb } from './platform.js'
+import { firstSourceByUser, visitRows, visitsSummary } from './visits.js'
 
 /*
  * Base de personas e historial de Juntay, para descargar en CSV desde /admin.
@@ -94,6 +96,7 @@ export function buildPeople() {
   const memberships = pdb
     .prepare('SELECT eu.user_id, eu.role, e.slug FROM event_users eu JOIN events e ON e.id = eu.event_id')
     .all()
+  const sourceOf = firstSourceByUser()
   const byUser = new Map()
   for (const row of history) {
     if (row.userId === null) continue
@@ -118,6 +121,7 @@ export function buildPeople() {
       organizes: mine.filter((m) => m.role === 'admin').length,
       categories: [...new Set(mine.map((m) => CATEGORY[events.get(m.slug)?.category]).filter(Boolean))].join(' / '),
       event_names: mine.map((m) => nameOf.get(m.slug) || m.slug).join(' / '),
+      source: sourceOf.get(u.id) || '',
     }
   })
 }
@@ -133,8 +137,8 @@ const csv = (header, rows) => '﻿' + [header, ...rows].map((r) => r.map(cell).j
 
 export function peopleCsv() {
   return csv(
-    ['id', 'nombre', 'correo', 'acepta_novedades', 'primera_vez', 'ultimo_ingreso', 'ultima_actividad', 'acciones', 'eventos', 'organiza', 'categorias', 'nombres_de_eventos'],
-    buildPeople().map((p) => [p.id, p.name, p.email, p.news, p.first, p.last_login, p.last_activity, p.actions, p.events, p.organizes, p.categories, p.event_names]),
+    ['id', 'nombre', 'correo', 'acepta_novedades', 'primera_vez', 'ultimo_ingreso', 'ultima_actividad', 'acciones', 'eventos', 'organiza', 'categorias', 'nombres_de_eventos', 'llego_desde'],
+    buildPeople().map((p) => [p.id, p.name, p.email, p.news, p.first, p.last_login, p.last_activity, p.actions, p.events, p.organizes, p.categories, p.event_names, p.source]),
   )
 }
 
@@ -145,6 +149,13 @@ export function historyCsv() {
   )
 }
 
+export function visitsCsv() {
+  return csv(
+    ['fecha', 'navegador', 'pagina', 'fuente', 'medio', 'campana', 'pagina_anterior', 'dispositivo', 'region', 'nombre', 'correo'],
+    visitRows().map((v) => [v.at, v.visitor.slice(0, 8), v.path, v.source, v.medium, v.campaign, v.referrer, v.device, v.region, v.name || '', v.email || '']),
+  )
+}
+
 function keyMatches(given) {
   if (!ADMIN_KEY || typeof given !== 'string') return false
   const a = crypto.createHash('sha256').update(given).digest()
@@ -152,20 +163,7 @@ function keyMatches(given) {
   return crypto.timingSafeEqual(a, b)
 }
 
-const PAGE = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex"><title>Juntay · Administración</title>
-<style>body{font:16px/1.5 system-ui,sans-serif;max-width:520px;margin:48px auto;padding:0 16px;color:#0f172a;background:#f1f4fb}
-h1{font-size:22px;color:#1D3FBF}input{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font:inherit}
-button{margin:12px 8px 0 0;padding:10px 16px;border:0;border-radius:10px;background:#1D3FBF;color:#fff;font:inherit;font-weight:600;cursor:pointer}
-p.msg{min-height:24px;color:#b91c1c}</style></head><body>
-<h1>Juntay · Administración</h1><p>Descarga la base de personas y el historial completo (CSV para Excel o Google Sheets).</p>
-<label>Clave de administración<br><input id="k" type="password" autocomplete="off"></label>
-<div><button data-f="personas">Descargar personas</button><button data-f="historial">Descargar historial</button></div><p class="msg" id="m"></p>
-<script>for(const b of document.querySelectorAll('button'))b.onclick=async()=>{const m=document.getElementById('m');m.textContent='';
-const r=await fetch('/api/admin/'+b.dataset.f+'.csv',{headers:{'x-admin-key':document.getElementById('k').value}});
-if(!r.ok){m.textContent=r.status===429?'Demasiados intentos. Espera unos minutos.':'Clave incorrecta.';return}
-const a=document.createElement('a');a.href=URL.createObjectURL(await r.blob());a.download='juntay-'+b.dataset.f+'-'+new Date().toISOString().slice(0,10)+'.csv';a.click()}</script>
-</body></html>`
+const PAGE = fs.readFileSync(new URL('./admin.html', import.meta.url), 'utf8')
 
 /** /admin y sus descargas. Sin ADMIN_KEY configurada responden 404, como si no existieran. */
 export function mountAdmin(app, { tooManyAttempts, failAttempt }) {
@@ -187,4 +185,12 @@ export function mountAdmin(app, { tooManyAttempts, failAttempt }) {
   }
   app.get('/api/admin/personas.csv', guard, (_req, res) => res.type('text/csv; charset=utf-8').send(peopleCsv()))
   app.get('/api/admin/historial.csv', guard, (_req, res) => res.type('text/csv; charset=utf-8').send(historyCsv()))
+  app.get('/api/admin/visitas.csv', guard, (_req, res) => res.type('text/csv; charset=utf-8').send(visitsCsv()))
+  // Todo lo que muestra el panel, en una sola llamada.
+  app.get('/api/admin/resumen', guard, (req, res) => {
+    const days = [7, 30, 90, 365].includes(Number(req.query.dias)) ? Number(req.query.dias) : 30
+    const events = eventInfo()
+    const recent = buildHistory(events).slice(-80).reverse()
+    res.json({ ...visitsSummary(days), people: buildPeople(), recent })
+  })
 }

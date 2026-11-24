@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Juntay · Administración</title>
+<style>
+  :root {
+    --ink: #0f172a; --ink-2: #334155; --muted: #64748b; --line: #e2e8f0; --line-strong: #cbd5e1;
+    --bg: #f1f4fb; --board: #fff; --well: #f1f5f9; --blue: #1d3fbf; --blue-soft: #e8edfc;
+    --series-a: #1d3fbf; --series-b: #eb6834; --red: #b91c1c; --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+  main { max-width: 1120px; margin: 0 auto; padding: 28px 16px 64px; display: grid; gap: 18px; }
+  h1 { margin: 0; font-size: 24px; letter-spacing: -0.02em; }
+  h1 span { color: var(--blue); }
+  h2 { margin: 0; font-size: 16px; }
+  p { margin: 0; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  input, select { padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 10px; font: inherit; background: #fff; color: var(--ink); }
+  button { padding: 9px 14px; border: 1px solid var(--line-strong); border-radius: 10px; background: #fff; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  button:hover { border-color: var(--blue); }
+  .card { background: var(--board); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+  .card > * { min-width: 0; }
+  .login { max-width: 440px; margin: 10vh auto 0; }
+  .msg { min-height: 22px; color: var(--red); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .tile { background: var(--board); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 2px; }
+  .tile b { font-size: 26px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .tile small { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 14px; align-items: start; }
+  .legend { display: flex; gap: 14px; font-size: 13px; color: var(--ink-2); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .chart { position: relative; }
+  .chart svg { display: block; width: 100%; height: auto; }
+  .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .tip { position: absolute; top: 0; transform: translateX(-50%); background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 13px; white-space: nowrap; pointer-events: none; box-shadow: 0 6px 20px rgba(15,23,42,.1); font-variant-numeric: tabular-nums; }
+  .rank { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .rank li { display: grid; grid-template-columns: minmax(90px, 160px) 1fr auto; gap: 10px; align-items: center; font-size: 14px; }
+  .rank .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank .track { height: 10px; }
+  .rank .track i { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--series-a); min-width: 2px; }
+  .rank .val { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .funnel li { grid-template-columns: minmax(150px, 210px) 1fr auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); cursor: pointer; white-space: nowrap; user-select: none; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .scroll { overflow-x: auto; }
+  .nowrap { white-space: nowrap; }
+  .empty { padding: 20px; text-align: center; color: var(--muted); }
+  .note { background: var(--blue-soft); color: #1e3a8a; border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+  @media (max-width: 640px) {
+    .grid { grid-template-columns: 1fr; }
+    .rank li, .funnel li { grid-template-columns: 1fr auto; }
+    .rank .track { grid-column: 1 / -1; grid-row: 2; }
+    .hide-sm { display: none; }
+  }
+</style>
+</head>
+<body>
+<main id="app">
+  <form class="card login" id="login">
+    <h1>Juntay <span>·</span> Administración</h1>
+    <p class="muted">Visitas, personas e historial de Juntay.</p>
+    <label>Clave de administración<br><input id="key" type="password" autocomplete="current-password" style="width:100%"></label>
+    <div><button class="primary" type="submit">Entrar</button></div>
+    <p class="msg" id="msg"></p>
+  </form>
+</main>
+<script>
+(() => {
+  const app = document.getElementById('app')
+  const nf = new Intl.NumberFormat('es-PE')
+  const fmt = (n) => nf.format(n || 0)
+  const pct = (a, b) => (b ? Math.round((a / b) * 100) + '%' : '—')
+  let key = ''
+  try { key = sessionStorage.getItem('juntay.admin') || '' } catch {}
+  let days = 30
+  let data = null
+  let search = ''
+  let sort = { col: 'first', dir: -1 }
+
+  // Arma nodos con textContent: los nombres los escribe la gente, nunca van como HTML.
+  function el(tag, attrs, ...kids) {
+    const node = document.createElement(tag)
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (k === 'class') node.className = v
+      else if (k.startsWith('on')) node.addEventListener(k.slice(2), v)
+      else if (v !== false && v != null) node.setAttribute(k, v)
+    }
+    for (const kid of kids.flat()) if (kid != null && kid !== false) node.append(kid instanceof Node ? kid : String(kid))
+    return node
+  }
+  const svg = (tag, attrs) => {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag)
+    for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v)
+    return node
+  }
+  const dateTime = (iso) => (iso ? new Date(iso).toLocaleString('es-PE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '')
+  const dateOnly = (iso) => (iso ? new Date(iso).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' }) : '')
+
+  async function call(path) {
+    const r = await fetch(path, { headers: { 'x-admin-key': key } })
+    if (r.status === 401) throw Object.assign(new Error('Clave incorrecta.'), { auth: true })
+    if (r.status === 429) throw Object.assign(new Error('Demasiados intentos. Espera unos minutos.'), { auth: true })
+    if (!r.ok) throw new Error('Error ' + r.status)
+    return r
+  }
+
+  async function load() {
+    try {
+      data = await (await call('/api/admin/resumen?dias=' + days)).json()
+      try { sessionStorage.setItem('juntay.admin', key) } catch {}
+      render()
+    } catch (err) {
+      if (err.auth) { try { sessionStorage.removeItem('juntay.admin') } catch {} ; key = '' ; showLogin(err.message) }
+      else alert(err.message)
+    }
+  }
+
+  function showLogin(message) {
+    const form = document.getElementById('login')
+    if (!form) location.reload()
+    document.getElementById('msg').textContent = message || ''
+  }
+
+  async function download(name) {
+    const r = await call('/api/admin/' + name + '.csv')
+    const a = el('a', { href: URL.createObjectURL(await r.blob()), download: 'juntay-' + name + '-' + new Date().toISOString().slice(0, 10) + '.csv' })
+    a.click()
+  }
+
+  function tile(label, value, hint) {
+    return el('div', { class: 'tile' }, el('small', {}, label), el('b', {}, value), hint ? el('span', { class: 'muted small' }, hint) : null)
+  }
+
+  function rank(rows, labelKey, valueKey, extra) {
+    if (!rows.length) return el('p', { class: 'empty' }, 'Todavía no hay datos.')
+    const max = Math.max(...rows.map((r) => r[valueKey]), 1)
+    return el('ul', { class: 'rank' }, rows.map((r) =>
+      el('li', {},
+        el('span', { class: 'label', title: r[labelKey] }, r[labelKey] || '—'),
+        el('span', { class: 'track' }, el('i', { style: 'width:' + (r[valueKey] / max) * 100 + '%' })),
+        el('span', { class: 'val' }, fmt(r[valueKey]), extra ? el('span', { class: 'muted' }, ' ' + extra(r)) : null))))
+  }
+
+  // Visitantes (barras) y registros (línea) por día, en la misma escala.
+  function trend(daily, width) {
+    const wrap = el('div', { class: 'chart' })
+    const W = Math.max(width || 640, 300), H = 220, L = 34, R = 8, T = 12, B = 26
+    const max = Math.max(...daily.map((d) => Math.max(d.visitors, d.signups)), 1)
+    const step = niceStep(max)
+    const top = Math.ceil(max / step) * step
+    const s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': 'Visitantes y registros por día' })
+    const y = (v) => T + (H - T - B) * (1 - v / top)
+    const bw = (W - L - R) / daily.length
+    for (let v = 0; v <= top; v += step) {
+      s.append(svg('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: v ? '#e2e8f0' : '#cbd5e1' }))
+      const t = svg('text', { x: L - 6, y: y(v) + 4, 'text-anchor': 'end', class: 'tick' }); t.textContent = fmt(v); s.append(t)
+    }
+    const every = Math.ceil(daily.length / 8)
+    const band = svg('rect', { y: T, height: H - T - B, width: bw, fill: '#f1f5f9', opacity: 0 })
+    s.append(band)
+    daily.forEach((d, i) => {
+      const x = L + i * bw
+      const h = (H - T - B) * (d.visitors / top)
+      if (d.visitors) s.append(svg('rect', { x: x + bw * 0.18, width: Math.max(bw * 0.64, 1), y: y(d.visitors), height: h, rx: Math.min(3, bw * 0.2), fill: 'var(--series-a)' }))
+      if (i % every === 0) {
+        const t = svg('text', { x: x + bw / 2, y: H - 8, 'text-anchor': 'middle', class: 'tick' })
+        t.textContent = d.day.slice(8, 10) + '/' + d.day.slice(5, 7); s.append(t)
+      }
+    })
+    const pts = daily.map((d, i) => (L + i * bw + bw / 2) + ',' + y(d.signups)).join(' ')
+    s.append(svg('polyline', { points: pts, fill: 'none', stroke: 'var(--series-b)', 'stroke-width': 2, 'stroke-linejoin': 'round' }))
+    daily.forEach((d, i) => { if (d.signups) s.append(svg('circle', { cx: L + i * bw + bw / 2, cy: y(d.signups), r: 3.5, fill: 'var(--series-b)', stroke: '#fff', 'stroke-width': 1.5 })) })
+    const tip = el('div', { class: 'tip', hidden: true })
+    const hit = svg('rect', { x: L, y: 0, width: W - L - R, height: H, fill: 'transparent' })
+    hit.addEventListener('mousemove', (e) => {
+      const box = s.getBoundingClientRect()
+      const i = Math.min(daily.length - 1, Math.max(0, Math.floor(((e.clientX - box.left) * (W / box.width) - L) / bw)))
+      const d = daily[i]
+      band.setAttribute('x', L + i * bw); band.setAttribute('opacity', 1)
+      tip.hidden = false
+      tip.replaceChildren(el('b', {}, dateOnly(d.day + 'T12:00:00')), el('br'), fmt(d.visitors) + ' visitantes · ' + fmt(d.signups) + ' registros')
+      tip.style.left = ((L + i * bw + bw / 2) / W) * 100 + '%'
+    })
+    hit.addEventListener('mouseleave', () => { tip.hidden = true; band.setAttribute('opacity', 0) })
+    s.append(hit)
+    wrap.append(s, tip)
+    return wrap
+  }
+  function niceStep(max) {
+    const raw = max / 4
+    const mag = Math.pow(10, Math.floor(Math.log10(raw || 1)))
+    return Math.max(1, [1, 2, 5, 10].map((m) => m * mag).find((s) => s >= raw) || mag * 10)
+  }
+
+  function peopleTable() {
+    const q = search.trim().toLowerCase()
+    const rows = data.people
+      .filter((p) => !q || (p.name + ' ' + p.email + ' ' + p.source + ' ' + p.event_names).toLowerCase().includes(q))
+      .sort((a, b) => {
+        const va = a[sort.col], vb = b[sort.col]
+        return (typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb))) * sort.dir
+      })
+    const cols = [
+      ['name', 'Nombre'], ['email', 'Correo'], ['source', 'Llegó desde', 'hide-sm'], ['first', 'Primera vez'],
+      ['last_activity', 'Última actividad', 'hide-sm'], ['events', 'Eventos', 'num'], ['actions', 'Acciones', 'num hide-sm'], ['news', 'Novedades', 'hide-sm'],
+    ]
+    const head = el('tr', {}, cols.map(([c, label, cls]) => el('th', {
+      class: cls || '', 'aria-sort': sort.col === c ? (sort.dir > 0 ? 'ascending' : 'descending') : false,
+      onclick: () => { sort = { col: c, dir: sort.col === c ? -sort.dir : 1 }; renderPeople() },
+    }, label + (sort.col === c ? (sort.dir > 0 ? ' ↑' : ' ↓') : ''))))
+    const body = rows.length
+      ? rows.map((p) => el('tr', {},
+          el('td', {}, p.name || '—'), el('td', {}, p.email || el('span', { class: 'muted' }, 'sin correo')),
+          el('td', { class: 'hide-sm' }, p.source || el('span', { class: 'muted' }, 'antes del registro')),
+          el('td', { class: 'nowrap' }, dateOnly(p.first)), el('td', { class: 'nowrap hide-sm' }, dateTime(p.last_activity)),
+          el('td', { class: 'num' }, fmt(p.events)), el('td', { class: 'num hide-sm' }, fmt(p.actions)), el('td', { class: 'hide-sm' }, p.news)))
+      : [el('tr', {}, el('td', { colspan: cols.length, class: 'empty' }, 'Nadie coincide con la búsqueda.'))]
+    return el('div', { class: 'scroll' }, el('table', {}, el('thead', {}, head), el('tbody', {}, body)), el('p', { class: 'muted small', style: 'margin-top:8px' }, fmt(rows.length) + ' de ' + fmt(data.people.length) + ' personas'))
+  }
+  let peopleBox = null
+  function renderPeople() { if (peopleBox) peopleBox.replaceChildren(peopleTable()) }
+
+  function render() {
+    const t = data.totals, f = data.funnel
+    peopleBox = el('div', {}, peopleTable())
+    const period = el('select', { 'aria-label': 'Periodo', onchange: (e) => { days = Number(e.target.value); load() } },
+      [[7, 'Últimos 7 días'], [30, 'Últimos 30 días'], [90, 'Últimos 90 días'], [365, 'Último año']].map(([v, l]) => el('option', { value: v, selected: v === days ? '' : false }, l)))
+
+    app.replaceChildren(
+      el('div', { class: 'bar' },
+        el('h1', {}, 'Juntay ', el('span', {}, '·'), ' Administración'),
+        el('div', { class: 'row' }, period,
+          el('button', { onclick: load }, 'Actualizar'),
+          el('button', { onclick: () => { try { sessionStorage.removeItem('juntay.admin') } catch {} ; location.reload() } }, 'Salir'))),
+      t.trackingSince
+        ? el('p', { class: 'muted small' }, 'Las visitas se registran desde el ' + dateTime(t.trackingSince) + ' · Personas e historial incluyen todo lo anterior.')
+        : el('p', { class: 'note' }, 'Todavía no hay visitas registradas: se empiezan a contar desde este despliegue. Personas e historial ya incluyen todo lo anterior.'),
+      el('div', { class: 'tiles' },
+        tile('Visitantes', fmt(t.visitors), 'navegadores distintos'),
+        tile('Páginas vistas', fmt(t.views)),
+        tile('Registros', fmt(t.signups), 'cuentas nuevas en el periodo'),
+        tile('Eventos creados', fmt(t.events)),
+        tile('Personas en total', fmt(t.people), fmt(t.withEmail) + ' con correo · ' + fmt(t.news) + ' aceptan novedades')),
+      el('section', { class: 'card' },
+        el('div', { class: 'bar' }, el('h2', {}, 'Por día'),
+          el('div', { class: 'legend' }, el('span', {}, el('i', { style: 'background:var(--series-a)' }), 'Visitantes'), el('span', {}, el('i', { style: 'background:var(--series-b)' }), 'Registros'))),
+        el('div', { id: 'trend' })),
+      el('div', { class: 'grid' },
+        el('section', { class: 'card' }, el('h2', {}, 'Embudo'),
+          el('p', { class: 'muted small' }, 'Navegadores que visitaron, cuántos terminaron con cuenta y cuántos crearon un evento.'),
+          (() => { const u = rank([
+            { label: 'Visitaron', n: f.visitors }, { label: 'Tienen cuenta', n: f.registered }, { label: 'Crearon un evento', n: f.created },
+          ], 'label', 'n', (r) => '· ' + pct(r.n, f.visitors)); u.classList.add('funnel'); return u })()),
+        el('section', { class: 'card' }, el('h2', {}, 'De dónde llegan'),
+          el('p', { class: 'muted small' }, 'Visitantes por su primera fuente, y qué parte terminó con cuenta. «Directo» incluye enlaces abiertos desde WhatsApp.'),
+          rank(data.sources, 'source', 'visitors', (r) => '· ' + pct(r.registered, r.visitors) + ' con cuenta')),
+        el('section', { class: 'card' }, el('h2', {}, 'Páginas más vistas'), rank(data.pages, 'page', 'views')),
+        el('section', { class: 'card' }, el('h2', {}, 'Dispositivo'), rank(data.devices, 'label', 'visitors'),
+          el('h2', { style: 'margin-top:8px' }, 'Región del navegador'), rank(data.regions, 'label', 'visitors')),
+        data.campaigns.length ? el('section', { class: 'card' }, el('h2', {}, 'Campañas (utm_campaign)'), rank(data.campaigns, 'label', 'visitors')) : null),
+      el('section', { class: 'card' },
+        el('div', { class: 'bar' }, el('h2', {}, 'Personas'),
+          el('div', { class: 'row' },
+            el('input', { type: 'search', placeholder: 'Buscar nombre, correo, evento…', value: search, oninput: (e) => { search = e.target.value; renderPeople() } }),
+            el('button', { onclick: () => download('personas') }, 'Descargar personas'))),
+        peopleBox),
+      el('section', { class: 'card' },
+        el('div', { class: 'bar' }, el('h2', {}, 'Actividad reciente'),
+          el('div', { class: 'row' },
+            el('button', { onclick: () => download('historial') }, 'Descargar historial'),
+            el('button', { onclick: () => download('visitas') }, 'Descargar visitas'))),
+        data.recent.length
+          ? el('div', { class: 'scroll' }, el('table', {}, el('tbody', {}, data.recent.map((h) =>
+              el('tr', {}, el('td', { class: 'nowrap muted' }, dateTime(h.at)), el('td', {}, h.name || '—'), el('td', {}, h.kind),
+                el('td', { class: 'hide-sm' }, [h.event, h.detail].filter(Boolean).join(' · ')))))))
+          : el('p', { class: 'empty' }, 'Todavía no hay actividad.')),
+    )
+    drawTrend()
+  }
+
+  document.getElementById('login').addEventListener('submit', (e) => {
+    e.preventDefault()
+    key = document.getElementById('key').value
+    if (key) load()
+  })
+  // El gráfico se dibuja al ancho real de su tarjeta, para que el texto no se achique en el celular.
+  function drawTrend() {
+    const box = document.getElementById('trend')
+    if (box && data) box.replaceChildren(trend(data.daily, box.clientWidth))
+  }
+  let resizeTimer
+  addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(drawTrend, 150) })
+  if (key) load()
+})()
+</script>
+</body>
+</html>
