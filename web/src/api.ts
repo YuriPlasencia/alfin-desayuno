@@ -1,4 +1,4 @@
-import type { Bootstrap, EventCategory, EventSummary, EventType, FinDraft, FinEntry, FinKind, FinState, TaskOption, PresenceStats, ScrapedQuote, SecretState, User } from './types'
+import type { Bootstrap, EventCategory, EventSummary, EventType, FinDraft, FinEntry, FinKind, FinState, InboxPhoto, TaskOption, PresenceStats, ScrapedQuote, SecretState, User } from './types'
 
 /** Por qué el servidor no deja pasar: falta iniciar sesión, unirse al evento o el evento no existe. */
 export type GateReason = 'login' | 'join' | 'no-event'
@@ -159,6 +159,16 @@ export const finanzas = {
   /** Lee una boleta: devuelve un borrador para revisar (no guarda el movimiento). */
   scan: (body: { kind: 'ingreso' | 'gasto'; file: string; text?: string; image?: string }) =>
     request<{ doc_id: number; source: 'ocr' | 'ia' | 'manual'; warning: string; draft: FinDraft | null }>('/api/finanzas/scan', json(body)),
+}
+
+/** Fotos por ordenar: se toman con la cámara y después van a las finanzas o a un evento. */
+export const fotos = {
+  list: () => request<{ photos: InboxPhoto[]; max: number }>('/api/fotos'),
+  add: (file: string) => request<{ photo: InboxPhoto }>('/api/fotos', json({ file })),
+  /** Dirección de la imagen, para una etiqueta <img> o para descargarla. */
+  image: (id: number) => `/api/fotos/${id}/imagen`,
+  mark: (id: number, body: { finanzas?: true; event?: string }) => request<{ photo: InboxPhoto }>(`/api/fotos/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  remove: (id: number) => request<{ ok: boolean }>(`/api/fotos/${id}`, { method: 'DELETE' }),
 }
 
 /** Juntay: cuentas y eventos (fuera de un evento). */

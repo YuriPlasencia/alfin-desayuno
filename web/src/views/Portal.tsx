@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { platform } from '../api'
 import { Brand } from '../components/brand'
+import { PhotoInbox } from '../components/PhotoInbox'
 import { Avatar, Button, Field, Icon, Input, Modal } from '../components/ui'
 import { daysUntil, formatLongDate } from '../lib/format'
 import { CATEGORIES, CATEGORY_IDS, EVENT_KINDS, isPersonal, readCategory, saveCategory } from '../lib/categories'
@@ -583,9 +584,13 @@ export function Portal() {
             <Login onLogged={() => void load()} />
           </>
         ) : area === 'finanzas' ? (
-          <FinanceHome onEvents={() => switchArea('eventos')} />
+          <div className="stack">
+            <PhotoInbox events={state.events} />
+            <FinanceHome onEvents={() => switchArea('eventos')} />
+          </div>
         ) : (
           <div className="stack">
+            <PhotoInbox events={state.events} />
             <div className="page-head">
               <div>
                 <h1>Tus eventos</h1>

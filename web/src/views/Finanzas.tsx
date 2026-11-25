@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { finanzas, platform } from '../api'
+import { finanzas, fotos, platform } from '../api'
 import { Brand } from '../components/brand'
 import { Button, EmptyState, Field, Icon, IconButton, Input, Modal, Select } from '../components/ui'
 import { soles } from '../lib/format'
 import { compressImageFile } from '../lib/image'
 import { fileToDataUrl, readPdf } from '../lib/pdf'
+import { takeInboxPhotoForFinanzas } from '../lib/shared'
 import type { FinDraft, FinEntry, FinKind, FinLine, FinState } from '../types'
 import { FinanzasPanel } from './FinanzasPanel'
 import '../finanzas.css'
@@ -43,6 +44,8 @@ export function Finanzas() {
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<Editing | null>(null)
   const [scanning, setScanning] = useState(false)
+  // La foto de la bandeja «por ordenar» que se está registrando: al guardar, se anota que ya vino aquí.
+  const inboxPhoto = useRef<number | null>(null)
 
   const load = useCallback(() => {
     finanzas
@@ -99,6 +102,22 @@ export function Finanzas() {
       setScanning(false)
     }
   }
+
+  // Llegó desde la bandeja de fotos: se lee como un gasto y se abre para revisar.
+  const tookInbox = useRef(false)
+  useEffect(() => {
+    if (tookInbox.current) return
+    tookInbox.current = true
+    takeInboxPhotoForFinanzas()
+      .then((taken) => {
+        if (!taken) return
+        inboxPhoto.current = taken.id
+        void scan('gasto', taken.file)
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudo abrir la foto'))
+    // Solo al abrir la página.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const entries = state?.entries ?? []
   const byKind = (kind: FinKind) => entries.filter((e) => e.kind === kind)
@@ -176,8 +195,13 @@ export function Finanzas() {
         <EntryEditor
           editing={editing}
           catalog={state.catalog}
-          onClose={() => setEditing(null)}
+          onClose={() => {
+            inboxPhoto.current = null
+            setEditing(null)
+          }}
           onSaved={() => {
+            if (inboxPhoto.current) void fotos.mark(inboxPhoto.current, { finanzas: true }).catch(() => {})
+            inboxPhoto.current = null
             setEditing(null)
             load()
           }}

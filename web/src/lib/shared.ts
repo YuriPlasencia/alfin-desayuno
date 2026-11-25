@@ -1,3 +1,5 @@
+import { fotos } from '../api'
+
 const CACHE = 'alfin-compartido'
 const KEY = '/compartido/constancia'
 
@@ -17,6 +19,51 @@ export async function takeSharedFile(): Promise<File | null> {
   } catch {
     return null
   }
+}
+
+const INBOX_KEY = 'juntay.fotoParaFinanzas'
+
+async function inboxPhotoFile(id: number): Promise<File> {
+  const response = await fetch(fotos.image(id))
+  if (!response.ok) throw new Error('Esa foto ya no está en la bandeja')
+  const blob = await response.blob()
+  return new File([blob], `foto-${id}.jpg`, { type: blob.type || 'image/jpeg' })
+}
+
+/**
+ * Lleva una foto de la bandeja a un evento: la deja donde Presupuesto recoge las imágenes
+ * compartidas y abre el evento, que pregunta si es una cuota o un gasto.
+ */
+export async function sendInboxPhotoToEvent(id: number, slug: string): Promise<void> {
+  if (!('caches' in window)) throw new Error('Este navegador no permite pasar la foto. Súbela desde el evento.')
+  const file = await inboxPhotoFile(id)
+  const cache = await caches.open(CACHE)
+  await cache.put(KEY, new Response(file, { headers: { 'Content-Type': file.type, 'X-Nombre': encodeURIComponent(file.name) } }))
+  await fotos.mark(id, { event: slug })
+  window.location.href = `/e/${slug}/?compartido=1#/presupuesto`
+}
+
+/** Lleva una foto de la bandeja a Mis finanzas, que la lee y abre el gasto para revisar. */
+export function sendInboxPhotoToFinanzas(id: number) {
+  try {
+    sessionStorage.setItem(INBOX_KEY, String(id))
+  } catch {
+    /* sin almacenamiento: igual se abre Mis finanzas */
+  }
+  window.location.href = '/finanzas#/gastos'
+}
+
+/** La foto de la bandeja pendiente de registrar en Mis finanzas (se entrega una sola vez). */
+export async function takeInboxPhotoForFinanzas(): Promise<{ id: number; file: File } | null> {
+  let id = 0
+  try {
+    id = Number(sessionStorage.getItem(INBOX_KEY))
+    sessionStorage.removeItem(INBOX_KEY)
+  } catch {
+    return null
+  }
+  if (!(id > 0)) return null
+  return { id, file: await inboxPhotoFile(id) }
 }
 
 const OPTION_KEY = 'alfin.gastoDesdeFoto'

@@ -48,6 +48,7 @@ import { recordRead } from './usage.js'
 import { mountAdmin } from './admin.js'
 import { linkVisitor, mountVisits } from './visits.js'
 import { mountFinanzas } from './finanzas.js'
+import { mountFotos } from './fotos.js'
 import { EMAIL_VERIFY, checkLoginCode, sendLoginCode } from './mail.js'
 import { mountSecreto,secretBeforeMemberDelete, secretGameExists, secretSummary } from './secreto.js'
 
@@ -1464,6 +1465,9 @@ mountAdmin(app, { tooManyAttempts, failAttempt })
 
 // Finanzas personales de cada cuenta: ingresos, gastos e inversiones, con lectura de boletas.
 mountFinanzas(app, { requireUser, tooManyAttempts, failAttempt })
+
+// Fotos por ordenar: se toman con la cámara y después van a las finanzas o a un evento.
+mountFotos(app, { requireUser })
 
 // ---------- static ----------
 

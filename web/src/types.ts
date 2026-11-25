@@ -371,6 +371,15 @@ export interface FinDraft {
 /** Para qué se usa el evento. */
 export type EventCategory = 'trabajo' | 'familiar' | 'entretenimiento' | 'finanzas'
 
+/** Una foto de la bandeja «por ordenar»: cuándo se tomó y a dónde ya se llevó. */
+export interface InboxPhoto {
+  id: number
+  created_at: string
+  finanzas_at: string
+  event_slug: string
+  event_at: string
+}
+
 export interface EventSummary {
   slug: string
   name: string
