@@ -180,6 +180,11 @@ function Login({ onLogged }: { onLogged: (user: User) => void }) {
         {config?.googleClientId ? (
           <GoogleButton clientId={config.googleClientId} onCredential={(credential) => void finish(() => platform.loginGoogle(credential))} />
         ) : null}
+        {config?.googleClientId && !config.nameLogin ? (
+          <p className="portal-privacy muted small">
+            Usamos tu nombre y tu correo de Google para identificarte en tus eventos. <a href="/privacidad">Política de privacidad</a>
+          </p>
+        ) : null}
         {config?.nameLogin && sentTo ? (
           <form className="portal-name" onSubmit={byCode}>
             <p className="portal-sent">
@@ -234,7 +239,8 @@ function Login({ onLogged }: { onLogged: (user: User) => void }) {
               {busy ? (config.emailVerify ? 'Enviando…' : 'Entrando…') : config.emailVerify ? 'Enviarme el código' : 'Entrar'}
             </Button>
             <p className="portal-privacy muted small">
-              Usamos tu correo para identificarte en tus eventos. No lo compartimos. Las novedades llegan solo si marcas la casilla.
+              Usamos tu correo para identificarte en tus eventos. No lo compartimos. Las novedades llegan solo si marcas la casilla.{' '}
+              <a href="/privacidad">Política de privacidad</a>
             </p>
           </form>
         ) : null}

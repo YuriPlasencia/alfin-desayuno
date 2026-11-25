@@ -66,7 +66,7 @@ const app = express()
 // Detrás del proxy de Railway (u otro), para saber si la conexión es https.
 app.set('trust proxy', 1)
 
-// Dominio propio (PUBLIC_URL, p. ej. https://juntay.lat): quien entra por la dirección
+// Dominio propio (PUBLIC_URL, p. ej. https://juntay.pe): quien entra por la dirección
 // vieja de Render pasa al dominio nuevo en la misma página. Las llamadas a la API desde
 // una app instalada (que abre su copia guardada) reciben 421 con la dirección nueva y la
 // app salta sola. /api/health queda libre para el chequeo de Render.
@@ -1460,6 +1460,8 @@ mountFinanzas(app, { requireUser, tooManyAttempts, failAttempt })
 
 if (fs.existsSync(DIST)) {
   app.use(express.static(DIST, { index: false }))
+  // Política de privacidad: página aparte, pública (la pide Google para el ingreso con su cuenta).
+  app.get('/privacidad', (_req, res) => res.sendFile(path.join(DIST, 'privacidad.html')))
   app.use((req, res, next) => {
     if (req.method !== 'GET' || req.path.startsWith('/api')) return next()
     res.sendFile(path.join(DIST, 'index.html'))

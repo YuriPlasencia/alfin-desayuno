@@ -226,6 +226,26 @@ export function upsertGoogleUser({ sub, email, name, picture, emailVerified = fa
       .run(email, name, picture, now, verified, existing.id)
     return existing.id
   }
+  // Primera vez con Google: si ya tenía una cuenta de nombre o de correo con ese mismo correo
+  // (y Google lo da por comprobado), esa cuenta pasa a ser la de Google y conserva sus eventos.
+  // Si hay varias, se queda con la de más eventos.
+  const legacy =
+    emailVerified && email
+      ? pdb
+          .prepare(
+            `SELECT u.id FROM users u LEFT JOIN event_users eu ON eu.user_id = u.id
+             WHERE lower(u.email) = lower(?) AND (u.google_sub LIKE 'nombre:%' OR u.google_sub LIKE 'correo:%')
+             GROUP BY u.id ORDER BY COUNT(eu.event_id) DESC, u.last_login_at DESC LIMIT 1`,
+          )
+          .get(email)
+      : null
+  if (legacy) {
+    pdb
+      .prepare('UPDATE users SET google_sub = ?, email = ?, name = ?, picture = ?, last_login_at = ?, email_verified = 1 WHERE id = ?')
+      .run(sub, email, name, picture, now, legacy.id)
+    recordHistory(legacy.id, 'cuenta unida', '', 'Su cuenta pasó a entrar con Google')
+    return legacy.id
+  }
   const result = pdb
     .prepare('INSERT INTO users (google_sub, email, name, picture, created_at, last_login_at, email_verified) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .run(sub, email, name, picture, now, now, verified)

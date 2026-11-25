@@ -22,7 +22,7 @@ Cada evento guarda sus datos en su propia base (`data/events/<evento>.db`); las 
 1. Entra a [console.cloud.google.com](https://console.cloud.google.com), crea un proyecto (p. ej. "Juntay").
 2. **APIs y servicios → Pantalla de consentimiento de OAuth:** tipo *Externo*, nombre "Juntay" y tu correo.
 3. **Credenciales → Crear credenciales → ID de cliente de OAuth → Aplicación web.**
-4. En **Orígenes de JavaScript autorizados** agrega la dirección de la app (p. ej. `https://alfin-desayuno.onrender.com`) y, para probar en local, `http://localhost:5173`.
+4. En **Orígenes de JavaScript autorizados** agrega la dirección de la app (`https://juntay.pe`) y, para probar en local, `http://localhost:5173`.
 5. Copia el **ID de cliente** (termina en `.apps.googleusercontent.com`) y ponlo en Render como `GOOGLE_CLIENT_ID`.
 
 Sin `GOOGLE_CLIENT_ID` la app deja entrar solo con el nombre (cómodo para probar en local).
@@ -179,7 +179,7 @@ Sin `TEAM_CODE` (uso en tu computadora) la app queda abierta como antes.
 2. Ve a **New → Blueprint** y elige el repositorio. Render lee `render.yaml` y propone un servicio web **Starter** con un disco de 1 GB en `/data`.
 3. Cuando lo pida, escribe el valor de **`TEAM_CODE`** (el código que compartirás con el equipo). `DATA_DIR` y `NODE_VERSION` ya vienen definidos.
 4. Confirma con **Apply**. Render compila, arranca y revisa `/api/health`. El plan Starter y el disco son de pago: revisa el precio en pantalla antes de confirmar. El plan gratis no sirve porque no admite disco y la base se borraría.
-5. Tu enlace queda como `https://alfin-desayuno.onrender.com` (o similar). Compártelo junto con el código.
+5. Render da un enlace como `https://alfin-desayuno.onrender.com`; con el dominio propio (ver abajo) la app queda en `https://juntay.pe`. Compártelo junto con el código.
 
 Cada vez que subas cambios a `main` en GitHub, Render vuelve a desplegar solo.
 
@@ -203,13 +203,13 @@ Haz un respaldo (**Ajustes → Exportar**) de vez en cuando: es un archivo peque
 
 ---
 
-### Dominio propio (p. ej. juntay.lat)
+### Dominio propio (juntay.pe)
 
 1. Compra el dominio (para `.pe` en un registrador de punto.pe; para `.app` o `.com`, en Namecheap, Porkbun, Cloudflare, etc.).
 2. En Render, en el servicio: **Settings → Custom Domains → Add Custom Domain** y escribe el dominio (y si quieres, también `www.` + dominio).
 3. Render muestra los registros DNS que debes crear en el panel de tu registrador (normalmente un registro **A** para el dominio raíz y un **CNAME** para `www` que apunta a la dirección `.onrender.com`). Créalos tal cual.
 4. Espera a que Render marque el dominio como **Verified** y emita el certificado (de minutos a unas horas).
-5. Recién entonces agrega en **Environment** la variable `PUBLIC_URL` con la dirección completa (p. ej. `https://juntay.lat`) y guarda: desde ahí, quien entre por `alfin-desayuno.onrender.com` pasa solo al dominio nuevo, en la misma página. Las apps ya instaladas también saltan solas.
+5. Recién entonces agrega en **Environment** la variable `PUBLIC_URL` con la dirección completa (p. ej. `https://juntay.pe`) y guarda: desde ahí, quien entre por `alfin-desayuno.onrender.com` pasa solo al dominio nuevo, en la misma página. Las apps ya instaladas también saltan solas.
 6. Si usas el ingreso con Google, agrega el dominio nuevo en **Orígenes de JavaScript autorizados** del ID de cliente.
 
 Al cambiar de dirección, cada persona vuelve a iniciar sesión una vez (las sesiones van por dirección) y, si tenía la app instalada, conviene instalarla de nuevo desde el dominio nuevo.

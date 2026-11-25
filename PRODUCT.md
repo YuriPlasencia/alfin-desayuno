@@ -32,6 +32,7 @@ No es un gestor de proyectos genérico: cada evento es su propio tablero, con cu
 
 ## Brand Commitments
 - Nombre: "Juntay" (decidido 22-nov-2026; antes "Juntada", que se pensó para Argentina y Uruguay y cuyo dominio .app es de otra app). Se pronuncia jun-TAY: «juntar» con el sufijo quechua -y de invitación; en quechua *hunt'ay* es completar, cumplir. Mercado: Perú, Colombia, Ecuador, Bolivia, Chile y Venezuela. "Al Fin Desayuno" es un evento dentro de la app. Tono profesional pero cálido, de equipo de empresa.
+- Dominio: juntay.pe (desde 24-nov-2026). La dirección vieja de Render (alfin-desayuno.onrender.com) redirige ahí.
 - No usar la identidad de ninguna marca corporativa externa.
 
 ## Evidence on Hand

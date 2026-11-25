@@ -21,7 +21,7 @@ services:
       # Ingreso con Google (Google Cloud → Credenciales → ID de cliente OAuth web)
       - key: GOOGLE_CLIENT_ID
         sync: false
-      # Dominio propio (p. ej. https://juntay.lat): la dirección .onrender.com redirige ahí
+      # Dominio propio (p. ej. https://juntay.pe): la dirección .onrender.com redirige ahí
       - key: PUBLIC_URL
         sync: false
     disk:
