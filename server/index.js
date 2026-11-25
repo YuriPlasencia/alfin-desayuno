@@ -1161,14 +1161,20 @@ ev.delete('/budget/:id', (req, res) => {
   res.json({ ok: true })
 })
 
-// ---------- OCR & quote image scraping ----------
+// ---------- lectura de constancias y cotizaciones (Claude; el OCR de respaldo) ----------
+
+const MAX_AI_READS = 60 // por persona, cada 15 minutos
 
 ev.post('/ocr/scrape', async (req, res) => {
   // Solo fotos en data URL: una dirección o una ruta haría que el servidor descargue o lea archivos.
   const image = imageData(req.body?.image)
   if (!image) return res.status(400).json({ error: 'La imagen no tiene un formato válido' })
+  // La lectura con Claude cuesta por imagen: pasado el tope por persona, sigue solo con el OCR.
+  const key = `lectura:${req.user.id}`
+  const ai = !tooManyAttempts(key, MAX_AI_READS)
+  failAttempt(key)
   try {
-    res.json(await scrapeQuoteImage(image))
+    res.json(await scrapeQuoteImage(image, { ai }))
   } catch {
     res.status(500).json({ error: 'Error al escanear la imagen' })
   }

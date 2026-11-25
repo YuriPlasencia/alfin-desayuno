@@ -290,6 +290,8 @@ export interface ScrapedQuote {
   detectedConcept: string
   allPrices: number[]
   rawText: string
+  /** Quién dio la lectura: Claude ('ia') o el OCR de respaldo. */
+  source?: 'ia' | 'ocr'
   error?: string
   wallet?: string
   operationCode?: string

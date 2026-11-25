@@ -1,4 +1,5 @@
 import { createWorker } from 'tesseract.js'
+import { readWithClaude } from './ai.js'
 
 let workerInstance = null
 let workerPromise = null
@@ -205,10 +206,66 @@ export async function recognizeText(dataUrl) {
   }
 }
 
-export async function scrapeQuoteImage(dataUrl) {
+const QUOTE_INSTRUCTIONS = `Es la foto de una constancia de pago (Yape, Plin o transferencia bancaria) o de una cotización, proforma o boleta (Perú). Devuelve:
+- amount: el monto principal en soles (el pagado en una constancia, el total en una cotización o boleta); 0 si no aparece.
+- concept: en una cotización o boleta, el producto, servicio o proveedor en pocas palabras; en una constancia, el nombre de quien recibe el pago; '' si no se distingue.
+- prices: hasta 6 montos en soles que aparecen en la imagen, el principal primero, sin repetir.
+- wallet: la billetera o banco de la constancia; '' si no es una constancia o no se distingue.
+- operationCode: el número de operación, solo dígitos; '' si no aparece.
+- paidAt: la fecha del pago en formato AAAA-MM-DD; '' si no aparece.
+- text: todo el texto legible de la imagen, tal como figura, con saltos de línea.
+No inventes datos: lo que no se lee va vacío.`
+
+const WALLET_NAMES = ['', ...WALLETS.map(([name]) => name), 'Otro']
+
+/** Lectura con Claude, con la misma forma que la del OCR. null si hay que seguir con el OCR. */
+async function scrapeWithClaude(dataUrl) {
+  const match = DATA_URL.exec(dataUrl)
+  if (!match) return null
+  const read = await readWithClaude({
+    mime: `image/${match[1].toLowerCase()}`,
+    base64: match[2],
+    instructions: QUOTE_INSTRUCTIONS,
+    maxTokens: 4000,
+    schema: (z) =>
+      z.object({
+        amount: z.number(),
+        concept: z.string(),
+        prices: z.array(z.number()),
+        wallet: z.enum(WALLET_NAMES),
+        operationCode: z.string(),
+        paidAt: z.string(),
+        text: z.string(),
+      }),
+  })
+  if (!read) return null
+  const money = (value) => (Number.isFinite(value) && value > 0 ? Math.round(value * 100) / 100 : null)
+  const amount = money(read.amount)
+  const prices = Array.from(new Set([amount, ...read.prices.map(money)].filter((value) => value !== null))).slice(0, 6)
+  // Sin monto ni texto, Claude no vio nada útil: que lo intente el OCR.
+  if (amount === null && !prices.length && !read.text.trim()) return null
+  return {
+    detectedAmount: amount,
+    detectedConcept: read.concept.trim().slice(0, 120),
+    allPrices: prices,
+    rawText: read.text.slice(0, 2000),
+    wallet: read.wallet === 'Otro' ? '' : read.wallet,
+    operationCode: read.operationCode.replace(/\D/g, '').slice(0, 14),
+    paidAt: /^20\d{2}-\d{2}-\d{2}$/.test(read.paidAt) ? read.paidAt : '',
+  }
+}
+
+/**
+ * Lee una constancia o cotización: primero con Claude; si no hay clave, Claude está caído
+ * o no pudo leerla, con el OCR. `source` dice cuál de los dos dio la lectura.
+ * Con `ai: false` va directo al OCR.
+ */
+export async function scrapeQuoteImage(dataUrl, { ai = true } = {}) {
+  const read = ai ? await scrapeWithClaude(dataUrl) : null
+  if (read) return { ok: true, source: 'ia', ...read }
   const result = await recognizeText(dataUrl)
   if (result.error) return failed(result.error)
-  return { ok: true, ...parseQuoteText(result.text) }
+  return { ok: true, source: 'ocr', ...parseQuoteText(result.text) }
 }
 
 function failed(message) {

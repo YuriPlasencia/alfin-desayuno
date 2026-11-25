@@ -1,11 +1,12 @@
 import { nowIso } from './db.js'
 import { pdb } from './platform.js'
+import { AI_ENABLED, readWithClaude } from './ai.js'
 import { recognizeText } from './ocr.js'
 
 /*
  * Finanzas personales: ingresos, gastos e inversiones de cada cuenta (no de un evento).
- * Una boleta (foto, PNG, JPEG, WEBP o PDF) se lee y llena las líneas: con IA si hay
- * ANTHROPIC_API_KEY; si no, con el OCR gratuito (Tesseract) y reglas.
+ * Una boleta (foto, PNG, JPEG, WEBP o PDF) se lee y llena las líneas: primero con IA (Claude,
+ * ver ai.js); si no hay ANTHROPIC_API_KEY o Claude falla, con el OCR (Tesseract) y reglas.
  */
 
 export const GASTO_CATEGORIAS = [
@@ -283,45 +284,28 @@ export function parseIncomeText(raw) {
   }
 }
 
-// ---------- lectura con IA (Claude), apagada hasta tener ANTHROPIC_API_KEY ----------
+// ---------- lectura con IA (Claude): primera opción; si falla o no hay clave, sigue el OCR ----------
 
-export const AI_ENABLED = Boolean(String(process.env.ANTHROPIC_API_KEY || '').trim())
-let aiClient = null
-
-async function readWithClaude({ kind, mime, base64 }) {
-  const [{ default: Anthropic }, { betaZodOutputFormat }, { z }] = await Promise.all([
-    import('@anthropic-ai/sdk'),
-    import('@anthropic-ai/sdk/helpers/beta/zod'),
-    import('zod'),
-  ])
-  aiClient ??= new Anthropic()
+function readDocWithClaude({ kind, mime, base64 }) {
   const lineTypes = kind === 'ingreso' ? LINEAS_INGRESO : RUBROS
-  const Schema = z.object({
-    merchant: z.string(),
-    date: z.string(),
-    concept: z.string(),
-    category: z.enum(kind === 'ingreso' ? INGRESO_CATEGORIAS : GASTO_CATEGORIAS),
-    amount: z.number(),
-    lines: z.array(z.object({ description: z.string(), quantity: z.number(), amount: z.number(), rubro: z.enum(lineTypes) })),
-  })
   const instructions =
     kind === 'ingreso'
       ? `Es una boleta de pago (Perú). Devuelve: merchant = empleador; date = fecha de pago o fin del periodo en formato AAAA-MM-DD ('' si no aparece); concept = "Sueldo de <mes>"; category; amount = neto a pagar en soles; lines = cada concepto con su monto, rubro "Ingreso" (remuneración, asignaciones, horas extra, bonos, gratificación) o "Descuento" (AFP, ONP, renta de 5ta, EsSalud a cargo del trabajador, préstamos), con los descuentos en negativo.`
       : `Es una boleta o comprobante de compra (Perú). Devuelve: merchant = comercio; date en formato AAAA-MM-DD ('' si no aparece); concept = descripción breve de la compra; category; amount = total pagado en soles; lines = un producto por línea tal como figura (description legible, quantity, amount = importe de la línea), con su rubro. Si no es supermercado, usa el rubro "Otros". No incluyas subtotales, IGV, redondeos ni medios de pago como líneas; los descuentos van como línea con monto negativo.`
-  const source =
-    mime === 'application/pdf'
-      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
-      : { type: 'image', source: { type: 'base64', media_type: mime, data: base64 } }
-  const response = await aiClient.beta.messages.parse({
-    model: 'claude-opus-5-5',
-    max_tokens: 16000,
-    betas: ['server-side-fallback-2026-07-01'],
-    fallbacks: 'default',
-    output_config: { effort: 'low', format: betaZodOutputFormat(Schema) },
-    messages: [{ role: 'user', content: [source, { type: 'text', text: instructions }] }],
+  return readWithClaude({
+    mime,
+    base64,
+    instructions,
+    schema: (z) =>
+      z.object({
+        merchant: z.string(),
+        date: z.string(),
+        concept: z.string(),
+        category: z.enum(kind === 'ingreso' ? INGRESO_CATEGORIAS : GASTO_CATEGORIAS),
+        amount: z.number(),
+        lines: z.array(z.object({ description: z.string(), quantity: z.number(), amount: z.number(), rubro: z.enum(lineTypes) })),
+      }),
   })
-  if (response.stop_reason === 'refusal' || !response.parsed_output) return null
-  return response.parsed_output
 }
 
 // ---------- API ----------
@@ -473,17 +457,11 @@ export function mountFinanzas(app, { requireUser, tooManyAttempts, failAttempt }
     let draft = null
     let source = 'ocr'
     let warning = ''
-    if (AI_ENABLED) {
-      try {
-        const read = await readWithClaude({ kind, mime, base64: match[2] })
-        if (read) {
-          const merchant = kind === 'gasto' ? knownBrand(read.merchant) || read.merchant : read.merchant
-          draft = { ...read, merchant, date: isoDate(read.date), lines: cleanLines(kind, read.lines) }
-          source = 'ia'
-        }
-      } catch (err) {
-        console.error('[finanzas] lectura con IA falló, sigo con OCR:', err?.message || err)
-      }
+    const read = await readDocWithClaude({ kind, mime, base64: match[2] })
+    if (read) {
+      const merchant = kind === 'gasto' ? knownBrand(read.merchant) || read.merchant : read.merchant
+      draft = { ...read, merchant, date: isoDate(read.date), lines: cleanLines(kind, read.lines) }
+      source = 'ia'
     }
     if (!draft) {
       let text = typeof req.body?.text === 'string' ? req.body.text.slice(0, 50_000) : ''

@@ -27,6 +27,21 @@ Cada evento guarda sus datos en su propia base (`data/events/<evento>.db`); las 
 
 Sin `GOOGLE_CLIENT_ID` la app deja entrar solo con el nombre (cómodo para probar en local).
 
+### Lectura de boletas y constancias con Claude
+
+Las boletas de **Mis finanzas** y las constancias y cotizaciones de los eventos se leen primero con Claude (Anthropic) y, de respaldo, con el OCR incluido (Tesseract).
+
+1. Crea una clave en [platform.claude.com](https://platform.claude.com) (**API keys**) y carga saldo.
+2. Ponla en Render como `ANTHROPIC_API_KEY`.
+
+El OCR entra solo, sin que nadie haga nada, cuando:
+
+- no hay `ANTHROPIC_API_KEY` (así funciona en local);
+- Claude no responde en 40 segundos, está caído, sin saldo o con la clave vencida;
+- Claude no pudo leer ese documento.
+
+Tras 2 fallas seguidas de Claude, la app usa solo el OCR durante 2 minutos y luego vuelve a intentar. Cada lectura con Claude se cobra en la cuenta de Anthropic; en los eventos hay un tope de 60 lecturas por persona cada 15 minutos (pasado el tope sigue el OCR). El código está en `server/ai.js`.
+
 ---
 
 ## 1. Qué incluye esta primera versión
@@ -51,7 +66,7 @@ Relanzamiento visual (la **pizarra de turnos**):
 
 Caja con constancias:
 
-- **Subir cuota**: cada integrante sube la captura de su Yape, Plin o transferencia. La app lee el monto, la billetera y el n.° de operación (lectura automática con Tesseract; siempre se puede corregir) y la cuota suma al instante a lo recaudado.
+- **Subir cuota**: cada integrante sube la captura de su Yape, Plin o transferencia. La app lee el monto, la billetera y el n.° de operación (lectura automática con Claude y, de respaldo, con Tesseract; siempre se puede corregir) y la cuota suma al instante a lo recaudado.
 - **¿Quién ya pagó?**: lista del equipo con lo pagado, lo pendiente y lo que falta validar. Cualquiera toca un nombre, ve la foto de la constancia y la **valida**; queda registrado quién validó.
 - **Subir gasto**: foto de la boleta o constancia; se lee el TOTAL y queda como gasto pagado por quien lo sube.
 - **Flujo**: ingresos cobrados, gastos pagados y saldo en caja, en orden y con saldo acumulado.

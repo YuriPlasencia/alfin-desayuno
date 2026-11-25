@@ -46,7 +46,8 @@ export function findPayer(rawText: string, members: Member[], treasurerId: numbe
  */
 export async function scanVoucher(file: File, compressed: string): Promise<ScrapedQuote> {
   const first = await api.scrapeQuoteImage(compressed)
-  if (first.ok && first.detectedAmount) return first
+  // La segunda lectura es un arreglo para el OCR: si leyó Claude, no hace falta.
+  if (first.ok && (first.detectedAmount || first.source === 'ia')) return first
   const small = await compressImageFile(file, 480, 0.85)
   const second = await api.scrapeQuoteImage(small)
   if (!second.ok) return first
