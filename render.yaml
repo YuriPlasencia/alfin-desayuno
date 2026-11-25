@@ -24,6 +24,9 @@ services:
       # Lectura de boletas y constancias con Claude; sin clave o si falla, sigue el OCR
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Clave del panel /admin (tráfico y consumo de Claude); sin ella, /admin no existe
+      - key: ADMIN_KEY
+        sync: false
       # Dominio propio (p. ej. https://juntay.pe): la dirección .onrender.com redirige ahí
       - key: PUBLIC_URL
         sync: false

@@ -2,6 +2,7 @@ import { nowIso } from './db.js'
 import { pdb } from './platform.js'
 import { AI_ENABLED, readWithClaude } from './ai.js'
 import { recognizeText } from './ocr.js'
+import { recordRead } from './usage.js'
 
 /*
  * Finanzas personales: ingresos, gastos e inversiones de cada cuenta (no de un evento).
@@ -457,7 +458,11 @@ export function mountFinanzas(app, { requireUser, tooManyAttempts, failAttempt }
     let draft = null
     let source = 'ocr'
     let warning = ''
-    const read = await readDocWithClaude({ kind, mime, base64: match[2] })
+    const { data: read, usage } = await readDocWithClaude({ kind, mime, base64: match[2] })
+    const done = (payload) => {
+      recordRead({ user: req.user, kind, source: payload.draft ? payload.source : 'sin lectura', usage })
+      res.json(payload)
+    }
     if (read) {
       const merchant = kind === 'gasto' ? knownBrand(read.merchant) || read.merchant : read.merchant
       draft = { ...read, merchant, date: isoDate(read.date), lines: cleanLines(kind, read.lines) }
@@ -468,12 +473,12 @@ export function mountFinanzas(app, { requireUser, tooManyAttempts, failAttempt }
       if (text.trim().length < 20) {
         const image = mime.startsWith('image/') ? file : typeof req.body?.image === 'string' ? req.body.image : ''
         const ocr = image ? await recognizeText(image) : { error: 'No se pudo leer el PDF. Prueba con una foto.' }
-        if (ocr.error) return res.json({ doc_id: docId, source: 'manual', warning: ocr.error, draft: null })
+        if (ocr.error) return done({ doc_id: docId, source: 'manual', warning: ocr.error, draft: null })
         text = ocr.text
       }
       draft = kind === 'ingreso' ? parseIncomeText(text) : parseExpenseText(text)
       if (!draft.lines.length) warning = 'No se distinguieron las líneas. Revisa y complétalas a mano.'
     }
-    res.json({ doc_id: docId, source, warning, draft })
+    done({ doc_id: docId, source, warning, draft })
   })
 }

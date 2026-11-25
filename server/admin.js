@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { db, runInEvent } from './db.js'
 import { historySince, pdb } from './platform.js'
+import { readRows, usageSummary } from './usage.js'
 import { firstSourceByUser, visitRows, visitsSummary } from './visits.js'
 
 /*
@@ -156,6 +157,13 @@ export function visitsCsv() {
   )
 }
 
+export function readsCsv() {
+  return csv(
+    ['fecha', 'nombre', 'correo', 'tipo', 'evento', 'leyo', 'modelo', 'tokens_entrada', 'tokens_salida', 'costo_usd', 'milisegundos', 'falla_de_claude'],
+    readRows().map((r) => [r.at, r.name || '', r.email || '', r.kind, r.slug, r.source, r.model, r.input_tokens, r.output_tokens, r.cost_usd.toFixed(5), r.ms, r.error]),
+  )
+}
+
 function keyMatches(given) {
   if (!ADMIN_KEY || typeof given !== 'string') return false
   const a = crypto.createHash('sha256').update(given).digest()
@@ -186,11 +194,12 @@ export function mountAdmin(app, { tooManyAttempts, failAttempt }) {
   app.get('/api/admin/personas.csv', guard, (_req, res) => res.type('text/csv; charset=utf-8').send(peopleCsv()))
   app.get('/api/admin/historial.csv', guard, (_req, res) => res.type('text/csv; charset=utf-8').send(historyCsv()))
   app.get('/api/admin/visitas.csv', guard, (_req, res) => res.type('text/csv; charset=utf-8').send(visitsCsv()))
+  app.get('/api/admin/lecturas.csv', guard, (_req, res) => res.type('text/csv; charset=utf-8').send(readsCsv()))
   // Todo lo que muestra el panel, en una sola llamada.
   app.get('/api/admin/resumen', guard, (req, res) => {
     const days = [7, 30, 90, 365].includes(Number(req.query.dias)) ? Number(req.query.dias) : 30
     const events = eventInfo()
     const recent = buildHistory(events).slice(-80).reverse()
-    res.json({ ...visitsSummary(days), people: buildPeople(), recent })
+    res.json({ ...visitsSummary(days), people: buildPeople(), recent, ai: usageSummary(days) })
   })
 }

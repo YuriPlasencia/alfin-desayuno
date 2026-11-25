@@ -27,6 +27,16 @@ Cada evento guarda sus datos en su propia base (`data/events/<evento>.db`); las 
 
 Sin `GOOGLE_CLIENT_ID` la app deja entrar solo con el nombre (cómodo para probar en local).
 
+### Panel de administración (`/admin`)
+
+Un panel aparte de la app, en `https://juntay.pe/admin`, con:
+
+- **Tráfico:** visitantes y registros por día, embudo, de dónde llegan, páginas, dispositivo y región.
+- **Lecturas y consumo de Claude:** lecturas por día (con Claude y con el OCR de respaldo), tokens, costo estimado, fallas de Claude y, por persona, cuántas lecturas lleva y cuántas de sus 500 gratis le quedan.
+- **Personas e historial**, con descargas en CSV (personas, historial, visitas y lecturas).
+
+Para encenderlo, pon en Render la variable `ADMIN_KEY` con una clave larga que solo tú conozcas. Sin esa variable, `/admin` responde 404, como si no existiera. Cada lectura se guarda con el nombre y el correo de quien la pidió (`server/usage.js`).
+
 ### Lectura de boletas y constancias con Claude
 
 Las boletas de **Mis finanzas** y las constancias y cotizaciones de los eventos se leen primero con Claude (Anthropic) y, de respaldo, con el OCR incluido (Tesseract).

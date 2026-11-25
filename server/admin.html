@@ -51,10 +51,14 @@
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); cursor: pointer; white-space: nowrap; user-select: none; }
-  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .scroll { overflow-x: auto; }
   .nowrap { white-space: nowrap; }
   .empty { padding: 20px; text-align: center; color: var(--muted); }
+  .sub { display: grid; gap: 10px; align-content: start; min-width: 0; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .pill.near { background: #fdf2e1; color: #92400e; }
+  .pill.over { background: #fdeceb; color: #b42d21; }
   .note { background: var(--blue-soft); color: #1e3a8a; border-radius: 10px; padding: 10px 14px; font-size: 14px; }
   @media (max-width: 640px) {
     .grid { grid-template-columns: 1fr; }
@@ -68,7 +72,7 @@
 <main id="app">
   <form class="card login" id="login">
     <h1>Juntay <span>·</span> Administración</h1>
-    <p class="muted">Visitas, personas e historial de Juntay.</p>
+    <p class="muted">Visitas, personas, lecturas con Claude e historial de Juntay.</p>
     <label>Clave de administración<br><input id="key" type="password" autocomplete="current-password" style="width:100%"></label>
     <div><button class="primary" type="submit">Entrar</button></div>
     <p class="msg" id="msg"></p>
@@ -80,6 +84,8 @@
   const nf = new Intl.NumberFormat('es-PE')
   const fmt = (n) => nf.format(n || 0)
   const pct = (a, b) => (b ? Math.round((a / b) * 100) + '%' : '—')
+  const usd = (n) => 'US$ ' + (n || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: n && n < 1 ? 4 : 2 })
+  const READS = { a: 'ia', b: 'ocr', label: 'Lecturas con Claude y con el OCR por día', tip: (d) => fmt(d.ia) + ' con Claude · ' + fmt(d.ocr) + ' con OCR · ' + fmt(d.tokens) + ' tokens · ' + usd(d.cost) }
   let key = ''
   try { key = sessionStorage.getItem('juntay.admin') || '' } catch {}
   let days = 30
@@ -152,13 +158,15 @@
   }
 
   // Visitantes (barras) y registros (línea) por día, en la misma escala.
-  function trend(daily, width) {
+  const VISITS = { a: 'visitors', b: 'signups', label: 'Visitantes y registros por día', tip: (d) => fmt(d.visitors) + ' visitantes · ' + fmt(d.signups) + ' registros' }
+  function trend(daily, width, cfg = VISITS) {
     const wrap = el('div', { class: 'chart' })
     const W = Math.max(width || 640, 300), H = 220, L = 34, R = 8, T = 12, B = 26
-    const max = Math.max(...daily.map((d) => Math.max(d.visitors, d.signups)), 1)
+    const A = cfg.a, B2 = cfg.b
+    const max = Math.max(...daily.map((d) => Math.max(d[A], d[B2])), 1)
     const step = niceStep(max)
     const top = Math.ceil(max / step) * step
-    const s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': 'Visitantes y registros por día' })
+    const s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': cfg.label })
     const y = (v) => T + (H - T - B) * (1 - v / top)
     const bw = (W - L - R) / daily.length
     for (let v = 0; v <= top; v += step) {
@@ -170,16 +178,16 @@
     s.append(band)
     daily.forEach((d, i) => {
       const x = L + i * bw
-      const h = (H - T - B) * (d.visitors / top)
-      if (d.visitors) s.append(svg('rect', { x: x + bw * 0.18, width: Math.max(bw * 0.64, 1), y: y(d.visitors), height: h, rx: Math.min(3, bw * 0.2), fill: 'var(--series-a)' }))
+      const h = (H - T - B) * (d[A] / top)
+      if (d[A]) s.append(svg('rect', { x: x + bw * 0.18, width: Math.max(bw * 0.64, 1), y: y(d[A]), height: h, rx: Math.min(3, bw * 0.2), fill: 'var(--series-a)' }))
       if (i % every === 0) {
         const t = svg('text', { x: x + bw / 2, y: H - 8, 'text-anchor': 'middle', class: 'tick' })
         t.textContent = d.day.slice(8, 10) + '/' + d.day.slice(5, 7); s.append(t)
       }
     })
-    const pts = daily.map((d, i) => (L + i * bw + bw / 2) + ',' + y(d.signups)).join(' ')
+    const pts = daily.map((d, i) => (L + i * bw + bw / 2) + ',' + y(d[B2])).join(' ')
     s.append(svg('polyline', { points: pts, fill: 'none', stroke: 'var(--series-b)', 'stroke-width': 2, 'stroke-linejoin': 'round' }))
-    daily.forEach((d, i) => { if (d.signups) s.append(svg('circle', { cx: L + i * bw + bw / 2, cy: y(d.signups), r: 3.5, fill: 'var(--series-b)', stroke: '#fff', 'stroke-width': 1.5 })) })
+    daily.forEach((d, i) => { if (d[B2]) s.append(svg('circle', { cx: L + i * bw + bw / 2, cy: y(d[B2]), r: 3.5, fill: 'var(--series-b)', stroke: '#fff', 'stroke-width': 1.5 })) })
     const tip = el('div', { class: 'tip', hidden: true })
     const hit = svg('rect', { x: L, y: 0, width: W - L - R, height: H, fill: 'transparent' })
     hit.addEventListener('mousemove', (e) => {
@@ -188,7 +196,7 @@
       const d = daily[i]
       band.setAttribute('x', L + i * bw); band.setAttribute('opacity', 1)
       tip.hidden = false
-      tip.replaceChildren(el('b', {}, dateOnly(d.day + 'T12:00:00')), el('br'), fmt(d.visitors) + ' visitantes · ' + fmt(d.signups) + ' registros')
+      tip.replaceChildren(el('b', {}, dateOnly(d.day + 'T12:00:00')), el('br'), cfg.tip(d))
       tip.style.left = ((L + i * bw + bw / 2) / W) * 100 + '%'
     })
     hit.addEventListener('mouseleave', () => { tip.hidden = true; band.setAttribute('opacity', 0) })
@@ -230,6 +238,51 @@
   let peopleBox = null
   function renderPeople() { if (peopleBox) peopleBox.replaceChildren(peopleTable()) }
 
+  // Lecturas de boletas y constancias: quién leyó, cuánto consumió y cuánto lleva cada persona.
+  function usageSection() {
+    const a = data.ai
+    if (!a) return null
+    const t = a.totals, life = a.lifetime
+    const perRead = t.ia ? t.cost / t.ia : 0
+    const rows = a.users
+    const table = rows.length
+      ? el('div', { class: 'scroll' }, el('table', {},
+          el('thead', {}, el('tr', {}, el('th', {}, 'Nombre'), el('th', {}, 'Correo'), el('th', { class: 'num' }, 'Con Claude'),
+            el('th', { class: 'num' }, 'Gratis que le quedan'), el('th', { class: 'num hide-sm' }, 'En el periodo'), el('th', { class: 'num hide-sm' }, 'Tokens'),
+            el('th', { class: 'num' }, 'Costo'), el('th', { class: 'hide-sm' }, 'Última lectura'))),
+          el('tbody', {}, rows.map((u) => el('tr', {},
+            el('td', {}, u.name || '—'), el('td', {}, u.email || el('span', { class: 'muted' }, 'sin correo')),
+            el('td', { class: 'num' }, fmt(u.ia)),
+            el('td', { class: 'num' }, u.over ? el('span', { class: 'pill over' }, 'Pasó por ' + fmt(u.over)) : u.left <= a.free * 0.1 ? el('span', { class: 'pill near' }, fmt(u.left)) : fmt(u.left)),
+            el('td', { class: 'num hide-sm' }, fmt(u.recent)), el('td', { class: 'num hide-sm' }, fmt(u.tokens)),
+            el('td', { class: 'num' }, usd(u.cost)), el('td', { class: 'nowrap hide-sm' }, dateTime(u.last)))))))
+      : el('p', { class: 'empty' }, 'Todavía nadie subió una boleta o constancia.')
+    return el('section', { class: 'card' },
+      el('div', { class: 'bar' }, el('h2', {}, 'Lecturas y consumo de Claude'),
+        el('button', { onclick: () => download('lecturas') }, 'Descargar lecturas')),
+      a.enabled ? null : el('p', { class: 'note' }, 'Falta ANTHROPIC_API_KEY: todas las lecturas se hacen con el OCR y no consumen tokens.'),
+      life.since
+        ? el('p', { class: 'muted small' }, 'Se registran desde el ' + dateTime(life.since) + '. En total: ' + fmt(life.ia) + ' lecturas con Claude, ' + fmt(life.input + life.output) + ' tokens, ' + usd(life.cost) + '. El costo es un estimado con el precio de lista del modelo.')
+        : el('p', { class: 'muted small' }, 'Cada boleta, constancia o cotización que alguien suba aparecerá aquí, con sus tokens y su costo.'),
+      el('div', { class: 'tiles' },
+        tile('Lecturas', fmt(t.reads), fmt(t.ia) + ' con Claude · ' + fmt(t.ocr) + ' con OCR' + (t.failed ? ' · ' + fmt(t.failed) + ' sin lectura' : '')),
+        tile('Tokens', fmt(t.input + t.output), fmt(t.input) + ' de entrada · ' + fmt(t.output) + ' de salida'),
+        tile('Costo estimado', usd(t.cost), t.ia ? usd(perRead) + ' por lectura con Claude' : 'en el periodo'),
+        tile('Respuesta de Claude', t.ia ? (t.avgMs / 1000).toFixed(1) + ' s' : '—', 'tiempo promedio por lectura'),
+        tile('Pasaron las ' + fmt(a.free) + ' gratis', fmt(a.overLimit), 'personas, en total')),
+      el('div', { class: 'bar' }, el('h2', {}, 'Lecturas por día'),
+        el('div', { class: 'legend' }, el('span', {}, el('i', { style: 'background:var(--series-a)' }), 'Con Claude'), el('span', {}, el('i', { style: 'background:var(--series-b)' }), 'Con OCR (respaldo)'))),
+      el('div', { id: 'reads' }),
+      el('div', { class: 'grid' },
+        el('div', { class: 'sub' }, el('h2', {}, 'Qué se lee'), el('p', { class: 'muted small' }, 'Constancias y cotizaciones vienen de los eventos; las boletas, de Mis finanzas.'), rank(a.kinds, 'label', 'reads', (r) => '· ' + usd(r.cost))),
+        el('div', { class: 'sub' }, el('h2', {}, 'Cuando Claude no pudo'),
+          el('p', { class: 'muted small' }, 'Llamadas a Claude que fallaron o no sirvieron; esas lecturas las hizo el OCR.'),
+          a.claudeErrors.length ? rank(a.claudeErrors, 'label', 'n') : el('p', { class: 'empty' }, 'Sin fallas en el periodo.'))),
+      el('h2', {}, 'Por persona'),
+      el('p', { class: 'muted small' }, 'Lecturas con Claude de cada persona desde el inicio. Las primeras ' + fmt(a.free) + ' son gratis; hoy no se cobra ni se corta al pasarlas.'),
+      table)
+  }
+
   function render() {
     const t = data.totals, f = data.funnel
     peopleBox = el('div', {}, peopleTable())
@@ -255,6 +308,7 @@
         el('div', { class: 'bar' }, el('h2', {}, 'Por día'),
           el('div', { class: 'legend' }, el('span', {}, el('i', { style: 'background:var(--series-a)' }), 'Visitantes'), el('span', {}, el('i', { style: 'background:var(--series-b)' }), 'Registros'))),
         el('div', { id: 'trend' })),
+      usageSection(),
       el('div', { class: 'grid' },
         el('section', { class: 'card' }, el('h2', {}, 'Embudo'),
           el('p', { class: 'muted small' }, 'Navegadores que visitaron, cuántos terminaron con cuenta y cuántos crearon un evento.'),
@@ -297,6 +351,8 @@
   function drawTrend() {
     const box = document.getElementById('trend')
     if (box && data) box.replaceChildren(trend(data.daily, box.clientWidth))
+    const reads = document.getElementById('reads')
+    if (reads && data && data.ai) reads.replaceChildren(trend(data.ai.daily, reads.clientWidth, READS))
   }
   let resizeTimer
   addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(drawTrend, 150) })

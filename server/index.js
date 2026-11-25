@@ -44,6 +44,7 @@ import {
   verifyCode,
 } from './platform.js'
 import { scrapeQuoteImage } from './ocr.js'
+import { recordRead } from './usage.js'
 import { mountAdmin } from './admin.js'
 import { linkVisitor, mountVisits } from './visits.js'
 import { mountFinanzas } from './finanzas.js'
@@ -1174,7 +1175,9 @@ ev.post('/ocr/scrape', async (req, res) => {
   const ai = !tooManyAttempts(key, MAX_AI_READS)
   failAttempt(key)
   try {
-    res.json(await scrapeQuoteImage(image, { ai }))
+    const { usage, ...result } = await scrapeQuoteImage(image, { ai })
+    recordRead({ user: req.user, kind: 'evento', slug: req.params.slug, source: result.ok ? result.source : 'sin lectura', usage })
+    res.json(result)
   } catch {
     res.status(500).json({ error: 'Error al escanear la imagen' })
   }

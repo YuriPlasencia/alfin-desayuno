@@ -2,9 +2,9 @@
  * Lectura de imágenes y PDF con Claude (Anthropic). Es la primera opción para leer boletas,
  * constancias y cotizaciones; el OCR (Tesseract, ver ocr.js) queda de respaldo.
  *
- * readWithClaude devuelve el objeto leído, o null cuando hay que seguir con el OCR:
+ * readWithClaude devuelve { data, usage }. data es null cuando hay que seguir con el OCR:
  * sin ANTHROPIC_API_KEY, Claude caído o lento, sin saldo, o si no pudo leer el documento.
- * Nunca lanza un error: quien llama solo revisa si vino null.
+ * Nunca lanza un error: quien llama solo revisa si data vino null.
  */
 
 export const AI_ENABLED = Boolean(String(process.env.ANTHROPIC_API_KEY || '').trim())
@@ -35,14 +35,42 @@ function recordFailure(err) {
   }
 }
 
+// Precio por millón de tokens (entrada, salida) en dólares, según el modelo que respondió.
+const PRICES = [
+  ['claude-haiku-5-5', 0.1, 0.5],
+  ['claude-sonnet', 2, 10],
+  ['claude-opus-5-5', 4, 20],
+  ['claude-opus', 5, 25],
+  ['claude-fable', 8, 40],
+]
+
+/** Costo estimado de una respuesta, en dólares. */
+export function costOf(model, input, output) {
+  const [, inPrice, outPrice] = PRICES.find(([prefix]) => String(model).startsWith(prefix)) || PRICES[2]
+  return (input * inPrice + output * outPrice) / 1_000_000
+}
+
+function usageOf(response, started) {
+  const u = response.usage || {}
+  const input = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0)
+  const output = u.output_tokens || 0
+  const model = response.model || MODEL
+  return { model, input, output, cost: costOf(model, input, output), ms: Date.now() - started, error: '' }
+}
+
 /**
- * Lee un documento y devuelve los datos con la forma de `schema`.
+ * Lee un documento y devuelve { data, usage }.
+ * - data: los datos con la forma de `schema`, o null cuando hay que seguir con el OCR.
+ * - usage: { model, input, output, cost, ms, error } de la llamada a Claude; null si no se intentó
+ *   (sin clave o en pausa). Sirve para registrar el consumo aunque la lectura no haya servido.
+ * Parámetros:
  * - mime/base64: la imagen (jpeg, png, webp) o el PDF.
  * - instructions: qué es el documento y qué devolver en cada campo.
  * - schema: función que recibe `z` (zod) y devuelve el esquema de la respuesta.
  */
 export async function readWithClaude({ mime, base64, instructions, schema, maxTokens = 16000 }) {
-  if (!aiAvailable()) return null
+  if (!aiAvailable()) return { data: null, usage: null }
+  const started = Date.now()
   try {
     const [{ default: Anthropic }, { betaZodOutputFormat }, { z }] = await Promise.all([
       import('@anthropic-ai/sdk'),
@@ -65,13 +93,14 @@ export async function readWithClaude({ mime, base64, instructions, schema, maxTo
     })
     // Respondió: Claude está en pie, aunque este documento no se haya podido leer.
     failures = 0
+    const usage = usageOf(response, started)
     if (response.stop_reason === 'refusal' || response.stop_reason === 'max_tokens' || !response.parsed_output) {
       console.error(`[ia] Claude no devolvió una lectura (${response.stop_reason}), sigue el OCR.`)
-      return null
+      return { data: null, usage: { ...usage, error: String(response.stop_reason || 'sin lectura') } }
     }
-    return response.parsed_output
+    return { data: response.parsed_output, usage }
   } catch (err) {
     recordFailure(err)
-    return null
+    return { data: null, usage: { model: MODEL, input: 0, output: 0, cost: 0, ms: Date.now() - started, error: err?.status ? `error ${err.status}` : 'sin conexión' } }
   }
 }

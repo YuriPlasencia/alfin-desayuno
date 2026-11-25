@@ -218,11 +218,11 @@ No inventes datos: lo que no se lee va vacío.`
 
 const WALLET_NAMES = ['', ...WALLETS.map(([name]) => name), 'Otro']
 
-/** Lectura con Claude, con la misma forma que la del OCR. null si hay que seguir con el OCR. */
+/** Lectura con Claude: { read, usage }. read tiene la forma de la del OCR, o es null si hay que seguir con el OCR. */
 async function scrapeWithClaude(dataUrl) {
   const match = DATA_URL.exec(dataUrl)
-  if (!match) return null
-  const read = await readWithClaude({
+  if (!match) return { read: null, usage: null }
+  const { data: read, usage } = await readWithClaude({
     mime: `image/${match[1].toLowerCase()}`,
     base64: match[2],
     instructions: QUOTE_INSTRUCTIONS,
@@ -238,13 +238,13 @@ async function scrapeWithClaude(dataUrl) {
         text: z.string(),
       }),
   })
-  if (!read) return null
+  if (!read) return { read: null, usage }
   const money = (value) => (Number.isFinite(value) && value > 0 ? Math.round(value * 100) / 100 : null)
   const amount = money(read.amount)
   const prices = Array.from(new Set([amount, ...read.prices.map(money)].filter((value) => value !== null))).slice(0, 6)
   // Sin monto ni texto, Claude no vio nada útil: que lo intente el OCR.
-  if (amount === null && !prices.length && !read.text.trim()) return null
-  return {
+  if (amount === null && !prices.length && !read.text.trim()) return { read: null, usage: { ...usage, error: 'sin datos' } }
+  const result = {
     detectedAmount: amount,
     detectedConcept: read.concept.trim().slice(0, 120),
     allPrices: prices,
@@ -253,19 +253,21 @@ async function scrapeWithClaude(dataUrl) {
     operationCode: read.operationCode.replace(/\D/g, '').slice(0, 14),
     paidAt: /^20\d{2}-\d{2}-\d{2}$/.test(read.paidAt) ? read.paidAt : '',
   }
+  return { read: result, usage }
 }
 
 /**
  * Lee una constancia o cotización: primero con Claude; si no hay clave, Claude está caído
  * o no pudo leerla, con el OCR. `source` dice cuál de los dos dio la lectura.
- * Con `ai: false` va directo al OCR.
+ * Con `ai: false` va directo al OCR. `usage` es el consumo de la llamada a Claude (null si no hubo):
+ * es para registrarlo, no para enviarlo al navegador.
  */
 export async function scrapeQuoteImage(dataUrl, { ai = true } = {}) {
-  const read = ai ? await scrapeWithClaude(dataUrl) : null
-  if (read) return { ok: true, source: 'ia', ...read }
+  const { read, usage } = ai ? await scrapeWithClaude(dataUrl) : { read: null, usage: null }
+  if (read) return { ok: true, source: 'ia', ...read, usage }
   const result = await recognizeText(dataUrl)
-  if (result.error) return failed(result.error)
-  return { ok: true, source: 'ocr', ...parseQuoteText(result.text) }
+  if (result.error) return { ...failed(result.error), usage }
+  return { ok: true, source: 'ocr', ...parseQuoteText(result.text), usage }
 }
 
 function failed(message) {
