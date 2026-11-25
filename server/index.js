@@ -79,6 +79,18 @@ app.use((req, res, next) => {
   res.redirect(req.method === 'GET' || req.method === 'HEAD' ? 301 : 308, PUBLIC_URL + req.originalUrl)
 })
 
+// Quien llega con la cookie de sesión de nombre anterior (juntada_session) la recibe con el
+// nombre nuevo y el mismo vencimiento: sigue con su sesión abierta.
+app.use((req, res, next) => {
+  const old = readCookie(req, OLD_SESSION_COOKIE)
+  if (old && !readCookie(req, SESSION_COOKIE)) {
+    const [id, exp, mac] = old.split('.')
+    const left = Math.floor((Number(exp) - Date.now()) / 1000)
+    if (id && mac && left > 0 && sameSecret(mac, sign(`${id}.${exp}`))) setSessionCookie(req, res, old, left)
+  }
+  next()
+})
+
 app.use(express.json({ limit: '15mb' }))
 
 // ---------- sesiones y cuentas (Juntay) ----------
@@ -87,8 +99,9 @@ app.use(express.json({ limit: '15mb' }))
 
 const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '').trim()
 const NAME_LOGIN = !GOOGLE_CLIENT_ID || process.env.NAME_LOGIN === '1'
-// La cookie conserva el nombre anterior (Juntada): cambiarla cerraría la sesión de todos.
-const SESSION_COOKIE = 'juntada_session'
+const SESSION_COOKIE = 'juntay_session'
+// Nombre anterior (Juntada): se sigue aceptando y, al llegar, se cambia por el nuevo (ver más abajo).
+const OLD_SESSION_COOKIE = 'juntada_session'
 const SESSION_DAYS = 120
 const MAX_ATTEMPTS = 10
 const MAX_EVENT_ATTEMPTS = 60 // fallos sumados de todas las direcciones y cuentas contra un mismo evento
@@ -125,15 +138,23 @@ function startSession(req, res, userId) {
   linkVisitor(req, userId, readCookie)
   const exp = Date.now() + SESSION_DAYS * 86400000
   const value = `${userId}.${exp}`
-  const secure = req.secure ? '; Secure' : ''
-  res.setHeader(
-    'Set-Cookie',
-    `${SESSION_COOKIE}=${value}.${sign(value)}; Path=/; Max-Age=${SESSION_DAYS * 86400}; HttpOnly; SameSite=Lax${secure}`,
-  )
+  setSessionCookie(req, res, `${value}.${sign(value)}`, SESSION_DAYS * 86400)
 }
 
+function setSessionCookie(req, res, token, maxAge) {
+  const secure = req.secure ? '; Secure' : ''
+  res.append('Set-Cookie', `${SESSION_COOKIE}=${token}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`)
+  clearOldSessionCookie(req, res)
+}
+
+function clearOldSessionCookie(req, res) {
+  if (readCookie(req, OLD_SESSION_COOKIE)) res.append('Set-Cookie', `${OLD_SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`)
+}
+
+const sessionToken = (req) => readCookie(req, SESSION_COOKIE) || readCookie(req, OLD_SESSION_COOKIE)
+
 function sessionUser(req) {
-  const [id, exp, mac] = readCookie(req, SESSION_COOKIE).split('.')
+  const [id, exp, mac] = sessionToken(req).split('.')
   if (!id || !exp || !mac || Number(exp) < Date.now() || !sameSecret(mac, sign(`${id}.${exp}`))) return null
   // Con la comprobación de correo activa, una cuenta sin correo comprobado debe volver a entrar con su código.
   if (EMAIL_VERIFY && !isVerified(Number(id))) return null
@@ -246,7 +267,8 @@ app.post('/api/auth/email/verify', (req, res) => {
 })
 
 app.post('/api/auth/logout', (req, res) => {
-  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`)
+  res.append('Set-Cookie', `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`)
+  clearOldSessionCookie(req, res)
   res.json({ ok: true })
 })
 

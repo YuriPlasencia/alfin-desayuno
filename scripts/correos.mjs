@@ -2,6 +2,7 @@
 //   npm run correos                  → todos
 //   npm run correos -- --novedades   → solo quienes aceptaron recibir novedades
 // En Render: pestaña Shell del servicio y el mismo comando (lee el disco /data).
+import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
@@ -10,7 +11,13 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const dataDir = process.env.DATA_DIR || path.join(here, '..', 'data')
 const onlyNews = process.argv.includes('--novedades')
 
-const db = new DatabaseSync(path.join(dataDir, 'juntada.db'), { readOnly: true })
+// juntay.db; si el servidor todavía no arrancó con el nombre nuevo, sigue siendo juntada.db.
+const dbFile = ['juntay.db', 'juntada.db'].map((name) => path.join(dataDir, name)).find((file) => fs.existsSync(file))
+if (!dbFile) {
+  console.error(`No hay base de cuentas en ${dataDir}`)
+  process.exit(1)
+}
+const db = new DatabaseSync(dbFile, { readOnly: true })
 const columns = db.prepare('PRAGMA table_info(users)').all().map((col) => col.name)
 const hasNews = columns.includes('news_opt_in')
 

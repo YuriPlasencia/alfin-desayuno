@@ -11,9 +11,8 @@ import {
 import { api, ApiError, eventPath, setEventSlug, type GateReason } from './api'
 import type { Bootstrap, Member } from './types'
 
-// Las claves guardadas en el navegador conservan el nombre anterior (Juntada): cambiarlas
-// borraría la caché y el último evento de quienes ya usan la app.
-const LAST_EVENT_KEY = 'juntada.lastEvent'
+// Las claves viejas ("juntada.…") se pasan a estas al abrir la app (lib/storage-rename.ts).
+const LAST_EVENT_KEY = 'juntay.lastEvent'
 
 type ToastKind = 'ok' | 'error' | 'win'
 
@@ -61,8 +60,8 @@ let toastSeq = 1
 
 export function AppProvider({ slug, children }: { slug: string; children: ReactNode }) {
   // Cada evento guarda su propia copia para usar sin señal.
-  const CACHE_KEY = `juntada.cache.${slug}`
-  const VISIT_KEY = `juntada.lastVisit.${slug}`
+  const CACHE_KEY = `juntay.cache.${slug}`
+  const VISIT_KEY = `juntay.lastVisit.${slug}`
   useState(() => {
     setEventSlug(slug)
     try {
@@ -72,7 +71,7 @@ export function AppProvider({ slug, children }: { slug: string; children: ReactN
     }
     return slug
   })
-  const [data, setData] = useState<Bootstrap | null>(() => readCache(`juntada.cache.${slug}`))
+  const [data, setData] = useState<Bootstrap | null>(() => readCache(CACHE_KEY))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [offline, setOffline] = useState(false)

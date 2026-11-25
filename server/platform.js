@@ -15,8 +15,25 @@ export const EVENT_CATEGORIES = ['trabajo', 'familiar', 'entretenimiento', 'fina
  * y quién pertenece a cada evento (y qué imán es). Los datos de cada evento viven
  * en su propia base (ver db.js).
  */
-// El archivo conserva el nombre anterior (Juntada): renombrarlo dejaría sin datos el disco de Render.
-export const pdb = new DatabaseSync(path.join(DATA_DIR, 'juntada.db'))
+const PLATFORM_DB = path.join(DATA_DIR, 'juntay.db')
+migratePlatformFile(path.join(DATA_DIR, 'juntada.db'), PLATFORM_DB)
+export const pdb = new DatabaseSync(PLATFORM_DB)
+
+/**
+ * Antes la base se llamaba juntada.db (nombre anterior, Juntada). La primera vez que arranca
+ * con el nombre nuevo, vuelca el WAL al archivo principal y lo renombra a juntay.db, con todo
+ * lo que tenía (también en el disco de Render).
+ */
+function migratePlatformFile(oldPath, newPath) {
+  if (fs.existsSync(newPath) || !fs.existsSync(oldPath)) return
+  const old = new DatabaseSync(oldPath)
+  old.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+  old.close()
+  fs.renameSync(oldPath, newPath)
+  // El WAL ya quedó vacío; se borran los restos del nombre viejo.
+  for (const suffix of ['-wal', '-shm']) fs.rmSync(oldPath + suffix, { force: true })
+  console.log('[juntay] La base juntada.db pasó a llamarse juntay.db.')
+}
 
 pdb.exec(`
   PRAGMA journal_mode = WAL;

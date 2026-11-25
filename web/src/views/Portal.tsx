@@ -525,7 +525,7 @@ export function Portal() {
         if (params.has('compartido') && me.user) {
           let last = ''
           try {
-            last = localStorage.getItem('juntada.lastEvent') || ''
+            last = localStorage.getItem('juntay.lastEvent') || ''
           } catch {
             /* sin almacenamiento */
           }

@@ -13,7 +13,7 @@ Cada evento es independiente: **Al Fin Desayuno · Octubre 2026** fue el primero
 3. **Código del evento:** la primera vez que alguien entra a un evento se le pide su código. El organizador lo cambia en **Ajustes → Invitar al equipo**, donde también está el enlace para compartir.
 4. **¿Quién eres?:** al entrar por primera vez, la persona elige su nombre en la lista del equipo (o se agrega). Desde ahí sus cambios quedan firmados con su nombre, sin tener que elegirlo de nuevo.
 
-Cada evento guarda sus datos en su propia base (`data/events/<evento>.db`); las cuentas y los eventos están en `data/juntada.db`.
+Cada evento guarda sus datos en su propia base (`data/events/<evento>.db`); las cuentas y los eventos están en `data/juntay.db`.
 
 **Paso desde Al Fin Desayuno:** al arrancar la plataforma por primera vez, la base anterior (`data/alfin.db`) se copia como el evento `al-fin-desayuno-octubre-2026`, con todo lo cargado. Su código es el `TEAM_CODE` que ya usaban (o uno generado, que aparece en el log). El original no se borra.
 
@@ -92,7 +92,7 @@ npm run typecheck    # revisa tipos de TypeScript
 npm run reset-demo   # crea/recarga el evento de ejemplo "demo" (código: demo) en http://localhost:5173/e/demo
 ```
 
-Las bases quedan en `data/` (SQLite): `juntada.db` (cuentas y eventos) y `events/<evento>.db` (uno por evento). Bórralas si quieres empezar de cero.
+Las bases quedan en `data/` (SQLite): `juntay.db` (cuentas y eventos) y `events/<evento>.db` (uno por evento). Bórralas si quieres empezar de cero.
 
 ### Abrirlo desde otros celulares de la red
 
