@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin
+Disallow: /e/
+
+Sitemap: https://juntay.pe/sitemap.xml
