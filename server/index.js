@@ -1475,6 +1475,8 @@ if (fs.existsSync(DIST)) {
   app.use(express.static(DIST, { index: false }))
   // Política de privacidad: página aparte, pública (la pide Google para el ingreso con su cuenta).
   app.get('/privacidad', (_req, res) => res.sendFile(path.join(DIST, 'privacidad.html')))
+  // Términos y condiciones de uso: también pública.
+  app.get('/terminos', (_req, res) => res.sendFile(path.join(DIST, 'terminos.html')))
   app.use((req, res, next) => {
     if (req.method !== 'GET' || req.path.startsWith('/api')) return next()
     res.sendFile(path.join(DIST, 'index.html'))

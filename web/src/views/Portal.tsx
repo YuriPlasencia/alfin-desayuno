@@ -183,7 +183,7 @@ function Login({ onLogged }: { onLogged: (user: User) => void }) {
         ) : null}
         {config?.googleClientId && !config.nameLogin ? (
           <p className="portal-privacy muted small">
-            Usamos tu nombre y tu correo de Google para identificarte en tus eventos. <a href="/privacidad">Política de privacidad</a>
+            Usamos tu nombre y tu correo de Google para identificarte en tus eventos. Al entrar aceptas los <a href="/terminos">términos y condiciones</a> y la <a href="/privacidad">política de privacidad</a>.
           </p>
         ) : null}
         {config?.nameLogin && sentTo ? (
@@ -240,8 +240,8 @@ function Login({ onLogged }: { onLogged: (user: User) => void }) {
               {busy ? (config.emailVerify ? 'Enviando…' : 'Entrando…') : config.emailVerify ? 'Enviarme el código' : 'Entrar'}
             </Button>
             <p className="portal-privacy muted small">
-              Usamos tu correo para identificarte en tus eventos. No lo compartimos. Las novedades llegan solo si marcas la casilla.{' '}
-              <a href="/privacidad">Política de privacidad</a>
+              Usamos tu correo para identificarte en tus eventos. No lo compartimos. Las novedades llegan solo si marcas la casilla. Al entrar aceptas los{' '}
+              <a href="/terminos">términos y condiciones</a> y la <a href="/privacidad">política de privacidad</a>.
             </p>
           </form>
         ) : null}

@@ -57,7 +57,7 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/admin/, /^\/privacidad/],
+        navigateFallbackDenylist: [/^\/api\//, /^\/admin/, /^\/privacidad/, /^\/terminos/],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         importScripts: ['share-target.js'],

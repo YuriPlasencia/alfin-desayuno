@@ -155,6 +155,9 @@ export function Settings() {
           {data.members.length} integrantes · {data.tasks.length} actividades · {data.agreements.length} acuerdos ·{' '}
           {data.budget.length} movimientos de presupuesto
         </p>
+        <p className="muted small">
+          <a href="/terminos">Términos y condiciones</a> · <a href="/privacidad">Política de privacidad</a>
+        </p>
       </section>
 
       <section className="card">
