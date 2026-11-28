@@ -135,8 +135,8 @@ function sameSecret(a, b) {
   return left.length === right.length && crypto.timingSafeEqual(left, right)
 }
 
-function startSession(req, res, userId) {
-  recordHistory(userId, 'ingreso', '', 'Inició sesión')
+function startSession(req, res, userId, how = '') {
+  recordHistory(userId, 'ingreso', '', how ? `Inició sesión con ${how}` : 'Inició sesión')
   linkVisitor(req, userId, readCookie)
   const exp = Date.now() + SESSION_DAYS * 86400000
   const value = `${userId}.${exp}`
@@ -204,7 +204,7 @@ app.post('/api/auth/google', async (req, res) => {
       picture: info.picture || '',
       emailVerified: info.email_verified === true || info.email_verified === 'true',
     })
-    startSession(req, res, userId)
+    startSession(req, res, userId, 'Google')
     res.json({ user: getUser(userId) })
   } catch {
     res.status(502).json({ error: 'No se pudo hablar con Google. Intenta de nuevo.' })
@@ -222,7 +222,7 @@ app.post('/api/auth/name', (req, res) => {
   if (!name) return res.status(400).json({ error: 'Escribe tu nombre' })
   if (email.length > 254 || !EMAIL.test(email)) return res.status(400).json({ error: 'Escribe un correo válido' })
   const userId = createNameUser({ name, email, newsOptIn: req.body?.news === true })
-  startSession(req, res, userId)
+  startSession(req, res, userId, 'nombre y correo')
   res.json({ user: getUser(userId) })
 })
 
@@ -264,7 +264,7 @@ app.post('/api/auth/email/verify', (req, res) => {
     return res.status(401).json({ error: result.error })
   }
   const userId = signInVerified({ name: result.name, email: result.email, newsOptIn: result.news })
-  startSession(req, res, userId)
+  startSession(req, res, userId, req.body?.token ? 'enlace del correo' : 'código del correo')
   res.json({ user: getUser(userId), next: result.next })
 })
 

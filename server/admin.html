@@ -59,6 +59,10 @@
   .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
   .pill.near { background: #fdf2e1; color: #92400e; }
   .pill.over { background: #fdeceb; color: #b42d21; }
+  .cohort td.cell { text-align: center; font-variant-numeric: tabular-nums; min-width: 52px; border: 2px solid #fff; border-radius: 6px; }
+  .cohort td.na { background: transparent; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--well); color: var(--ink-2); }
+  .badge.live { background: #e3f4ea; color: #166534; }
   .note { background: var(--blue-soft); color: #1e3a8a; border-radius: 10px; padding: 10px 14px; font-size: 14px; }
   @media (max-width: 640px) {
     .grid { grid-template-columns: 1fr; }
@@ -72,7 +76,7 @@
 <main id="app">
   <form class="card login" id="login">
     <h1>Juntay <span>·</span> Administración</h1>
-    <p class="muted">Visitas, personas, lecturas con Claude e historial de Juntay.</p>
+    <p class="muted">Visitas, personas activas, ingreso, eventos, lecturas con Claude e historial de Juntay.</p>
     <label>Clave de administración<br><input id="key" type="password" autocomplete="current-password" style="width:100%"></label>
     <div><button class="primary" type="submit">Entrar</button></div>
     <p class="msg" id="msg"></p>
@@ -86,6 +90,8 @@
   const pct = (a, b) => (b ? Math.round((a / b) * 100) + '%' : '—')
   const usd = (n) => 'US$ ' + (n || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: n && n < 1 ? 4 : 2 })
   const READS = { a: 'ia', b: 'ocr', label: 'Lecturas con Claude y con el OCR por día', tip: (d) => fmt(d.ia) + ' con Claude · ' + fmt(d.ocr) + ' con OCR · ' + fmt(d.tokens) + ' tokens · ' + usd(d.cost) }
+  const ACTIVE = { a: 'active', b: 'signups', label: 'Personas activas y cuentas nuevas por día', tip: (d) => fmt(d.active) + ' activas · ' + fmt(d.signups) + ' cuentas nuevas' }
+  const CODES = { a: 'sent', b: 'ok', label: 'Códigos enviados y usados para entrar por día', tip: (d) => fmt(d.sent) + ' enviados · ' + fmt(d.ok) + ' usados para entrar' }
   let key = ''
   try { key = sessionStorage.getItem('juntay.admin') || '' } catch {}
   let days = 30
@@ -247,11 +253,14 @@
     const rows = a.users
     const table = rows.length
       ? el('div', { class: 'scroll' }, el('table', {},
-          el('thead', {}, el('tr', {}, el('th', {}, 'Nombre'), el('th', {}, 'Correo'), el('th', { class: 'num' }, 'Con Claude'),
+          el('thead', {}, el('tr', {}, el('th', {}, 'Nombre'), el('th', {}, 'Correo'), el('th', { class: 'num' }, 'Fotos leídas'),
+            el('th', { class: 'num hide-sm' }, 'Constancias'), el('th', { class: 'num hide-sm' }, 'Boletas'), el('th', { class: 'num' }, 'Con Claude'),
             el('th', { class: 'num' }, 'Gratis que le quedan'), el('th', { class: 'num hide-sm' }, 'En el periodo'), el('th', { class: 'num hide-sm' }, 'Tokens'),
             el('th', { class: 'num' }, 'Costo'), el('th', { class: 'hide-sm' }, 'Última lectura'))),
           el('tbody', {}, rows.map((u) => el('tr', {},
             el('td', {}, u.name || '—'), el('td', {}, u.email || el('span', { class: 'muted' }, 'sin correo')),
+            el('td', { class: 'num' }, el('b', {}, fmt(u.reads))),
+            el('td', { class: 'num hide-sm' }, fmt(u.proofs)), el('td', { class: 'num hide-sm' }, fmt(u.receipts)),
             el('td', { class: 'num' }, fmt(u.ia)),
             el('td', { class: 'num' }, u.over ? el('span', { class: 'pill over' }, 'Pasó por ' + fmt(u.over)) : u.left <= a.free * 0.1 ? el('span', { class: 'pill near' }, fmt(u.left)) : fmt(u.left)),
             el('td', { class: 'num hide-sm' }, fmt(u.recent)), el('td', { class: 'num hide-sm' }, fmt(u.tokens)),
@@ -278,8 +287,118 @@
         el('div', { class: 'sub' }, el('h2', {}, 'Cuando Claude no pudo'),
           el('p', { class: 'muted small' }, 'Llamadas a Claude que fallaron o no sirvieron; esas lecturas las hizo el OCR.'),
           a.claudeErrors.length ? rank(a.claudeErrors, 'label', 'n') : el('p', { class: 'empty' }, 'Sin fallas en el periodo.'))),
-      el('h2', {}, 'Por persona'),
-      el('p', { class: 'muted small' }, 'Lecturas con Claude de cada persona desde el inicio. Las primeras ' + fmt(a.free) + ' son gratis; hoy no se cobra ni se corta al pasarlas.'),
+      el('h2', {}, 'Fotos leídas por persona'),
+      el('p', { class: 'muted small' }, 'Fotos y PDF leídos de cada persona desde el inicio: constancias y cotizaciones de sus eventos, y boletas de Mis finanzas. Las primeras ' + fmt(a.free) + ' lecturas con Claude son gratis; hoy no se cobra ni se corta al pasarlas.'),
+      table)
+  }
+
+
+  // ---------- Personas activas y retención ----------
+  function activeSection() {
+    const a = data.active
+    if (!a) return null
+    const t = a.totals
+    return el('section', { class: 'card' },
+      el('h2', {}, 'Personas activas'),
+      el('p', { class: 'muted small' }, 'Cuentas que abrieron Juntay con su sesión o hicieron algo en ella. Una persona cuenta una vez por día.'),
+      el('div', { class: 'tiles' },
+        tile('Hoy', fmt(t.today)),
+        tile('Últimos 7 días', fmt(t.week), pct(t.week, t.people) + ' de todas las cuentas'),
+        tile('Últimos 30 días', fmt(t.month), pct(t.month, t.people) + ' de todas las cuentas'),
+        tile('Volvieron', fmt(t.returning), 'activas en el periodo, con cuenta de antes'),
+        tile('Cambiaron algo', fmt(t.editors), 'en un evento, en el periodo')),
+      el('div', { class: 'bar' }, el('h2', {}, 'Por día'),
+        el('div', { class: 'legend' }, el('span', {}, el('i', { style: 'background:var(--series-a)' }), 'Activas'), el('span', {}, el('i', { style: 'background:var(--series-b)' }), 'Cuentas nuevas'))),
+      el('div', { id: 'active' }),
+      retentionTable())
+  }
+
+  function retentionTable() {
+    const r = data.retention
+    const title = el('h2', {}, 'Retención por semana de registro')
+    if (!r || !r.cohorts.some((c) => c.size)) return el('div', { class: 'sub' }, title, el('p', { class: 'empty' }, 'Todavía no hay cuentas nuevas en las últimas semanas.'))
+    const head = el('tr', {}, el('th', {}, 'Semana del'), el('th', { class: 'num' }, 'Cuentas'), Array.from({ length: r.weeks - 1 }, (_, i) => el('th', { class: 'num' }, 'Sem. ' + (i + 1))))
+    const rows = r.cohorts.map((c) => el('tr', {},
+      el('td', { class: 'nowrap' }, dateOnly(c.week + 'T12:00:00')),
+      el('td', { class: 'num' }, fmt(c.size)),
+      Array.from({ length: r.weeks - 1 }, (_, i) => {
+        if (i >= c.back.length || !c.size) return el('td', { class: 'cell na' }, '')
+        const share = c.back[i] / c.size
+        return el('td', {
+          class: 'cell', title: fmt(c.back[i]) + ' de ' + fmt(c.size) + ' volvieron',
+          style: 'background:rgba(29,63,191,' + (0.06 + share * 0.84).toFixed(2) + ');color:' + (share > 0.45 ? '#fff' : 'var(--ink)'),
+        }, Math.round(share * 100) + '%')
+      })))
+    return el('div', { class: 'sub' }, title,
+      el('p', { class: 'muted small' }, 'De quienes crearon su cuenta cada semana (de lunes a domingo), qué parte volvió a usar Juntay 1, 2, 3… semanas después. No depende del periodo elegido.'),
+      el('div', { class: 'scroll' }, el('table', { class: 'cohort' }, el('thead', {}, head), el('tbody', {}, rows))))
+  }
+
+  // ---------- Ingreso: Google y código por correo ----------
+  function loginSection() {
+    const l = data.login
+    if (!l) return null
+    const c = l.codes
+    const stuck = l.stuck.length
+      ? el('div', { class: 'scroll' }, el('table', {},
+          el('thead', {}, el('tr', {}, el('th', {}, 'Nombre'), el('th', {}, 'Correo'), el('th', { class: 'num' }, 'Códigos'), el('th', {}, 'Último'), el('th', { class: 'hide-sm' }, 'Falla del envío'))),
+          el('tbody', {}, l.stuck.map((p) => el('tr', {},
+            el('td', {}, p.name || '—'), el('td', {}, p.email), el('td', { class: 'num' }, fmt(p.codes)),
+            el('td', { class: 'nowrap' }, dateTime(p.last)), el('td', { class: 'hide-sm muted small' }, p.error || '—'))))))
+      : el('p', { class: 'empty' }, 'Todos los que pidieron un código lograron entrar.')
+    return el('section', { class: 'card' },
+      el('h2', {}, 'Ingreso'),
+      el('p', { class: 'muted small' }, 'Cómo entra la gente y si los correos con el código sirven. Los códigos se miden desde el ' + dateTime(l.statsSince)),
+      el('div', { class: 'tiles' },
+        tile('Códigos enviados', fmt(c.sent), fmt(c.people) + ' correos distintos'),
+        tile('Entraron con el código', fmt(c.peopleOk), pct(c.peopleOk, c.people) + ' de quienes lo pidieron'),
+        tile('Vencieron sin usarse', fmt(c.unused), 'el correo no llegó o no lo abrieron'),
+        tile('Demasiados intentos', fmt(c.blocked), 'escribieron mal el código 5 veces'),
+        tile('No se pudieron enviar', fmt(c.failed), c.failed ? 'revisa Resend' : 'sin fallas')),
+      el('div', { class: 'bar' }, el('h2', {}, 'Por día'),
+        el('div', { class: 'legend' }, el('span', {}, el('i', { style: 'background:var(--series-a)' }), 'Enviados'), el('span', {}, el('i', { style: 'background:var(--series-b)' }), 'Usados para entrar'))),
+      el('div', { id: 'codes' }),
+      el('div', { class: 'grid' },
+        el('div', { class: 'sub' }, el('h2', {}, 'Cuentas por forma de entrar'),
+          el('p', { class: 'muted small' }, 'Todas las cuentas; entre paréntesis, las nuevas del periodo.'),
+          rank(l.accounts, 'label', 'n', (r) => '(' + fmt((l.newAccounts.find((x) => x.label === r.label) || {}).n || 0) + ' nuevas)')),
+        el('div', { class: 'sub' }, el('h2', {}, 'Inicios de sesión en el periodo'), rank(l.logins.map((r) => ({ ...r, label: r.label.charAt(0).toUpperCase() + r.label.slice(1) })), 'label', 'n'))),
+      l.sendErrors.length ? el('div', { class: 'sub' }, el('h2', {}, 'Por qué no se enviaron'), rank(l.sendErrors, 'label', 'n')) : null,
+      el('h2', {}, 'Pidieron código y no entraron'),
+      el('p', { class: 'muted small' }, 'En el periodo. Si son muchos, el correo puede estar cayendo en spam.'),
+      stuck)
+  }
+
+  // ---------- Eventos ----------
+  function eventsSection() {
+    const e = data.events
+    if (!e) return null
+    const t = e.totals
+    const table = e.rows.length
+      ? el('div', { class: 'scroll' }, el('table', {},
+          el('thead', {}, el('tr', {}, el('th', {}, 'Evento'), el('th', { class: 'hide-sm' }, 'Organiza'), el('th', { class: 'num' }, 'Equipo'),
+            el('th', { class: 'num' }, 'Actividades hechas'), el('th', { class: 'num' }, 'Cambios'), el('th', { class: 'num hide-sm' }, 'Quiénes'),
+            el('th', { class: 'num hide-sm' }, 'Fotos leídas'), el('th', {}, 'Último cambio'), el('th', { class: 'hide-sm' }, 'Qué usan'))),
+          el('tbody', {}, e.rows.map((r) => el('tr', {},
+            el('td', {}, el('b', {}, r.name), el('br'), el('span', { class: 'muted small' }, [r.category, r.type, r.date ? 'para el ' + dateOnly(r.date + 'T12:00:00') : ''].filter(Boolean).join(' · '))),
+            el('td', { class: 'hide-sm' }, r.organizer || '—'),
+            el('td', { class: 'num' }, fmt(r.people), el('br'), el('span', { class: 'muted small' }, fmt(r.accounts) + ' con cuenta')),
+            el('td', { class: 'num' }, r.tasks ? fmt(r.tasksDone) + ' de ' + fmt(r.tasks) : '—'),
+            el('td', { class: 'num' }, fmt(r.changes), el('br'), r.changesWeek ? el('span', { class: 'badge live' }, fmt(r.changesWeek) + ' esta semana') : el('span', { class: 'muted small' }, 'nada esta semana')),
+            el('td', { class: 'num hide-sm' }, fmt(r.editors)),
+            el('td', { class: 'num hide-sm' }, fmt(r.reads)),
+            el('td', { class: 'nowrap' }, r.last ? dateTime(r.last) : el('span', { class: 'muted' }, 'sin cambios')),
+            el('td', { class: 'hide-sm small' }, r.parts.join(', ') || el('span', { class: 'muted' }, '—')))))))
+      : el('p', { class: 'empty' }, 'Todavía no hay eventos.')
+    return el('section', { class: 'card' },
+      el('h2', {}, 'Uso por evento'),
+      el('p', { class: 'muted small' }, 'Cambios: todo lo que el equipo agregó, marcó o editó en el periodo. «Quiénes» cuenta a las personas distintas que hicieron esos cambios.'),
+      el('div', { class: 'tiles' },
+        tile('Eventos', fmt(t.events)),
+        tile('Vivos esta semana', fmt(t.alive), pct(t.alive, t.events) + ' con cambios en 7 días'),
+        tile('Con cambios en el periodo', fmt(t.activeInPeriod)),
+        tile('Cambios en el periodo', fmt(t.changes))),
+      el('div', { class: 'sub' }, el('h2', {}, 'Qué partes se usan'), el('p', { class: 'muted small' }, 'Cambios en el periodo, sumando todos los eventos.'), rank(e.parts, 'label', 'n')),
       table)
   }
 
@@ -308,6 +427,9 @@
         el('div', { class: 'bar' }, el('h2', {}, 'Por día'),
           el('div', { class: 'legend' }, el('span', {}, el('i', { style: 'background:var(--series-a)' }), 'Visitantes'), el('span', {}, el('i', { style: 'background:var(--series-b)' }), 'Registros'))),
         el('div', { id: 'trend' })),
+      activeSection(),
+      loginSection(),
+      eventsSection(),
       usageSection(),
       el('div', { class: 'grid' },
         el('section', { class: 'card' }, el('h2', {}, 'Embudo'),
@@ -353,6 +475,10 @@
     if (box && data) box.replaceChildren(trend(data.daily, box.clientWidth))
     const reads = document.getElementById('reads')
     if (reads && data && data.ai) reads.replaceChildren(trend(data.ai.daily, reads.clientWidth, READS))
+    const active = document.getElementById('active')
+    if (active && data && data.active) active.replaceChildren(trend(data.active.daily, active.clientWidth, ACTIVE))
+    const codes = document.getElementById('codes')
+    if (codes && data && data.login) codes.replaceChildren(trend(data.login.daily, codes.clientWidth, CODES))
   }
   let resizeTimer
   addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(drawTrend, 150) })

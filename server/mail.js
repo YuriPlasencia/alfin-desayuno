@@ -58,7 +58,7 @@ export async function sendLoginCode({ name, email, news, next }) {
   const now = nowIso()
   const expires = new Date(Date.now() + CODE_MINUTES * 60_000).toISOString()
   pdb.prepare('UPDATE login_codes SET used_at = ? WHERE email = ? AND used_at IS NULL').run(now, email)
-  pdb
+  const { lastInsertRowid } = pdb
     .prepare(
       `INSERT INTO login_codes (email, name, news, code_hash, token_hash, next, expires_at, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -67,6 +67,11 @@ export async function sendLoginCode({ name, email, news, next }) {
 
   const link = `${APP_URL}/?verificar=${token}`
   const pretty = `${code.slice(0, 3)} ${code.slice(3)}`
+  // Si el envío falla, queda anotado para el panel (y el código no sirve: nadie lo recibió).
+  const failed = (err) => {
+    pdb.prepare('UPDATE login_codes SET send_error = ?, used_at = ? WHERE id = ?').run(String(err?.message || err).slice(0, 200), nowIso(), lastInsertRowid)
+    throw err
+  }
   await sendMail({
     to: email,
     subject: `${pretty} es tu código para entrar a Juntay`,
@@ -78,7 +83,7 @@ export async function sendLoginCode({ name, email, news, next }) {
 <p style="font-size:32px;font-weight:800;letter-spacing:6px;margin:8px 0 16px">${pretty}</p>
 <p><a href="${link}" style="display:inline-block;background:#1D3FBF;color:#fff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:700">Entrar a Juntay</a></p>
 <p style="color:#64748b;font-size:14px">Vence en ${CODE_MINUTES} minutos. Si no lo pediste, ignora este correo.</p></div>`,
-  })
+  }).catch(failed)
 }
 
 /** Comprueba código o enlace. Devuelve los datos de la persona o un motivo de rechazo. */
@@ -97,6 +102,6 @@ export function checkLoginCode({ email, code, token }) {
       return { error: tries >= MAX_CODE_TRIES ? 'Demasiados intentos con ese código. Pide uno nuevo.' : 'Ese código no es correcto.' }
     }
   }
-  pdb.prepare('UPDATE login_codes SET used_at = ? WHERE id = ?').run(now, row.id)
+  pdb.prepare('UPDATE login_codes SET used_at = ?, ok_at = ? WHERE id = ?').run(now, now, row.id)
   return { name: row.name, email: row.email, news: Boolean(row.news), next: row.next }
 }

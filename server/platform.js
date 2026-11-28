@@ -127,6 +127,18 @@ pdb.exec(`
   );
   CREATE INDEX IF NOT EXISTS login_codes_email ON login_codes (email, created_at);
 `)
+// Para el panel: cuándo un código sirvió para entrar y si el correo no se pudo enviar.
+for (const [column, definition] of [
+  ['ok_at', 'TEXT'],
+  ['send_error', "TEXT NOT NULL DEFAULT ''"],
+]) {
+  if (!pdb.prepare('PRAGMA table_info(login_codes)').all().some((col) => col.name === column)) {
+    pdb.exec(`ALTER TABLE login_codes ADD COLUMN ${column} ${definition};`)
+  }
+}
+if (!pdb.prepare("SELECT 1 FROM meta WHERE key = 'login_stats_since'").get()) {
+  pdb.prepare("INSERT INTO meta (key, value) VALUES ('login_stats_since', ?)").run(nowIso())
+}
 
 export const isVerified = (userId) => Boolean(pdb.prepare('SELECT email_verified FROM users WHERE id = ?').get(userId)?.email_verified)
 

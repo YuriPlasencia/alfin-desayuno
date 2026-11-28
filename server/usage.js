@@ -121,6 +121,8 @@ export function usageSummary(days) {
             COALESCE(NULLIF(u.name, ''), MAX(r.user_name)) name,
             COALESCE(NULLIF(u.email, ''), MAX(r.user_email)) email,
             COUNT(*) reads,
+            COALESCE(SUM(r.kind = 'evento'), 0) proofs,
+            COALESCE(SUM(r.kind IN ('gasto', 'ingreso')), 0) receipts,
             COALESCE(SUM(r.source = 'ia'), 0) ia,
             COALESCE(SUM(CASE WHEN r.at >= ? THEN 1 ELSE 0 END), 0) recent,
             COALESCE(SUM(r.input_tokens + r.output_tokens), 0) tokens,
@@ -128,7 +130,7 @@ export function usageSummary(days) {
             MAX(r.at) last
        FROM ai_reads r LEFT JOIN users u ON u.id = r.user_id
       GROUP BY COALESCE(r.user_id, -r.id)
-      ORDER BY ia DESC, reads DESC LIMIT 200`,
+      ORDER BY reads DESC, ia DESC LIMIT 200`,
     since,
   ).map((u) => ({ ...u, left: Math.max(0, FREE_READS - u.ia), over: Math.max(0, u.ia - FREE_READS) }))
 

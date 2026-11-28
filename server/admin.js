@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import { db, runInEvent } from './db.js'
 import { historySince, pdb } from './platform.js'
 import { readRows, usageSummary } from './usage.js'
+import { activeSummary, eventsSummary, loginSummary, retention } from './insights.js'
 import { firstSourceByUser, visitRows, visitsSummary } from './visits.js'
 
 /*
@@ -200,6 +201,15 @@ export function mountAdmin(app, { tooManyAttempts, failAttempt }) {
     const days = [7, 30, 90, 365].includes(Number(req.query.dias)) ? Number(req.query.dias) : 30
     const events = eventInfo()
     const recent = buildHistory(events).slice(-80).reverse()
-    res.json({ ...visitsSummary(days), people: buildPeople(), recent, ai: usageSummary(days) })
+    res.json({
+      ...visitsSummary(days),
+      people: buildPeople(),
+      recent,
+      ai: usageSummary(days),
+      login: loginSummary(days),
+      active: activeSummary(days),
+      retention: retention(8),
+      events: eventsSummary(days),
+    })
   })
 }
