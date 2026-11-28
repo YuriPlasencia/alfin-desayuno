@@ -21,6 +21,16 @@ services:
       # Ingreso con Google (Google Cloud → Credenciales → ID de cliente OAuth web)
       - key: GOOGLE_CLIENT_ID
         sync: false
+      # Entrar también con nombre y correo (además de Google): pon 1
+      - key: NAME_LOGIN
+        sync: false
+      # Correo con el código para entrar (Resend, con el dominio juntay.pe verificado).
+      # Sin esta clave no se envía ningún correo y el ingreso por correo queda apagado.
+      - key: RESEND_API_KEY
+        sync: false
+      # Remitente (opcional; por defecto "Juntay <acceso@juntay.pe>")
+      - key: MAIL_FROM
+        sync: false
       # Lectura de boletas y constancias con Claude; sin clave o si falla, sigue el OCR
       - key: ANTHROPIC_API_KEY
         sync: false
